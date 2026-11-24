@@ -15,6 +15,8 @@ export interface OpportunityEditValues {
 
 interface OpportunityEditFormProps {
   opportunityId: string
+  /** The row's updated_at when the page was rendered; the save is refused if it moved. */
+  updatedAt: string
   values: OpportunityEditValues
   typeOptions: ReadonlyArray<{ value: string; label: string }>
   reps: ReadonlyArray<{ id: string; name: string }>
@@ -39,6 +41,7 @@ const labelStyle = {
 
 export function OpportunityEditForm({
   opportunityId,
+  updatedAt,
   values,
   typeOptions,
   reps,
@@ -71,6 +74,7 @@ export function OpportunityEditForm({
       style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}
     >
       <input type="hidden" name="opportunity_id" value={opportunityId} />
+      <input type="hidden" name="expected_updated_at" value={updatedAt} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         <Field id="opportunity-edit-tcv" label="TCV (₱)">

@@ -36,6 +36,8 @@ const ACCOUNT_ID = '44444444-4444-4444-8444-444444444444'
 const PROJECT_ID = '55555555-5555-4555-8555-555555555555'
 const REP_ID = '66666666-6666-4666-8666-666666666666'
 
+const LOADED_AT = '2026-11-20T03:04:05.678Z'
+
 const PROFILE = { user: { id: USER_ID }, tenantId: TENANT_ID, role: 'sales' }
 
 const OPEN_ROW = {
@@ -51,6 +53,7 @@ const OPEN_ROW = {
   area_sqm: 120,
   opportunity_type: 'fit_out',
   remarks: 'Initial',
+  updated_at: new Date(LOADED_AT),
 }
 
 function query<T>(rows: T[]) {
@@ -90,6 +93,7 @@ function wherePredicate(builder: ReturnType<typeof query>) {
 function editForm(fields: Record<string, string> = {}): FormData {
   const form = new FormData()
   form.set('opportunity_id', OPPORTUNITY_ID)
+  form.set('expected_updated_at', LOADED_AT)
   form.set('tcv', '10000.00')
   form.set('gp', '2000.00')
   form.set('closing_date', '2026-12-01')
@@ -154,6 +158,19 @@ describe('updateOpportunity', () => {
       },
     })
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/crm/opportunities/${OPPORTUNITY_ID}`)
+  })
+
+  it('refuses to overwrite a row that changed after the form was opened', async () => {
+    const { update } = transactionWith([
+      [{ ...OPEN_ROW, updated_at: new Date('2026-11-20T03:09:00.000Z') }],
+    ])
+
+    await expect(updateOpportunity(editForm({ tcv: '20000.00' }))).resolves.toEqual({
+      error: 'This opportunity changed since you opened it. Reload the page and make your changes again.',
+    })
+    expect(update).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
   it('does not write or audit when nothing changed', async () => {

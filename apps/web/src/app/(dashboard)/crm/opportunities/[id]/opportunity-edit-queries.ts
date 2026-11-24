@@ -10,6 +10,8 @@ export interface OpportunityEditContext {
   lostReason: string | null
   repId: string | null
   repName: string | null
+  /** ISO updated_at of the row as read here; the edit form sends it back to refuse stale saves. */
+  updatedAt: string | null
   /** Active users who may own an opportunity; empty unless the viewer can edit. */
   reps: Array<{ id: string; name: string }>
   /** Live, unlinked projects of the same account; empty unless a link is still possible. */
@@ -35,6 +37,7 @@ export async function getOpportunityEditContext(input: {
       lostReason: opportunities.lost_reason,
       repId: opportunities.rep_id,
       repName: users.full_name,
+      updatedAt: opportunities.updated_at,
     })
     .from(opportunities)
     .leftJoin(
@@ -51,6 +54,7 @@ export async function getOpportunityEditContext(input: {
     lostReason: row?.lostReason ?? null,
     repId: row?.repId ?? null,
     repName: row?.repName ?? null,
+    updatedAt: row?.updatedAt.toISOString() ?? null,
     reps: [],
     linkableProjects: [],
   }

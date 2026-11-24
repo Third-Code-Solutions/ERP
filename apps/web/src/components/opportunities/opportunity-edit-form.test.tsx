@@ -31,6 +31,7 @@ describe('OpportunityEditForm', () => {
     const markup = renderToStaticMarkup(
       <OpportunityEditForm
         opportunityId={OPPORTUNITY_ID}
+        updatedAt="2026-11-20T03:04:05.678Z"
         values={values}
         typeOptions={typeOptions}
         reps={[{ id: values.repId, name: 'Marlon Reyes' }]}
@@ -39,6 +40,7 @@ describe('OpportunityEditForm', () => {
     )
 
     expect(markup).toContain(`name="opportunity_id" value="${OPPORTUNITY_ID}"`)
+    expect(markup).toContain('name="expected_updated_at" value="2026-11-20T03:04:05.678Z"')
     for (const name of ['tcv', 'gp', 'closing_date', 'area_sqm', 'opportunity_type', 'rep_id', 'remarks']) {
       expect(markup).toContain(`name="${name}"`)
     }
@@ -55,6 +57,7 @@ describe('OpportunityEditForm', () => {
     const markup = renderToStaticMarkup(
       <OpportunityEditForm
         opportunityId={OPPORTUNITY_ID}
+        updatedAt="2026-11-20T03:04:05.678Z"
         values={values}
         typeOptions={typeOptions}
         reps={[]}

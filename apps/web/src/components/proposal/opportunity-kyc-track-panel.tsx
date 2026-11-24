@@ -152,7 +152,17 @@ function TrackCard({
         <form action={onSubmit} className="track-form">
           <input type="hidden" name="opportunity_id" value={opportunityId} />
           <input type="hidden" name="track_type" value={track.track_type} />
-          <textarea name="notes" className="track-notes" placeholder="Decision notes; required for flag or reject." defaultValue={track.notes ?? track.decision_reason ?? ''} />
+          <textarea
+            name="notes"
+            className="track-notes"
+            placeholder={
+              track.status === 'flagged'
+                ? 'How the flag was resolved; required to recommend clear.'
+                : 'Decision notes; required for flag or reject.'
+            }
+            // A flagged track starts blank so the flag reason is never resubmitted as the resolution.
+            defaultValue={track.status === 'flagged' ? '' : (track.notes ?? '')}
+          />
           <div className="track-actions">
             {canManage && (track.status === 'pending' || track.status === 'in_review' || track.status === 'flagged') && (
               <>

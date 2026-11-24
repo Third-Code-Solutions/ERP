@@ -6,7 +6,7 @@ import {
   OPPORTUNITY_MONEY_ERROR,
   parseOpportunityEditForm,
   planOpportunityUpdate,
-  weightedTcvCents,
+  STALE_OPPORTUNITY_EDIT_ERROR,
   type OpportunityEditCurrent,
   type OpportunityEditInput,
 } from './opportunity-update'
@@ -14,10 +14,12 @@ import {
 const OPPORTUNITY_ID = '11111111-1111-4111-8111-111111111111'
 const REP_ID = '22222222-2222-4222-8222-222222222222'
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
+const LOADED_AT = '2026-11-20T03:04:05.678Z'
 
 function form(fields: Record<string, string>): FormData {
   const data = new FormData()
   data.set('opportunity_id', OPPORTUNITY_ID)
+  data.set('expected_updated_at', LOADED_AT)
   for (const [key, value] of Object.entries(fields)) data.set(key, value)
   return data
 }
@@ -45,22 +47,6 @@ const UNCHANGED: OpportunityEditInput = {
   repId: null,
   projectId: null,
 }
-
-describe('weightedTcvCents', () => {
-  it('rounds half up like the Core stage command', () => {
-    expect(weightedTcvCents(1_000_000, 40)).toBe(400_000)
-    // 12345 x 50% = 6172.5 -> 6173
-    expect(weightedTcvCents(12_345, 50)).toBe(6_173)
-    // 1 x 10% = 0.1 -> 0 ; 5 x 10% = 0.5 -> 1
-    expect(weightedTcvCents(1, 10)).toBe(0)
-    expect(weightedTcvCents(5, 10)).toBe(1)
-  })
-
-  it('stays exact at the largest accepted amount', () => {
-    expect(weightedTcvCents(100_000_000_000, 100)).toBe(100_000_000_000)
-    expect(weightedTcvCents(99_999_999_999, 55)).toBe(54_999_999_999)
-  })
-})
 
 describe('isOpportunityClosed', () => {
   it.each(['won', 'lost', 'closed_won', 'closed_lost'] as const)('closes %s', (stage) => {
@@ -98,6 +84,7 @@ describe('parseOpportunityEditForm', () => {
     expect(parsed).toEqual({
       ok: true,
       opportunityId: OPPORTUNITY_ID,
+      expectedUpdatedAt: new Date(LOADED_AT),
       input: {
         tcvCents: 125_000_050,
         gpCents: -100_000,
@@ -136,6 +123,39 @@ describe('parseOpportunityEditForm', () => {
     expect(parseOpportunityEditForm(form({ project_id: 'nope' }))).toMatchObject({ ok: false })
     const noId = new FormData()
     expect(parseOpportunityEditForm(noId)).toEqual({ ok: false, error: 'Opportunity not found.' })
+  })
+
+  it('leaves every field the form did not send unchanged instead of clearing it', () => {
+    const parsed = parseOpportunityEditForm(form({ remarks: 'Updated remarks' }))
+    expect(parsed).toEqual({
+      ok: true,
+      opportunityId: OPPORTUNITY_ID,
+      expectedUpdatedAt: new Date(LOADED_AT),
+      input: {
+        tcvCents: undefined,
+        gpCents: undefined,
+        closingDate: undefined,
+        areaSqm: undefined,
+        opportunityType: undefined,
+        remarks: 'Updated remarks',
+        repId: null,
+        projectId: null,
+      },
+    })
+    if (!parsed.ok) return
+    expect(planOpportunityUpdate(CURRENT, parsed.input)).toEqual({
+      ok: true,
+      set: { remarks: 'Updated remarks' },
+      diff: { remarks: { before: 'Initial remarks', after: 'Updated remarks' } },
+    })
+  })
+
+  it('refuses a form without the row version it was rendered from', () => {
+    const data = form({})
+    data.delete('expected_updated_at')
+    expect(parseOpportunityEditForm(data)).toEqual({ ok: false, error: STALE_OPPORTUNITY_EDIT_ERROR })
+    data.set('expected_updated_at', 'yesterday')
+    expect(parseOpportunityEditForm(data)).toEqual({ ok: false, error: STALE_OPPORTUNITY_EDIT_ERROR })
   })
 
   it('refuses over-long remarks', () => {

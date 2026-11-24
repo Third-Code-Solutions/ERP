@@ -219,6 +219,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
           </div>
           <OpportunityEditForm
             opportunityId={id}
+            updatedAt={editContext.updatedAt ?? ''}
             values={editValues}
             typeOptions={typeOptions}
             reps={repOptions}

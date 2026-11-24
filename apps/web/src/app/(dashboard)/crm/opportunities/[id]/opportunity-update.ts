@@ -1,12 +1,11 @@
 import {
   projectTypeValues,
   STAGE_LEGACY_MAP,
+  weightedTCV,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
-import { parsePesosToCents } from '@/lib/operations/scope-money'
+import { parseOpportunityCents } from '@/lib/operations/scope-money'
 
-// PHP 1,000,000,000 in centavos: the cap used by every other opportunity writer.
-const MAX_OPPORTUNITY_CENTS = 100_000_000_000
 const MAX_AREA_SQM = 100_000_000
 const MAX_REMARKS_LENGTH = 5000
 const MAX_TYPE_LENGTH = 100
@@ -17,15 +16,18 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 export const OPPORTUNITY_MONEY_ERROR =
   'TCV must be a peso amount from 0 to 1,000,000,000 and GP from -1,000,000,000 to 1,000,000,000, with at most 2 decimals.'
+export const STALE_OPPORTUNITY_EDIT_ERROR =
+  'This opportunity changed since you opened it. Reload the page and make your changes again.'
 
+/** A field the form did not send is undefined and stays unchanged; blank text is null and clears it. */
 export interface OpportunityEditInput {
-  tcvCents: number
-  gpCents: number
+  tcvCents?: number
+  gpCents?: number
   /** YYYY-MM-DD in Manila time, or null to clear. */
-  closingDate: string | null
-  areaSqm: number | null
-  opportunityType: string | null
-  remarks: string | null
+  closingDate?: string | null
+  areaSqm?: number | null
+  opportunityType?: string | null
+  remarks?: string | null
   /** Null keeps the current rep. */
   repId: string | null
   /** Null means no link was requested. */
@@ -63,7 +65,13 @@ export type OpportunityEditDiff = Record<
 >
 
 export type OpportunityEditParse =
-  | { ok: true; opportunityId: string; input: OpportunityEditInput }
+  | {
+      ok: true
+      opportunityId: string
+      /** The row's updated_at when the form was rendered; a save against a newer row is refused. */
+      expectedUpdatedAt: Date
+      input: OpportunityEditInput
+    }
   | { ok: false; error: string }
 
 export type OpportunityEditPlan =
@@ -74,11 +82,6 @@ export type OpportunityEditPlan =
 export function isOpportunityClosed(stage: OpportunityStage): boolean {
   const canonical = STAGE_LEGACY_MAP[stage]
   return canonical === 'won' || canonical === 'lost'
-}
-
-/** round(tcv x probability / 100), half up, on integers (same as the Core stage command). */
-export function weightedTcvCents(tcvCents: number, probability: number): number {
-  return Number((BigInt(tcvCents) * BigInt(probability) + BigInt(50)) / BigInt(100))
 }
 
 /** Integer centavos as the plain peso text the form accepts, without float math. */
@@ -93,20 +96,6 @@ export function centsToPesoInput(cents: number): string {
 export function manilaDateKey(value: Date | null): string | null {
   if (!value) return null
   return new Date(value.getTime() + MANILA_OFFSET_MS).toISOString().slice(0, 10)
-}
-
-function parseCents(
-  value: FormDataEntryValue | null,
-  signed: boolean
-): number | undefined {
-  if (value === null) return 0
-  if (typeof value !== 'string' || value.length > 32) return undefined
-  const trimmed = value.trim()
-  if (trimmed === '') return 0
-  const negative = signed && trimmed.startsWith('-')
-  const cents = parsePesosToCents(negative ? trimmed.slice(1) : trimmed)
-  if (cents === undefined || cents > MAX_OPPORTUNITY_CENTS) return undefined
-  return negative && cents > 0 ? -cents : cents
 }
 
 function textOrNull(value: FormDataEntryValue | null): string | null | undefined {
@@ -133,39 +122,58 @@ function parseUuidOrNull(value: FormDataEntryValue | null): string | null | unde
   return UUID_PATTERN.test(text) ? text.toLowerCase() : undefined
 }
 
+function parseArea(value: FormDataEntryValue | null): number | null | undefined {
+  const text = textOrNull(value)
+  if (text === null || text === undefined) return text
+  const area = /^\d{1,9}$/.test(text) ? Number(text) : Number.NaN
+  return Number.isSafeInteger(area) && area >= 1 && area <= MAX_AREA_SQM ? area : undefined
+}
+
+function parseOptionalText(
+  value: FormDataEntryValue | null,
+  maxLength: number
+): string | null | undefined {
+  const text = textOrNull(value)
+  return text !== undefined && (text?.length ?? 0) <= maxLength ? text : undefined
+}
+
+function parseExpectedUpdatedAt(value: FormDataEntryValue | null): Date | undefined {
+  if (typeof value !== 'string' || value.length > 40) return undefined
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed
+}
+
+const FIELD_ERRORS = {
+  tcv: OPPORTUNITY_MONEY_ERROR,
+  gp: OPPORTUNITY_MONEY_ERROR,
+  closing_date: 'Closing date must be a valid date.',
+  area_sqm: 'Area must be a whole number of square metres.',
+  opportunity_type: 'Choose a valid opportunity type.',
+  remarks: `Remarks must be ${MAX_REMARKS_LENGTH} characters or fewer.`,
+} as const
+
 export function parseOpportunityEditForm(form: FormData): OpportunityEditParse {
   const opportunityId = parseUuidOrNull(form.get('opportunity_id'))
   if (!opportunityId) return { ok: false, error: 'Opportunity not found.' }
 
-  const tcvCents = parseCents(form.get('tcv'), false)
-  const gpCents = parseCents(form.get('gp'), true)
-  if (tcvCents === undefined || gpCents === undefined) {
-    return { ok: false, error: OPPORTUNITY_MONEY_ERROR }
-  }
+  const expectedUpdatedAt = parseExpectedUpdatedAt(form.get('expected_updated_at'))
+  if (!expectedUpdatedAt) return { ok: false, error: STALE_OPPORTUNITY_EDIT_ERROR }
 
-  const closingDate = parseClosingDate(form.get('closing_date'))
-  if (closingDate === undefined) {
-    return { ok: false, error: 'Closing date must be a valid date.' }
+  // Only fields the form sent are parsed; undefined from a parser means invalid.
+  const fields = {
+    tcv: (value: FormDataEntryValue | null) => parseOpportunityCents(value),
+    gp: (value: FormDataEntryValue | null) => parseOpportunityCents(value, { signed: true }),
+    closing_date: parseClosingDate,
+    area_sqm: parseArea,
+    opportunity_type: (value: FormDataEntryValue | null) => parseOptionalText(value, MAX_TYPE_LENGTH),
+    remarks: (value: FormDataEntryValue | null) => parseOptionalText(value, MAX_REMARKS_LENGTH),
   }
-
-  const areaText = textOrNull(form.get('area_sqm'))
-  let areaSqm: number | null = null
-  if (areaText === undefined) return { ok: false, error: 'Area must be a whole number of square metres.' }
-  if (areaText !== null) {
-    areaSqm = /^\d{1,9}$/.test(areaText) ? Number(areaText) : Number.NaN
-    if (!Number.isSafeInteger(areaSqm) || areaSqm < 1 || areaSqm > MAX_AREA_SQM) {
-      return { ok: false, error: 'Area must be a whole number of square metres.' }
-    }
-  }
-
-  const opportunityType = textOrNull(form.get('opportunity_type'))
-  if (opportunityType === undefined || (opportunityType?.length ?? 0) > MAX_TYPE_LENGTH) {
-    return { ok: false, error: 'Choose a valid opportunity type.' }
-  }
-
-  const remarks = textOrNull(form.get('remarks'))
-  if (remarks === undefined || (remarks?.length ?? 0) > MAX_REMARKS_LENGTH) {
-    return { ok: false, error: `Remarks must be ${MAX_REMARKS_LENGTH} characters or fewer.` }
+  const sent: Partial<{ [K in keyof typeof fields]: Exclude<ReturnType<(typeof fields)[K]>, undefined> }> = {}
+  for (const name of Object.keys(fields) as Array<keyof typeof fields>) {
+    if (!form.has(name)) continue
+    const value = fields[name](form.get(name))
+    if (value === undefined) return { ok: false, error: FIELD_ERRORS[name] }
+    Object.assign(sent, { [name]: value })
   }
 
   const repId = parseUuidOrNull(form.get('rep_id'))
@@ -177,13 +185,14 @@ export function parseOpportunityEditForm(form: FormData): OpportunityEditParse {
   return {
     ok: true,
     opportunityId,
+    expectedUpdatedAt,
     input: {
-      tcvCents,
-      gpCents,
-      closingDate,
-      areaSqm,
-      opportunityType,
-      remarks,
+      tcvCents: sent.tcv,
+      gpCents: sent.gp,
+      closingDate: sent.closing_date,
+      areaSqm: sent.area_sqm,
+      opportunityType: sent.opportunity_type,
+      remarks: sent.remarks,
       repId,
       projectId,
     },
@@ -203,7 +212,7 @@ export function planOpportunityUpdate(
   const diff: OpportunityEditDiff = {}
 
   if (
-    input.opportunityType !== null &&
+    input.opportunityType != null &&
     input.opportunityType !== current.opportunity_type &&
     !(projectTypeValues as readonly string[]).includes(input.opportunityType)
   ) {
@@ -220,32 +229,32 @@ export function planOpportunityUpdate(
     }
   }
 
-  if (input.tcvCents !== current.tcv_cents) {
+  if (input.tcvCents !== undefined && input.tcvCents !== current.tcv_cents) {
     set.tcv_cents = input.tcvCents
     diff.tcv_cents = { before: current.tcv_cents, after: input.tcvCents }
-    const weighted = weightedTcvCents(input.tcvCents, current.probability)
+    const weighted = weightedTCV(input.tcvCents, current.probability)
     set.weighted_tcv_cents = weighted
     diff.weighted_tcv_cents = { before: current.weighted_tcv_cents, after: weighted }
   }
-  if (input.gpCents !== current.gp_cents) {
+  if (input.gpCents !== undefined && input.gpCents !== current.gp_cents) {
     set.gp_cents = input.gpCents
     diff.gp_cents = { before: current.gp_cents, after: input.gpCents }
   }
   const currentDay = manilaDateKey(current.closing_date)
-  if (input.closingDate !== currentDay) {
+  if (input.closingDate !== undefined && input.closingDate !== currentDay) {
     // Date-only inputs are stored at Manila midnight, as the project opportunity form does.
     set.closing_date = input.closingDate ? new Date(`${input.closingDate}T00:00:00+08:00`) : null
     diff.closing_date = { before: currentDay, after: input.closingDate }
   }
-  if (input.areaSqm !== current.area_sqm) {
+  if (input.areaSqm !== undefined && input.areaSqm !== current.area_sqm) {
     set.area_sqm = input.areaSqm
     diff.area_sqm = { before: current.area_sqm, after: input.areaSqm }
   }
-  if (input.opportunityType !== current.opportunity_type) {
+  if (input.opportunityType !== undefined && input.opportunityType !== current.opportunity_type) {
     set.opportunity_type = input.opportunityType
     diff.opportunity_type = { before: current.opportunity_type, after: input.opportunityType }
   }
-  if (input.remarks !== current.remarks) {
+  if (input.remarks !== undefined && input.remarks !== current.remarks) {
     set.remarks = input.remarks
     diff.remarks = { before: current.remarks, after: input.remarks }
   }

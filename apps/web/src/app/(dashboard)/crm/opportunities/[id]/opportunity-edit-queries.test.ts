@@ -37,7 +37,15 @@ describe('getOpportunityEditContext', () => {
   })
 
   it('reads only the detail fields, scoped to the tenant, when the viewer cannot edit', async () => {
-    const row = queued([{ remarks: 'Note', lostReason: null, repId: 'r1', repName: 'Rep' }])
+    const row = queued([
+      {
+        remarks: 'Note',
+        lostReason: null,
+        repId: 'r1',
+        repName: 'Rep',
+        updatedAt: new Date('2026-11-20T03:04:05.678Z'),
+      },
+    ])
 
     await expect(
       getOpportunityEditContext({
@@ -52,6 +60,7 @@ describe('getOpportunityEditContext', () => {
       lostReason: null,
       repId: 'r1',
       repName: 'Rep',
+      updatedAt: '2026-11-20T03:04:05.678Z',
       reps: [],
       linkableProjects: [],
     })
@@ -78,7 +87,7 @@ describe('getOpportunityEditContext', () => {
   })
 
   it('scopes the rep and linkable-project pick-lists to the tenant and account', async () => {
-    queued([{ remarks: null, lostReason: null, repId: null, repName: null }])
+    queued([{ remarks: null, lostReason: null, repId: null, repName: null, updatedAt: new Date() }])
     const reps = queued([{ id: 'u1', name: 'Sales One' }])
     const projectsQuery = queued([{ id: 'p1', name: 'Tower A' }])
     const linkedElsewhere = queued([])
@@ -108,7 +117,7 @@ describe('getOpportunityEditContext', () => {
   })
 
   it('offers no projects once the opportunity is already linked', async () => {
-    queued([{ remarks: null, lostReason: null, repId: null, repName: null }])
+    queued([{ remarks: null, lostReason: null, repId: null, repName: null, updatedAt: new Date() }])
     queued([])
 
     const context = await getOpportunityEditContext({

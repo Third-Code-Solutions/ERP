@@ -16,6 +16,7 @@ import {
   isOpportunityClosed,
   parseOpportunityEditForm,
   planOpportunityUpdate,
+  STALE_OPPORTUNITY_EDIT_ERROR,
   type OpportunityEditChanges,
 } from './opportunity-update'
 
@@ -42,7 +43,7 @@ export async function updateOpportunity(
 
   const parsed = parseOpportunityEditForm(formData)
   if (!parsed.ok) return { error: parsed.error }
-  const { opportunityId, input } = parsed
+  const { opportunityId, expectedUpdatedAt, input } = parsed
 
   let outcome: EditOutcome
   try {
@@ -63,6 +64,7 @@ export async function updateOpportunity(
           area_sqm: opportunities.area_sqm,
           opportunity_type: opportunities.opportunity_type,
           remarks: opportunities.remarks,
+          updated_at: opportunities.updated_at,
         })
         .from(opportunities)
         .where(
@@ -79,6 +81,10 @@ export async function updateOpportunity(
           ok: false,
           error: 'This opportunity is Won or Lost and can no longer be edited.',
         }
+      }
+      // Another save or a stage move since the form was rendered: refuse rather than overwrite it.
+      if (current.updated_at.toISOString() !== expectedUpdatedAt.toISOString()) {
+        return { ok: false, error: STALE_OPPORTUNITY_EDIT_ERROR }
       }
 
       const plan = planOpportunityUpdate(current, input)

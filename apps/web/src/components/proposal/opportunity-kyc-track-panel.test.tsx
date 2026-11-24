@@ -51,6 +51,15 @@ describe('OpportunityKycTrackPanel', () => {
     expect(markup).toContain('value="reject"')
   })
 
+  it('shows the flag reason but leaves the resolution notes blank on a flagged track', () => {
+    const markup = render(
+      track('flagged', { decision_reason: 'Adverse report', notes: 'Adverse report' })
+    )
+
+    expect(markup).toContain('<p class="track-reason">Adverse report</p>')
+    expect(markup).toMatch(/<textarea[^>]*name="notes"[^>]*><\/textarea>/)
+  })
+
   it('keeps Start, Recommend clear and Flag on a pending track', () => {
     const markup = render(track('pending'))
 
