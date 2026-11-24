@@ -467,6 +467,7 @@ export class TakeoffImportService {
       // re-import can keep the estimator's grain and pricing decisions.
       const existingLines = await transaction
         .select({
+          id: bomLineItems.id,
           sourceRowKey: bomLineItems.source_row_key,
           kind: bomLineItems.kind,
           classificationStatus: bomLineItems.classification_status,
@@ -573,10 +574,21 @@ export class TakeoffImportService {
           }
         }
 
-        const classification = classifyBomLineKind(row.unit)
         const rowValidationIssues = rowIssues.get(row.sourceRowKey) ?? []
-        const quantity = takeoffCommitQuantity(row.quantity)
         const existing = existingByRowKey.get(row.sourceRowKey)
+        // An empty or invalid file value never replaces what an earlier line
+        // holds, so re-importing a file does not undo takeoff-queue fixes.
+        const unit = row.unit || existing?.unit || null
+        const fileQuantity = takeoffCommitQuantity(row.quantity)
+        const quantity =
+          fileQuantity === '0' && existing !== undefined ? existing.quantity : fileQuantity
+        const description =
+          row.description ||
+          existing?.description ||
+          `${TAKEOFF_PLACEHOLDER_DESCRIPTION_PREFIX}${row.sourceRowKey}`
+        const code = row.itemNo || existing?.code || null
+        const lineDivisionId = divisionId ?? existing?.divisionId ?? null
+        const classification = classifyBomLineKind(unit)
         // A re-import keeps every DUPA line's grain, and a classified line's
         // grain when the file's unit does not change it (the BOM editor's
         // unit-edit rule), so resolved grain work is not undone.
@@ -584,7 +596,32 @@ export class TakeoffImportService {
           existing !== undefined &&
           (existing.unitRateSource === 'dupa' ||
             (existing.classificationStatus === 'classified' &&
-              reclassifyBomLineForUnit(existing, row.unit || null) === null))
+              reclassifyBomLineForUnit(existing, unit) === null))
+        // A work item with material lines attached cannot stop being a work
+        // item; the BOM editor refuses the same unit change.
+        if (
+          existing !== undefined &&
+          !keepsGrain &&
+          existing.kind === 'work_item' &&
+          classification.kind !== 'work_item'
+        ) {
+          const [attached] = await transaction
+            .select({ id: bomLineItems.id })
+            .from(bomLineItems)
+            .where(
+              and(
+                eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId),
+                eq(bomLineItems.bom_id, bomId),
+                eq(bomLineItems.parent_line_item_id, existing.id)
+              )
+            )
+            .limit(1)
+          if (attached) {
+            throw new UnprocessableEntityException(
+              `Takeoff line ${row.sourceRowKey} has material lines attached, and the file's unit "${unit ?? ''}" would make it no longer a work item. Detach its material lines or keep its unit, then import again.`
+            )
+          }
+        }
         // The estimator's unit cost survives a re-import, but only for the
         // same unit (a price per set is not a price per piece), and never on
         // an AI draft, which stays unpriced until a DUPA is attached.
@@ -592,7 +629,7 @@ export class TakeoffImportService {
           !isAiDocumentCandidate &&
           existing !== undefined &&
           existing.unitRateSource !== 'dupa' &&
-          sameBomLineUnit(existing.unit, row.unit || null)
+          sameBomLineUnit(existing.unit, unit)
             ? existing.unitCostCents
             : 0
         const lineTotalCents = this.lineTotalOrReject(
@@ -607,7 +644,7 @@ export class TakeoffImportService {
             bom_id: bomId,
             kind: classification.kind ?? 'work_item',
             location_id: locationId,
-            division_id: divisionId,
+            division_id: lineDivisionId,
             item_no: row.itemNo,
             drawing_revision_id: revision.id,
             takeoff_import_id: takeoffImport.id,
@@ -628,11 +665,9 @@ export class TakeoffImportService {
                 : classification.reason,
             sort_order: index,
             is_group: 0,
-            code: row.itemNo,
-            description:
-              row.description ||
-              `${TAKEOFF_PLACEHOLDER_DESCRIPTION_PREFIX}${row.sourceRowKey}`,
-            unit: row.unit || null,
+            code,
+            description,
+            unit,
             quantity_decimal: quantity,
             unit_cost_cents: 0,
             markup_bps: 0,
@@ -679,6 +714,7 @@ export class TakeoffImportService {
           })
           .returning({
             id: bomLineItems.id,
+            kind: bomLineItems.kind,
             classificationStatus: bomLineItems.classification_status,
             description: bomLineItems.description,
             quantity: bomLineItems.quantity_decimal,
@@ -727,6 +763,50 @@ export class TakeoffImportService {
               updated_by: authorizedPrincipal.userId,
             })
             .onConflictDoNothing()
+        }
+
+        // The file's unit now classifies a line that waited on a grain review:
+        // close the review, or approval stays blocked on a settled line.
+        if (
+          existing !== undefined &&
+          existing.classificationStatus !== 'classified' &&
+          line.classificationStatus === 'classified'
+        ) {
+          const closedReviews = await transaction
+            .update(bomLineItemGrainReviews)
+            .set({
+              status: 'resolved',
+              resolved_kind: line.kind,
+              resolved_parent_line_item_id: line.parentLineItemId,
+              resolved_by: authorizedPrincipal.userId,
+              updated_by: authorizedPrincipal.userId,
+              resolved_at: now,
+              updated_at: now,
+            })
+            .where(
+              and(
+                eq(bomLineItemGrainReviews.tenant_id, authorizedPrincipal.tenantId),
+                eq(bomLineItemGrainReviews.bom_id, bomId),
+                eq(bomLineItemGrainReviews.bom_line_item_id, line.id),
+                eq(bomLineItemGrainReviews.status, 'pending')
+              )
+            )
+            .returning({ id: bomLineItemGrainReviews.id })
+          for (const review of closedReviews) {
+            await this.audit.writeSemantic(transaction, {
+              tenantId: authorizedPrincipal.tenantId,
+              actorId: authorizedPrincipal.userId,
+              entityType: 'bom_line_item_grain_review',
+              entityId: review.id,
+              action: 'status_change',
+              diff: {
+                bom_line_item_id: line.id,
+                status: { before: 'pending', after: 'resolved' },
+                resolved_kind: line.kind,
+                reason: 'takeoff_reimport_classified',
+              },
+            })
+          }
         }
 
         // Only what still holds for the line as saved is (re)opened, so an issue
@@ -847,6 +927,7 @@ export class TakeoffImportService {
         source,
         sourceKey,
         linesUpserted,
+        linesChanged,
         unresolvedCount,
         bomId,
       })

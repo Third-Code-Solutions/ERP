@@ -71,7 +71,8 @@ export async function mintBomPortalToken(
       eq(boms.project_id, projects.id),
       eq(projects.tenant_id, profile.tenantId),
       // A retired project's BOM is treated as not found, like every BOM action.
-      liveProjectCondition(projects.id, profile.tenantId)
+      // It must name boms.project_id: the helper's own subquery reads projects.
+      liveProjectCondition(boms.project_id, profile.tenantId)
     ))
     .leftJoin(accounts, and(
       eq(projects.account_id, accounts.id),

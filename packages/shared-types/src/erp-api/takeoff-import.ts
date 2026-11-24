@@ -249,6 +249,9 @@ export const takeoffImportCommitResultSchema = z
     source: z.string().trim().min(1).max(100),
     sourceKey: z.string().regex(/^[a-f0-9]{64}$/),
     linesUpserted: z.number().int().nonnegative().max(TAKEOFF_IMPORT_MAX_ROWS),
+    // Earlier lines of this import the file rewrote. Optional while an older
+    // Core that does not report it may still answer.
+    linesChanged: z.number().int().nonnegative().max(TAKEOFF_IMPORT_MAX_ROWS).optional(),
     unresolvedCount: z.number().int().nonnegative(),
     bomId: z.string().uuid(),
   })

@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { sql } from 'drizzle-orm'
 
 const mocks = vi.hoisted(() => ({
   requireUserProfile: vi.fn(),
@@ -18,10 +17,15 @@ vi.mock('@third-code-erp/auth', () => ({
   requireUserProfile: mocks.requireUserProfile,
   can: mocks.can,
 }))
-vi.mock('@third-code-erp/database', () => ({
-  db: { select: mocks.select, insert: mocks.insert },
-  liveProjectCondition: mocks.liveProjectCondition,
-}))
+vi.mock('@third-code-erp/database', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@third-code-erp/database')>()
+  // The real live-project predicate, so the rendered join SQL is the one Postgres runs.
+  mocks.liveProjectCondition.mockImplementation(actual.liveProjectCondition)
+  return {
+    db: { select: mocks.select, insert: mocks.insert },
+    liveProjectCondition: mocks.liveProjectCondition,
+  }
+})
 vi.mock('@/lib/public-origin', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/public-origin')>()
   return { ...actual, publicUrl: vi.fn(actual.publicUrl) }
@@ -66,7 +70,6 @@ describe('BOM client signing link', () => {
       user: { id: '33333333-3333-4333-8333-333333333333' },
     })
     mocks.can.mockReturnValue(true)
-    mocks.liveProjectCondition.mockReturnValue(sql`live_project_marker`)
   })
 
   function mockSession() {
@@ -104,7 +107,12 @@ describe('BOM client signing link', () => {
     })
     expect(mocks.liveProjectCondition).toHaveBeenCalledWith(expect.anything(), TENANT_ID)
     const projectJoin = new PgDialect().sqlToQuery(query.leftJoin.mock.calls[0]?.[1])
-    expect(projectJoin.sql).toContain('live_project_marker')
+    // The subquery is tied to this BOM's project, not to the shadowed outer projects row.
+    expect(projectJoin.sql).toMatch(
+      /exists \(select "id" from "projects" where \("projects"\."id" = "boms"\."project_id" and "projects"\."tenant_id" = \$\d+ and "projects"\."deleted_at" is null\)\)/
+    )
+    expect(projectJoin.sql).not.toContain('"projects"."id" = "projects"."id"')
+    expect(projectJoin.params.filter((param) => param === TENANT_ID)).toHaveLength(2)
     expect(mocks.createSigningSession).not.toHaveBeenCalled()
     expect(mocks.insert).not.toHaveBeenCalled()
     expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
