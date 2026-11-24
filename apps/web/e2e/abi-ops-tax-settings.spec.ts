@@ -1,5 +1,6 @@
 import { expect, test } from './base-test'
 import { login } from './helpers/auth'
+import { openTaxSettings } from './helpers/tax-settings'
 
 // Spec tenancy AC-TEN-01 / AC-TEN-04: the read-only tax rates view. It ships
 // behind ERP_TENANCY_ENABLED and finance.read, so either can skip the check.
@@ -9,15 +10,8 @@ test.describe('Tax rates settings view', () => {
   })
 
   test('shows the effective rates with no edit controls', async ({ page }) => {
-    const response = await page.goto('/settings/tax', { waitUntil: 'domcontentloaded' })
-    if (response?.status() === 404) {
-      test.skip(true, 'ERP_TENANCY_ENABLED is off for this deployment')
-      return
-    }
-    if (new URL(page.url()).pathname !== '/settings/tax') {
-      test.skip(true, 'User lacks finance.read in seed data')
-      return
-    }
+    const unavailable = await openTaxSettings(page)
+    test.skip(unavailable !== null, unavailable ?? '')
 
     await expect(page.getByRole('heading', { name: 'Tax rates', exact: true })).toBeVisible()
     await expect(page.getByText(/Effective rates as of \d{4}-\d{2}-\d{2} \(Manila\)/)).toBeVisible()

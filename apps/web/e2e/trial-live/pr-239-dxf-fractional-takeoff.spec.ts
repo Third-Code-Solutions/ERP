@@ -2,8 +2,11 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { expect, test, type Locator, type Page, type TestInfo } from '../base-test'
 import { z } from 'zod'
-import { RUN_ID, gateTrialLive, openRole, tenantRows, trialTarget, type TrialTarget } from '../helpers/trial-live'
+import { RUN_ID, gateTrialLive, noteNeedsData, openRole, tenantRows, trialTarget, type TrialTarget } from '../helpers/trial-live'
 
+// @pr-239: a fractional DXF area keeps its fraction through takeoff.
+// @pr-287: deleting a DXF with committed CAD evidence is refused. Requires production
+// web at or after 1f7056be (#287), which ships with the promotion after #287.
 gateTrialLive()
 
 // One closed 1 m x 12.3456789 m polyline: 12.3456789 sqm, committed at 4 dp.
@@ -14,6 +17,39 @@ const trialDocument = z.object({ id: z.string().uuid(), file_name: z.string() })
 const trialScopeItem = z.object({ id: z.string().uuid(), description: z.string() })
 
 const commitRequest = z.object({ id: z.string().uuid() })
+
+// #287: deleting a document with committed CAD evidence is refused with this message.
+const CAD_EVIDENCE_REFUSAL = 'Document has committed CAD evidence and cannot be deleted'
+
+const trialDxfDocuments = (target: TrialTarget) =>
+  tenantRows(target, 'documents', `project_id=eq.${target.projectId}&file_name=like.trial-live-*.dxf&select=id,file_name`, trialDocument)
+const hasCommittedCadEvidence = async (target: TrialTarget, documentId: string) =>
+  (await tenantRows(target, 'cad_evidence_commit_requests', `document_id=eq.${documentId}&select=id`, commitRequest)).length > 0
+
+/** "Delete <file>" on a trial-live DXF with committed CAD evidence shows the #287 refusal and keeps the document. */
+async function expectCommittedDxfRefused(page: Page, target: TrialTarget, testInfo: TestInfo) {
+  let committed: z.infer<typeof trialDocument> | undefined
+  for (const doc of await trialDxfDocuments(target)) {
+    if (await hasCommittedCadEvidence(target, doc.id)) {
+      committed = doc
+      break
+    }
+  }
+  if (!committed) return noteNeedsData(testInfo, 'a trial-live DXF with committed CAD evidence on the E2E project')
+  await page.goto(`/projects/${target.projectId}/documents`)
+  const control = page.getByRole('button', { name: `Delete ${committed.file_name}`, exact: true }).first()
+  const refusal = control.locator('xpath=..').getByRole('alert')
+  await expect(control, `"Delete ${committed.file_name}" is missing`).toBeVisible({ timeout: 15_000 })
+  // A click before hydration does nothing, so click again until the alert shows.
+  await expect(async () => {
+    if (!(await refusal.isVisible())) await control.click({ timeout: 5_000 })
+    await expect(refusal).toHaveText(CAD_EVIDENCE_REFUSAL, { timeout: 5_000 })
+  }).toPass({ timeout: 30_000, intervals: [1_000, 2_000, 5_000] })
+  expect(
+    await tenantRows(target, 'documents', `id=eq.${committed.id}&select=id,file_name`, trialDocument),
+    'the refused document is kept'
+  ).toHaveLength(1)
+}
 
 /**
  * Clicks a delete control until its row is gone. A click before hydration does nothing,
@@ -39,8 +75,7 @@ async function clickUntilGone(control: Locator, what: string, gone: () => Promis
  */
 async function removeTrialUploads(page: Page, target: TrialTarget, testInfo: TestInfo) {
   const project = `project_id=eq.${target.projectId}`
-  const documents = () =>
-    tenantRows(target, 'documents', `${project}&file_name=like.trial-live-*.dxf&select=id,file_name`, trialDocument)
+  const documents = () => trialDxfDocuments(target)
   const scopeItems = () =>
     tenantRows(target, 'scope_items', `${project}&description=like.*TRIAL-ROOM-*&select=id,description`, trialScopeItem)
 
@@ -56,10 +91,8 @@ async function removeTrialUploads(page: Page, target: TrialTarget, testInfo: Tes
   for (const doc of await documents()) {
     // A document whose CAD evidence ERP Core committed is retained on purpose: it is the
     // provenance of its scope items and BOM (cad_evidence_commit_requests_document_tenant_fk).
-    // TODO: once both delete paths refuse it explicitly, assert that "Delete <file>" on a
-    // committed DXF shows that refusal message and leaves the document.
-    const committed = await tenantRows(target, 'cad_evidence_commit_requests', `document_id=eq.${doc.id}&select=id`, commitRequest)
-    if (committed.length > 0) {
+    // expectCommittedDxfRefused checks that deleting one is refused.
+    if (await hasCommittedCadEvidence(target, doc.id)) {
       retained.push(doc.id)
       testInfo.annotations.push({ type: 'retained', description: `${doc.file_name} (${doc.id}): its CAD evidence commit restricts the delete` })
       continue
@@ -78,7 +111,7 @@ async function removeTrialUploads(page: Page, target: TrialTarget, testInfo: Tes
   ).toEqual([])
 }
 
-test('a DXF with a fractional area produces a fractional takeoff quantity', { tag: '@pr-239' }, async ({ browser }, testInfo) => {
+test('a DXF with a fractional area produces a fractional takeoff quantity', { tag: ['@pr-239', '@pr-287'] }, async ({ browser }, testInfo) => {
   testInfo.setTimeout(240_000)
   const target = await trialTarget(testInfo)
   const layer = `TRIAL-ROOM-${RUN_ID}`
@@ -146,6 +179,10 @@ test('a DXF with a fractional area produces a fractional takeoff quantity', { ta
       await page.goto(`/projects/${target.projectId}/scope`)
       await expect(page.getByRole('row').filter({ hasText: description })).toContainText('12.3457')
     })
+
+    await test.step('deleting a DXF with committed CAD evidence is refused (#287)', () =>
+      expectCommittedDxfRefused(page, target, testInfo)
+    )
   } finally {
     try {
       await test.step('remove this run\'s upload', () => removeTrialUploads(page, target, testInfo))
