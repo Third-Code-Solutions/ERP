@@ -3,8 +3,32 @@ import {
   formatPoEmailLines,
   supplierEmailNotice,
   supplierEmailOutcomeMessage,
+  supplierEmailResendThrottledMessage,
+  supplierEmailResendWaitMinutes,
   supplierEmailTarget,
 } from './supplier-email-outcome'
+
+describe('supplierEmailResendWaitMinutes', () => {
+  const NOW = new Date('2026-11-24T09:00:00.000Z')
+
+  it('lets a PO with no delivered email go now', () => {
+    expect(supplierEmailResendWaitMinutes(null, NOW)).toBe(0)
+  })
+
+  it('waits out ten minutes from the last delivered email, rounding up', () => {
+    expect(supplierEmailResendWaitMinutes(NOW, NOW)).toBe(10)
+    expect(supplierEmailResendWaitMinutes('2026-11-24T08:50:30.000Z', NOW)).toBe(1)
+    expect(supplierEmailResendWaitMinutes('2026-11-24T08:50:00.000Z', NOW)).toBe(0)
+    expect(supplierEmailResendWaitMinutes('2026-11-23T09:00:00.000Z', NOW)).toBe(0)
+  })
+
+  it('says how long to wait', () => {
+    expect(supplierEmailResendThrottledMessage(1)).toBe(
+      'The supplier was emailed this Purchase Order a few minutes ago. Try again in 1 minute.'
+    )
+    expect(supplierEmailResendThrottledMessage(10)).toContain('Try again in 10 minutes.')
+  })
+})
 
 describe('supplierEmailTarget', () => {
   it('needs a vendor first, then an address', () => {

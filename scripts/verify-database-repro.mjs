@@ -325,6 +325,7 @@ const requiredIndexes = [
   'ux_opportunities_tenant_id_id',
   'ux_pre_con_checklists_tenant_id_id',
   'ux_project_comments_tenant_id_id',
+  'ux_cnps_surveys_tenant_ticket',
 ]
 
 const requiredServerOnlyIndexes = [

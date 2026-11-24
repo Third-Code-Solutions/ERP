@@ -9,7 +9,7 @@ import {
   journalEntries,
   ledgerAccounts,
 } from '@third-code-erp/database/schema'
-import { desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq } from 'drizzle-orm'
 import {
   ClosePeriodButton,
   CreateCashAccountForm,
@@ -19,8 +19,23 @@ import {
   PayablesAccountMapping,
   ReceivablesAccountMapping,
 } from './setup-controls'
+import { ExportCsvLink } from './export-csv-link'
+import { MappingSummary } from './mapping-summary'
+import {
+  cashAccountKindLabel,
+  correctlyMappedSystemKeys,
+  INVENTORY_MAPPINGS,
+  journalSourceLabel,
+  ledgerAccountTypeLabel,
+  missingFinanceSetup,
+  PAYABLE_MAPPINGS,
+  RECEIVABLE_MAPPINGS,
+} from './system-mappings'
 
 export const metadata: Metadata = { title: 'Finance control center' }
+
+/** Upper bound on the draft list; the card above it always shows the true count. */
+const MAX_DRAFTS_LISTED = 200
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en-PH', {
@@ -37,40 +52,77 @@ export default async function FinancePage() {
   requireRouteAccess(profile.role, '/finance')
   const canManage = can(profile.role, 'finance.manage')
 
-  const [periods, accounts, journals, cashAccountRows] = await Promise.all([
-    db
-      .select()
-      .from(fiscalPeriods)
-      .where(eq(fiscalPeriods.tenant_id, profile.tenantId))
-      .orderBy(desc(fiscalPeriods.starts_on)),
-    db
-      .select()
-      .from(ledgerAccounts)
-      .where(eq(ledgerAccounts.tenant_id, profile.tenantId))
-      .orderBy(ledgerAccounts.code),
-    db
-      .select({
-        id: journalEntries.id,
-        entry_number: journalEntries.entry_number,
-        status: journalEntries.status,
-        source_type: journalEntries.source_type,
-        posting_date: journalEntries.posting_date,
-        description: journalEntries.description,
-      })
-      .from(journalEntries)
-      .where(eq(journalEntries.tenant_id, profile.tenantId))
-      .orderBy(desc(journalEntries.created_at))
-      .limit(12),
-    db
-      .select()
-      .from(cashAccounts)
-      .where(eq(cashAccounts.tenant_id, profile.tenantId))
-      .orderBy(cashAccounts.name),
-  ])
+  const [periods, accounts, journals, cashAccountRows, draftCountRows, drafts] =
+    await Promise.all([
+      db
+        .select()
+        .from(fiscalPeriods)
+        .where(eq(fiscalPeriods.tenant_id, profile.tenantId))
+        .orderBy(desc(fiscalPeriods.starts_on)),
+      db
+        .select()
+        .from(ledgerAccounts)
+        .where(eq(ledgerAccounts.tenant_id, profile.tenantId))
+        .orderBy(ledgerAccounts.code),
+      db
+        .select({
+          id: journalEntries.id,
+          entry_number: journalEntries.entry_number,
+          status: journalEntries.status,
+          source_type: journalEntries.source_type,
+          posting_date: journalEntries.posting_date,
+          description: journalEntries.description,
+        })
+        .from(journalEntries)
+        .where(eq(journalEntries.tenant_id, profile.tenantId))
+        .orderBy(desc(journalEntries.created_at))
+        .limit(12),
+      db
+        .select()
+        .from(cashAccounts)
+        .where(eq(cashAccounts.tenant_id, profile.tenantId))
+        .orderBy(cashAccounts.name),
+      db
+        .select({ value: count() })
+        .from(journalEntries)
+        .where(
+          and(
+            eq(journalEntries.tenant_id, profile.tenantId),
+            eq(journalEntries.status, 'draft')
+          )
+        ),
+      db
+        .select({
+          id: journalEntries.id,
+          source_type: journalEntries.source_type,
+          posting_date: journalEntries.posting_date,
+          description: journalEntries.description,
+        })
+        .from(journalEntries)
+        .where(
+          and(
+            eq(journalEntries.tenant_id, profile.tenantId),
+            eq(journalEntries.status, 'draft')
+          )
+        )
+        .orderBy(desc(journalEntries.created_at))
+        .limit(MAX_DRAFTS_LISTED),
+    ])
 
   const openPeriods = periods.filter((period) => period.status === 'open')
   const activeAccounts = accounts.filter((account) => account.is_active)
-  const draftCount = journals.filter((entry) => entry.status === 'draft').length
+  const draftCount = draftCountRows[0]?.value ?? 0
+  const missingSetup = missingFinanceSetup({
+    activeAccountCount: activeAccounts.length,
+    openPeriodCount: openPeriods.length,
+    activeCashAccountCount: cashAccountRows.filter((row) => row.is_active).length,
+    mappedSystemKeys: correctlyMappedSystemKeys(activeAccounts),
+  })
+  const mappingAccounts = activeAccounts.map((account) => ({
+    id: account.id,
+    code: account.code,
+    name: account.name,
+  }))
   const currentSystemMappings = Object.fromEntries(
     accounts
       .filter((account) => account.system_key)
@@ -114,11 +166,23 @@ export default async function FinancePage() {
         </div>
       </div>
 
-      {(activeAccounts.length < 2 || openPeriods.length === 0) && <section className="finance-callout" aria-label="Finance setup required">
-        <h2>Complete Finance setup before posting</h2>
-        <p>{activeAccounts.length < 2 ? 'Create your ledger accounts first. ' : ''}{openPeriods.length === 0 ? 'Add an open fiscal period for posting dates. ' : ''}Then map the control accounts used by invoices, supplier bills and stock receipts.</p>
-        <p><Link href="#chart-of-accounts">Chart of accounts</Link> | <Link href="#fiscal-periods">Fiscal periods</Link> | <Link href="#cash-accounts">Cash accounts</Link></p>
-      </section>}
+      {missingSetup.length > 0 && (
+        <section className="finance-callout" aria-label="Finance setup required">
+          <h2>Complete Finance setup before posting</h2>
+          <p>Still missing:</p>
+          <ul>
+            {missingSetup.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <p>
+            <Link href="#chart-of-accounts">Chart of accounts</Link> |{' '}
+            <Link href="#fiscal-periods">Fiscal periods</Link> |{' '}
+            <Link href="#control-accounts">Control accounts</Link> |{' '}
+            <Link href="#cash-accounts">Cash accounts</Link>
+          </p>
+        </section>
+      )}
 
       <div className="kpi-grid finance-kpis">
         <div className="kpi-card">
@@ -137,6 +201,53 @@ export default async function FinancePage() {
           <p className="kpi-card-sub">Awaiting review and posting</p>
         </div>
       </div>
+
+      {draftCount > 0 && (
+        <section className="finance-section">
+          <div className="finance-section-heading">
+            <div>
+              <p className="finance-eyebrow">Needs review</p>
+              <h2 id="draft-journals">Draft journals</h2>
+            </div>
+            <p>
+              {draftCount > drafts.length
+                ? `Showing the newest ${drafts.length} of ${draftCount} drafts.`
+                : `${draftCount} awaiting review and posting.`}
+            </p>
+          </div>
+          <div className="finance-table-shell">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Draft</th>
+                  <th>Posting date</th>
+                  <th>Description</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drafts.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>
+                      <Link
+                        className="finance-entry-link"
+                        href={`/finance/journals/${entry.id}`}
+                      >
+                        Open draft
+                      </Link>
+                    </td>
+                    <td>{formatDate(entry.posting_date)}</td>
+                    <td>{entry.description}</td>
+                    <td className="muted">
+                      {journalSourceLabel(entry.source_type)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="finance-section">
         <div className="finance-section-heading">
@@ -163,7 +274,8 @@ export default async function FinancePage() {
               <div>
                 <strong>{cashAccount.name}</strong>
                 <span>
-                  {cashAccount.account_kind} · {cashAccount.currency}
+                  {cashAccountKindLabel(cashAccount.account_kind)} ·{' '}
+                  {cashAccount.currency}
                   {cashAccount.account_identifier_last4
                     ? ` · •••• ${cashAccount.account_identifier_last4}`
                     : ''}
@@ -185,22 +297,30 @@ export default async function FinancePage() {
         <div className="finance-section-heading">
           <div>
             <p className="finance-eyebrow">Posting policy</p>
-            <h2>Receivables control accounts</h2>
+            <h2 id="control-accounts">Receivables control accounts</h2>
           </div>
           <p>
             Map invoice components once. Issuance uses these accounts
             transactionally.
           </p>
         </div>
-        {canManage && <ReceivablesAccountMapping
-          accounts={activeAccounts.map((account) => ({
-            id: account.id,
-            code: account.code,
-            name: account.name,
-            accountType: account.account_type,
-          }))}
-          current={currentSystemMappings}
-        />}
+        {canManage ? (
+          <ReceivablesAccountMapping
+            accounts={activeAccounts.map((account) => ({
+              id: account.id,
+              code: account.code,
+              name: account.name,
+              accountType: account.account_type,
+            }))}
+            current={currentSystemMappings}
+          />
+        ) : (
+          <MappingSummary
+            mappings={RECEIVABLE_MAPPINGS}
+            accounts={mappingAccounts}
+            current={currentSystemMappings}
+          />
+        )}
       </section>
 
       <section className="finance-section">
@@ -214,15 +334,23 @@ export default async function FinancePage() {
             Purchase Order matching.
           </p>
         </div>
-        {canManage && <PayablesAccountMapping
-          accounts={activeAccounts.map((account) => ({
-            id: account.id,
-            code: account.code,
-            name: account.name,
-            accountType: account.account_type,
-          }))}
-          current={currentSystemMappings}
-        />}
+        {canManage ? (
+          <PayablesAccountMapping
+            accounts={activeAccounts.map((account) => ({
+              id: account.id,
+              code: account.code,
+              name: account.name,
+              accountType: account.account_type,
+            }))}
+            current={currentSystemMappings}
+          />
+        ) : (
+          <MappingSummary
+            mappings={PAYABLE_MAPPINGS}
+            accounts={mappingAccounts}
+            current={currentSystemMappings}
+          />
+        )}
       </section>
 
       <section className="finance-section">
@@ -236,15 +364,23 @@ export default async function FinancePage() {
             Not Invoiced until Supplier Bill matching is completed.
           </p>
         </div>
-        {canManage && <InventoryAccountMapping
-          accounts={activeAccounts.map((account) => ({
-            id: account.id,
-            code: account.code,
-            name: account.name,
-            accountType: account.account_type,
-          }))}
-          current={currentSystemMappings}
-        />}
+        {canManage ? (
+          <InventoryAccountMapping
+            accounts={activeAccounts.map((account) => ({
+              id: account.id,
+              code: account.code,
+              name: account.name,
+              accountType: account.account_type,
+            }))}
+            current={currentSystemMappings}
+          />
+        ) : (
+          <MappingSummary
+            mappings={INVENTORY_MAPPINGS}
+            accounts={mappingAccounts}
+            current={currentSystemMappings}
+          />
+        )}
       </section>
 
       <section className="finance-section">
@@ -253,7 +389,7 @@ export default async function FinancePage() {
             <p className="finance-eyebrow">Next decisions</p>
             <h2>Recent journals</h2>
           </div>
-          <p>Drafts stay editable. Posted entries are permanent.</p>
+          <p>Open a draft to review and post it. Posted entries are permanent.</p>
         </div>
         <div className="finance-table-shell">
           {journals.length === 0 ? (
@@ -285,7 +421,9 @@ export default async function FinancePage() {
                     </td>
                     <td>{formatDate(entry.posting_date)}</td>
                     <td>{entry.description}</td>
-                    <td className="muted">{entry.source_type}</td>
+                    <td className="muted">
+                      {journalSourceLabel(entry.source_type)}
+                    </td>
                     <td>
                       <span
                         className={`finance-status finance-status-${entry.status}`}
@@ -348,7 +486,10 @@ export default async function FinancePage() {
                   <div>
                     <strong>{account.name}</strong>
                     <span>
-                      {account.account_type} · {account.normal_balance}
+                      {ledgerAccountTypeLabel(
+                        account.account_type,
+                        account.normal_balance
+                      )}
                     </span>
                   </div>
                 </div>
@@ -364,6 +505,36 @@ export default async function FinancePage() {
           </div>
         </section>
       </div>
+
+      <section className="finance-section" aria-label="Finance reports and CSV exports">
+        <div className="finance-section-heading">
+          <div>
+            <p className="finance-eyebrow">Tie to your books</p>
+            <h2>Reports and CSV exports</h2>
+          </div>
+          <p>
+            Amounts in pesos, posted entries only. An export of more than 50,000
+            rows is refused; narrow the ledger dates to split it.
+          </p>
+        </div>
+        <div className="finance-header-actions">
+          <Link href="/finance/trial-balance" className="finance-secondary-link">
+            Trial balance
+          </Link>
+          <ExportCsvLink href="/api/finance/export/trial-balance" className="finance-secondary-link">
+            Trial balance CSV
+          </ExportCsvLink>
+          <ExportCsvLink href="/api/finance/export/ledger" className="finance-secondary-link">
+            General ledger CSV
+          </ExportCsvLink>
+          <ExportCsvLink href="/api/finance/export/receivables-aging" className="finance-secondary-link">
+            Receivables aging CSV
+          </ExportCsvLink>
+          <ExportCsvLink href="/api/finance/export/payables-aging" className="finance-secondary-link">
+            Payables aging CSV
+          </ExportCsvLink>
+        </div>
+      </section>
     </div>
   )
 }

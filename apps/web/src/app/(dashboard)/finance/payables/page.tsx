@@ -14,15 +14,9 @@ import {
   financePayablesReadsUseCoreApi,
   getFinancePayablesThroughCoreApi,
 } from '@/lib/erp-core-client'
-import { manilaToday } from '@/lib/manila-date'
+import { agingBucket, daysOverdue, manilaToday } from '@/lib/finance/dates'
 import { canViewPath } from '@/lib/operations/nav-config'
-import {
-  agingBucket,
-  agingBucketTotals,
-  daysPastDue,
-  listCapNotice,
-  MAX_LISTED_ROWS,
-} from '../aging'
+import { agingBucketTotals, listCapNotice, MAX_LISTED_ROWS } from '../aging'
 import { PurchaseOrderRef } from './purchase-order-ref'
 
 export const metadata: Metadata = { title: 'Supplier payables' }
@@ -174,6 +168,7 @@ export default async function PayablesPage() {
     }))
   }
 
+  // The shared finance aging rule (Manila day), so this screen and the payables CSV tie.
   const today = manilaToday()
   const rowsWithBalance = rows.map((row) => ({
     ...row,
@@ -189,9 +184,9 @@ export default async function PayablesPage() {
     0
   )
   const dueBucket = (row: { dueDate: string | null }) =>
-    agingBucket(daysPastDue(row.dueDate, today))
+    agingBucket(daysOverdue(row.dueDate, today))
   const overdueOpen = openRows.filter(
-    (row) => daysPastDue(row.dueDate, today) > 0
+    (row) => (daysOverdue(row.dueDate, today) ?? 0) > 0
   )
   const aging = agingBucketTotals(
     openRows,
@@ -310,7 +305,7 @@ export default async function PayablesPage() {
               </thead>
               <tbody>
                 {rowsWithBalance.slice(0, MAX_LISTED_ROWS).map((row) => {
-                  const age = daysPastDue(row.dueDate, today)
+                  const age = daysOverdue(row.dueDate, today)
                   return (
                     <tr key={row.id}>
                       <td>

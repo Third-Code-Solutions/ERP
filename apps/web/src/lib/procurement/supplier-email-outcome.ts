@@ -21,6 +21,31 @@ export function isSupplierEmailPoStatus(status: string): boolean {
   return (SUPPLIER_EMAIL_PO_STATUSES as readonly string[]).includes(status)
 }
 
+/** Least time between two delivered supplier emails for one PO, so repeated resends cannot flood the supplier. */
+export const SUPPLIER_EMAIL_RESEND_COOLDOWN_MS = 10 * 60_000
+
+/**
+ * Whole minutes before this PO may be emailed to the supplier again, from its
+ * last delivered email; 0 when it may be sent now. A failed send stamps
+ * nothing, so it never starts the wait.
+ */
+export function supplierEmailResendWaitMinutes(
+  supplierEmailSentAt: Date | string | null,
+  now: Date
+): number {
+  if (!supplierEmailSentAt) return 0
+  const remainingMs =
+    new Date(supplierEmailSentAt).getTime() +
+    SUPPLIER_EMAIL_RESEND_COOLDOWN_MS -
+    now.getTime()
+  return remainingMs > 0 ? Math.ceil(remainingMs / 60_000) : 0
+}
+
+export function supplierEmailResendThrottledMessage(waitMinutes: number): string {
+  const wait = waitMinutes === 1 ? '1 minute' : `${waitMinutes} minutes`
+  return `The supplier was emailed this Purchase Order a few minutes ago. Try again in ${wait}.`
+}
+
 /** Whether the PO has a supplier with an address to write to. */
 export function supplierEmailTarget(input: {
   vendorId: string | null
