@@ -11,12 +11,17 @@ import {
   projects,
 } from '@third-code-erp/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
-import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
+import { formatBps } from '@third-code-erp/shared-types'
 import {
   bir2307Available,
   invoiceDocumentState,
 } from '@/app/(print)/invoices/invoice-document-state'
-import { manilaToday } from '@/lib/manila-date'
+import {
+  vatRateLabel,
+  vatRegisteredWhenDrafted,
+  withholdingRateLabel,
+} from '@/app/(print)/invoices/invoice-print'
+import { formatManilaLongDate, manilaToday } from '@/lib/manila-date'
 import { InvoiceStatusActions } from './invoice-status-actions'
 
 export const metadata: Metadata = { title: 'Invoice' }
@@ -115,6 +120,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   if (!inv) return notFound()
 
   const showBir2307 = bir2307Available(invoiceDocumentState(inv))
+  // Only a zero VAT needs the tax profile, to say why none was charged.
+  const vatRegistered = inv.vat_cents > 0 ? null : await vatRegisteredWhenDrafted(profile.tenantId, inv.created_at)
 
   const receiptAllocations = await db.execute<ReceiptAllocationRow>(sql`
     select
@@ -186,7 +193,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 {inv.account_name}
               </Link>
             )}
-            <span>Created {new Date(inv.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            <span>Created {formatManilaLongDate(inv.created_at)}</span>
           </div>
         </div>
         <div className="invoice-detail-actions">
@@ -316,8 +323,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           {[
             { label: `Billing (${formatBps(inv.billing_percent_bps)} of TCV)`, value: formatPHP(inv.subtotal_cents) },
             { label: `Retention (${formatBps(inv.retention_bps)})`, value: `(${formatPHP(inv.retention_cents)})`, color: '#f59e0b' },
-            { label: `VAT (${formatBps(TAX_DEFAULTS.vatBps)})`, value: `+${formatPHP(inv.vat_cents)}` },
-            { label: `Withholding Tax (${formatBps(TAX_DEFAULTS.ewtBps)})`, value: `−${formatPHP(inv.withholding_tax_cents)}` },
+            { label: `VAT (${vatRateLabel(inv, vatRegistered)})`, value: `+${formatPHP(inv.vat_cents)}` },
+            { label: `Withholding Tax (${withholdingRateLabel(inv)})`, value: `−${formatPHP(inv.withholding_tax_cents)}` },
           ].map(({ label, value, color }) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
               <dt style={{ fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>{label}</dt>

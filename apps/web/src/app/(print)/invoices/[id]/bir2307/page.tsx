@@ -17,7 +17,7 @@ import {
 import {
   invoiceClientAccountJoin,
   withholdingRateLabel,
-  withholdingTaxBaseCents,
+  invoiceTaxBaseCents,
 } from '@/app/(print)/invoices/invoice-print'
 import { PrintButton } from './print-button'
 
@@ -110,7 +110,7 @@ export default async function Bir2307PrintPage({ params }: { params: Promise<{ i
   }
 
   // Retention is held by the client and is not yet income for the period.
-  const taxBaseCents = withholdingTaxBaseCents(inv)
+  const taxBaseCents = invoiceTaxBaseCents(inv)
   const rateLabel = withholdingRateLabel(inv)
 
   return (

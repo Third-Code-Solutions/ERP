@@ -7,7 +7,7 @@ import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { accounts, invoices, projects, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
-import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
+import { formatBps } from '@third-code-erp/shared-types'
 import { tenantDisplayName } from '@/lib/tenant-branding'
 import { formatManilaLongDate } from '@/lib/manila-date'
 import {
@@ -16,7 +16,12 @@ import {
   invoiceStateMark,
   invoiceStateNotice,
 } from '@/app/(print)/invoices/invoice-document-state'
-import { invoiceClientAccountJoin, withholdingRateLabel } from '@/app/(print)/invoices/invoice-print'
+import {
+  invoiceClientAccountJoin,
+  vatRateLabel,
+  vatRegisteredWhenDrafted,
+  withholdingRateLabel,
+} from '@/app/(print)/invoices/invoice-print'
 import { PrintButton } from './print-button'
 
 export const metadata: Metadata = { title: 'Invoice' }
@@ -85,7 +90,9 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const stateNotice = invoiceStateNotice(documentState)
   const billedTo = inv.account_name ?? inv.project_client ?? '—'
   const retentionPct = formatBps(inv.retention_bps)
-  const vatPct = formatBps(TAX_DEFAULTS.vatBps)
+  // Only a zero VAT needs the tax profile, to say why none was charged.
+  const vatRegistered = inv.vat_cents > 0 ? null : await vatRegisteredWhenDrafted(profile.tenantId, inv.created_at)
+  const vatLabel = vatRateLabel(inv, vatRegistered)
   const ewtPct = withholdingRateLabel(inv)
 
   return (
@@ -273,7 +280,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             </tr>
             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
               <td style={{ padding: '12px 16px', color: '#374151' }}>
-                Add: Value Added Tax ({vatPct} VAT)
+                Add: Value Added Tax ({vatLabel})
               </td>
               <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#111827' }}>
                 {formatPHP(inv.vat_cents)}

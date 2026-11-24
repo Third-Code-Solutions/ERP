@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   select: vi.fn(),
+  resolveTaxRates: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND')
   }),
@@ -20,6 +21,7 @@ vi.mock('@third-code-erp/auth', async () => ({
 
 vi.mock('@third-code-erp/database', () => ({
   db: { select: mocks.select },
+  resolveTaxRates: mocks.resolveTaxRates,
 }))
 
 vi.mock('next/navigation', () => ({ notFound: mocks.notFound }))
@@ -134,7 +136,7 @@ describe('invoice print page labels and stored amounts', () => {
     const markup = renderToStaticMarkup(await renderPage())
 
     expect(markup).toContain('Less: Retention (10%)')
-    expect(markup).toContain('Add: Value Added Tax (12% VAT)')
+    expect(markup).toContain('Add: Value Added Tax (12%)')
     expect(markup).toContain('Less: Creditable Withholding Tax (2% — BIR Form 2307)')
     expect(markup).toContain('(2% creditable withholding tax)')
     expect(markup).toContain('₱27,000.00')
@@ -215,6 +217,27 @@ describe('invoice print page labels and stored amounts', () => {
     } finally {
       vi.unstubAllEnvs()
     }
+  })
+
+  it('labels VAT from the stored amount: 12%, another rate, or why none was charged', async () => {
+    mockInvoice(STORED)
+    expect(renderToStaticMarkup(await renderPage())).toContain('Add: Value Added Tax (12%)')
+    // A stored VAT is enough; the tax profile is not read.
+    expect(mocks.resolveTaxRates).not.toHaveBeenCalled()
+
+    mockInvoice({ ...STORED, vat_cents: 2_250_000 })
+    expect(renderToStaticMarkup(await renderPage())).toContain('Add: Value Added Tax (10%)')
+
+    mocks.resolveTaxRates.mockResolvedValue({ vatRegistered: false })
+    mockInvoice({ ...STORED, vat_cents: 0 })
+    const nonVat = renderToStaticMarkup(await renderPage())
+    expect(nonVat).toContain('Add: Value Added Tax (Non-VAT)')
+    expect(nonVat).not.toContain('12%')
+    // The profile is the signed-in tenant's, in force when the invoice was drafted.
+    expect(mocks.resolveTaxRates).toHaveBeenCalledWith(expect.anything(), TENANT_ID, STORED.created_at)
+
+    mocks.resolveTaxRates.mockResolvedValue({ vatRegistered: true })
+    expect(renderToStaticMarkup(await renderPage())).toContain('Add: Value Added Tax (VAT-exempt)')
   })
 
   it('labels the withholding rate actually applied, from the stored amounts', async () => {
