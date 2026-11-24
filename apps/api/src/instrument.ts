@@ -12,8 +12,15 @@ const options = sentryErrorsOnlyOptions({
 if (options) {
   Sentry.init({
     ...options,
-    // Keep Node's default: an unhandled rejection still exits the process so
-    // Railway restarts it. The SDK's default 'warn' mode would keep it alive.
-    integrations: [Sentry.onUnhandledRejectionIntegration({ mode: 'strict' })],
+    integrations: (defaults) => [
+      ...options
+        .integrations(defaults)
+        .filter(({ name }) => name !== 'Http' && name !== 'OnUnhandledRejection'),
+      // No session per incoming request: errors only.
+      Sentry.httpIntegration({ sessions: false }),
+      // Keep Node's default: an unhandled rejection still exits the process so
+      // Railway restarts it. The SDK's default 'warn' mode would keep it alive.
+      Sentry.onUnhandledRejectionIntegration({ mode: 'strict' }),
+    ],
   })
 }
