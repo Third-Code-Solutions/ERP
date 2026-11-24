@@ -86,15 +86,16 @@ function profileRow(overrides: Row = {}) {
   }
 }
 
-function harness(lines: Row[], quotes: Row[], taxRows: unknown[]) {
+function harness(lines: Row[], quotes: Row[], taxRows: unknown[], priorEvent: Row[] = []) {
   const poInserts: Row[] = []
+  const eventInserts: Row[] = []
   const lineInserts: Row[][] = []
   const select = vi.fn()
   // Select order: principal, prior event, requisition FOR UPDATE, tax profiles
   // (the real resolver), requisition lines, quotes, PO count, result line count.
   for (const rows of [
     [{ id: PRINCIPAL.userId }],
-    [],
+    priorEvent,
     [REQUISITION],
     taxRows,
     lines,
@@ -117,6 +118,7 @@ function harness(lines: Row[], quotes: Row[], taxRows: unknown[]) {
           poInserts.push(values)
           return chain([{ id: PO_ID }])
         }
+        if ('idempotency_key' in values) eventInserts.push(values)
         return chain([])
       }),
     })),
@@ -135,20 +137,40 @@ function harness(lines: Row[], quotes: Row[], taxRows: unknown[]) {
     } as unknown as DatabaseService,
     audit as unknown as AuditService,
   )
-  const convert = (key: string) =>
-    service.transitionRequisition(
-      REQUISITION_ID,
-      { action: 'convert_to_po', selectedQuoteIds: quotes.map((value) => String(value.id)) },
-      PRINCIPAL,
-      key,
-    )
-  return { convert, poInserts, lineInserts, audit, select }
+  const convert = (key: string, selectedQuoteIds = quotes.map((value) => String(value.id))) =>
+    service.transitionRequisition(REQUISITION_ID, { action: 'convert_to_po', selectedQuoteIds }, PRINCIPAL, key)
+  return { convert, poInserts, lineInserts, eventInserts, audit, select }
 }
 
 function auditTax(audit: { writeSemantic: ReturnType<typeof vi.fn> }) {
   const entry = audit.writeSemantic.mock.calls[0]?.[1] as { diff: { tax: unknown } } | undefined
   return entry?.diff.tax
 }
+
+describe('requisition-to-PO retry keys', () => {
+  it('refuses a conversion key retried with another quote selection and creates no PO', async () => {
+    const lines = [line(1, 120), line(2, 2_500)]
+    const quotes = [quote(1, 28_550), quote(2, 1_875)]
+    const first = harness(lines, quotes, [])
+    await expect(first.convert('req-po-retry')).resolves.toMatchObject({ status: 'converted' })
+    const event = first.eventInserts[0]!
+    expect(event.request_hash).toMatch(/^[0-9a-f]{64}$/)
+
+    const prior = {
+      requisitionId: event.requisition_id,
+      action: event.action,
+      actorId: event.actor_id,
+      requestHash: event.request_hash,
+      reason: event.reason,
+    }
+    const retry = harness(lines, quotes, [], [prior])
+    const result = retry.convert('req-po-retry', [String(quotes[1]!.id), String(quotes[0]!.id)])
+    await expect(result).rejects.toThrow('Idempotency key was already used for another workflow command')
+    expect(retry.select).toHaveBeenCalledTimes(2)
+    expect(retry.poInserts).toHaveLength(0)
+    expect(retry.eventInserts).toHaveLength(0)
+  })
+})
 
 describe('requisition-to-PO effective tax rates (spec tenancy C-3)', () => {
   it('PO-4: defaults price the lines exactly as today and audit the default source', async () => {

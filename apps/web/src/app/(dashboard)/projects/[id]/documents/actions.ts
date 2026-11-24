@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { accountKycArtifacts, cadEvidenceCommitRequests, documents, progressClaimDocuments, scopeItems, siteInspectionPhotos, siteInspections } from '@third-code-erp/database/schema'
+import { accountKycArtifacts, cadEvidenceCommitRequests, documentProcessingJobs, documents, progressClaimDocuments, scopeItems, siteInspectionPhotos, siteInspections } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
@@ -29,6 +29,7 @@ class ClaimEvidenceRetainedError extends Error {}
 class KycEvidenceRetainedError extends Error {}
 class InspectionEvidenceRetainedError extends Error {}
 class CadEvidenceRetainedError extends Error {}
+class ProcessingHistoryRetainedError extends Error {}
 
 export async function deleteDocument(formData: FormData): Promise<DeleteResult> {
   const parsed = DeleteDocumentSchema.safeParse({
@@ -156,6 +157,18 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
         .limit(1)
       if (cadEvidence) throw new CadEvidenceRetainedError()
 
+      // Processing jobs FK-restrict this delete too; refuse like Core does.
+      // Job creation share-locks the document, so this read sees any committed job.
+      const [processingJob] = await tx
+        .select({ id: documentProcessingJobs.id })
+        .from(documentProcessingJobs)
+        .where(and(
+          eq(documentProcessingJobs.tenant_id, doc.tenant_id),
+          eq(documentProcessingJobs.document_id, doc.id)
+        ))
+        .limit(1)
+      if (processingJob) throw new ProcessingHistoryRetainedError()
+
       const removedScopeItems = await tx
         .delete(scopeItems)
         .where(
@@ -201,6 +214,9 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
       }
     })
   } catch (error) {
+    if (error instanceof ProcessingHistoryRetainedError) {
+      return { ok: false, error: 'Document has processing history and cannot be deleted' }
+    }
     if (error instanceof CadEvidenceRetainedError) {
       return { ok: false, error: 'Document has committed CAD evidence and cannot be deleted' }
     }

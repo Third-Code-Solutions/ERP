@@ -256,7 +256,7 @@ envelope flow.
 1. Create a Railway service from the `docuseal/docuseal` Docker image.
 2. Mount a persistent volume for `/data/docuseal`.
 3. Set `DOCUSEAL_API_URL` (e.g. `https://docuseal.actuate.ph`) and
-   `DOCUSEAL_API_KEY` in Vercel.
+   `DOCUSEAL_API_TOKEN` in Vercel.
 4. Generate `DOCUSEAL_WEBHOOK_SECRET` (any 32-byte hex string) and set
    it in both Vercel and DocuSeal `Settings → Webhooks`.
 5. Point the DocuSeal webhook URL at
