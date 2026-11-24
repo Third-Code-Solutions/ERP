@@ -17,6 +17,7 @@ import {
   createRfqFromBomRecord,
   notifyRfqCreated,
 } from '@/lib/procurement/rfq-service'
+import { UNIT_PRICE_REQUIRED_ERROR } from '@/lib/procurement/rfq-quote-price'
 import {
   awardRfqQuoteRecord,
   logRfqQuoteRecord,
@@ -39,7 +40,12 @@ const logQuoteSchema = z.object({
   bom_line_item_id: z.string().uuid(),
   vendor_id: z.string().uuid(),
   submission_id: z.string().uuid(),
-  unit_price_cents: z.number().int().safe().nonnegative(),
+  // A quote is price evidence: blank or zero is refused, never logged as 0.00.
+  unit_price_cents: z
+    .number({ invalid_type_error: UNIT_PRICE_REQUIRED_ERROR })
+    .int()
+    .safe()
+    .positive(UNIT_PRICE_REQUIRED_ERROR),
   lead_time_days: z
     .number()
     .int()
@@ -139,6 +145,7 @@ export async function logQuote(
   })
   if (!parsed.success) {
     const first = parsed.error.errors[0]
+    if (first?.path[0] === 'unit_price_cents') return { error: first.message }
     return {
       error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
     }

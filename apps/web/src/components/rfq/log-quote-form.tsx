@@ -10,6 +10,7 @@
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { logQuote } from '@/app/(dashboard)/procurement/rfqs/actions'
+import { parseUnitPriceCents } from '@/lib/procurement/rfq-quote-price'
 
 interface LineItemChoice {
   bom_line_item_id?: string
@@ -51,9 +52,9 @@ export function LogQuoteForm({ rfqId, vendors, lineItems }: Props) {
       setError('Pick a vendor')
       return
     }
-    const priceNum = Number(unitPricePhp)
-    if (!Number.isFinite(priceNum) || priceNum < 0) {
-      setError('Unit price must be a non-negative number')
+    const price = parseUnitPriceCents(unitPricePhp)
+    if ('error' in price) {
+      setError(price.error)
       return
     }
 
@@ -75,8 +76,7 @@ export function LogQuoteForm({ rfqId, vendors, lineItems }: Props) {
     fd.append('bom_line_item_id', picked.bom_line_item_id)
     fd.append('vendor_id', vendorId)
     fd.append('submission_id', submissionId)
-    // Store as centavos (₱ × 100).
-    fd.append('unit_price_cents', Math.round(priceNum * 100).toString())
+    fd.append('unit_price_cents', String(price.cents))
     if (leadDays) fd.append('lead_time_days', leadDays)
     if (validUntil) fd.append('valid_until', new Date(validUntil).toISOString())
     if (notes) fd.append('notes', notes)
@@ -144,8 +144,9 @@ export function LogQuoteForm({ rfqId, vendors, lineItems }: Props) {
         <Field label="Unit price (₱)">
           <input
             type="number"
-            min="0"
+            min="0.01"
             step="0.01"
+            required
             value={unitPricePhp}
             onChange={(e) => setUnitPricePhp(e.target.value)}
             style={{ ...inputStyle, fontFamily: 'var(--font-mono)', textAlign: 'right' }}

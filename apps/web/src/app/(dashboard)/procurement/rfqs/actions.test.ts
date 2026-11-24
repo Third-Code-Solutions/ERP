@@ -269,6 +269,24 @@ describe('RFQ Server Action authority', () => {
     )
   })
 
+  it.each(['', '0', '-100'])(
+    'refuses a quote priced %j instead of logging it as 0.00',
+    async (price) => {
+      const formData = new FormData()
+      formData.set('rfq_id', RFQ_ID)
+      formData.set('bom_line_item_id', LINE_ID)
+      formData.set('vendor_id', VENDOR_ID)
+      formData.set('submission_id', SUBMISSION_ID)
+      formData.set('unit_price_cents', price)
+
+      await expect(logQuote(formData)).resolves.toEqual({
+        error: 'Enter a unit price greater than 0.',
+      })
+      expect(mocks.logRfqQuoteRecord).not.toHaveBeenCalled()
+      expect(mocks.logRfqQuoteThroughCoreApi).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects an unkeyed quote before transaction authority', async () => {
     const formData = new FormData()
     formData.set('rfq_id', RFQ_ID)
