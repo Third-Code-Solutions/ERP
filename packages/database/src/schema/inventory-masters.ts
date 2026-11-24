@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import {
   boolean,
   foreignKey,
@@ -43,6 +44,46 @@ export const unitsOfMeasure = pgTable(
     ),
     createdByTenantFk: foreignKey({
       name: 'units_of_measure_created_by_tenant_fk',
+      columns: [table.tenant_id, table.created_by],
+      foreignColumns: [users.tenant_id, users.id],
+    }).onDelete('restrict'),
+  })
+)
+
+// Tenant data: "pcs" means the PC unit. Unit equivalence is never guessed in code.
+export const unitAliases = pgTable(
+  'unit_aliases',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenant_id: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    alias: varchar('alias', { length: 32 }).notNull(),
+    uom_id: uuid('uom_id').notNull(),
+    created_by: uuid('created_by'),
+    created_at: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    tenantAliasIdx: uniqueIndex('ux_unit_aliases_tenant_alias').on(
+      table.tenant_id,
+      sql`lower(${table.alias})`
+    ),
+    tenantUomIdx: index('idx_unit_aliases_tenant_uom').on(
+      table.tenant_id,
+      table.uom_id
+    ),
+    tenantCreatedByIdx: index('idx_unit_aliases_tenant_created_by')
+      .on(table.tenant_id, table.created_by)
+      .where(sql`${table.created_by} is not null`),
+    uomTenantFk: foreignKey({
+      name: 'unit_aliases_uom_tenant_fk',
+      columns: [table.tenant_id, table.uom_id],
+      foreignColumns: [unitsOfMeasure.tenant_id, unitsOfMeasure.id],
+    }).onDelete('restrict'),
+    createdByTenantFk: foreignKey({
+      name: 'unit_aliases_created_by_tenant_fk',
       columns: [table.tenant_id, table.created_by],
       foreignColumns: [users.tenant_id, users.id],
     }).onDelete('restrict'),
@@ -96,5 +137,7 @@ export const warehouses = pgTable(
 
 export type UnitOfMeasure = typeof unitsOfMeasure.$inferSelect
 export type UnitOfMeasureInsert = typeof unitsOfMeasure.$inferInsert
+export type UnitAlias = typeof unitAliases.$inferSelect
+export type UnitAliasInsert = typeof unitAliases.$inferInsert
 export type Warehouse = typeof warehouses.$inferSelect
 export type WarehouseInsert = typeof warehouses.$inferInsert

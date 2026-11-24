@@ -119,7 +119,7 @@ describe('ProcurementService RFQ creation command', () => {
 
   it('creates only uncovered BOM lines and records one semantic audit', async () => {
     const probe = harness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [
         {
@@ -199,7 +199,7 @@ describe('ProcurementService RFQ creation command', () => {
 
   it('returns an exact replay without another insert or audit', async () => {
     const probe = harness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [
         {
           id: RFQ_ID,
@@ -230,6 +230,17 @@ describe('ProcurementService RFQ creation command', () => {
     expect(probe.insert).not.toHaveBeenCalled()
   })
 
+  it.each(['draft', 'archived'])('refuses a manual RFQ for a %s BOM', async (status) => {
+    const probe = harness([[{ id: BOM_ID, project_id: PROJECT_ID, status }]])
+
+    await expect(
+      probe.service.create({ bomId: BOM_ID }, PRINCIPAL)
+    ).rejects.toThrow('An RFQ can be created only for an approved or locked BOM')
+    expect(probe.transactionClient.select).toHaveBeenCalledOnce()
+    expect(probe.insert).not.toHaveBeenCalled()
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+  })
+
   it('treats a BOM of a retired project as not found', async () => {
     const probe = harness([[]])
 
@@ -251,7 +262,7 @@ describe('ProcurementService RFQ creation command', () => {
 
   it('quotes the lines a Purchase Order buys, not a work item that has material lines', async () => {
     const probe = harness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [
         { id: 'section', code: null, description: 'Section', unit: null, quantity: 0, is_group: 1, parent_id: null, parent_line_item_id: null },
@@ -276,7 +287,7 @@ describe('ProcurementService RFQ creation command', () => {
 
   it('rejects a BOM without item lines', async () => {
     const probe = harness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [
         {
@@ -300,7 +311,7 @@ describe('ProcurementService RFQ creation command', () => {
 
   it('rejects a BOM whose item lines all have contracted rates', async () => {
     const probe = harness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [
         {
@@ -344,7 +355,7 @@ describe('ProcurementService RFQ creation command', () => {
 
   it('still quotes a line whose card has no vendor or another unit', async () => {
     const probe = harness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [
         {
@@ -387,7 +398,7 @@ describe('ProcurementService RFQ creation command', () => {
 
   it('rejects audit failure so the creation transaction can roll back', async () => {
     const probe = harness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [
         {

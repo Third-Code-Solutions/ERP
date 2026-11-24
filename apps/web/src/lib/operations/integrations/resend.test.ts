@@ -46,6 +46,34 @@ describe('Resend integration', () => {
     expect(message.text).toContain('Download the purchase order: https://thirdcode-erp.example.test/purchase-orders/42?download=1&format=pdf')
   })
 
+  it('lists the purchase order lines, escaped, in both the html and the text version', () => {
+    const message = templates['po-issued']({
+      po_number: 'PO-0042',
+      total_php: '1,234.05',
+      supplier_name: 'Concrete Co',
+      lines_text: '1. CEM-40 Cement <40kg>: 12.5 bag at PHP 250.50 = PHP 3,131.25\n2. Delivery: 1 at PHP 1.00 = PHP 1.00',
+      company_name: 'Northwind',
+    })
+
+    expect(message.html).toContain('1. CEM-40 Cement &lt;40kg&gt;: 12.5 bag at PHP 250.50 = PHP 3,131.25<br>2. Delivery')
+    expect(message.html).not.toContain('<40kg>')
+    expect(message.text).toContain('Lines:\n1. CEM-40 Cement <40kg>: 12.5 bag')
+    expect(message.text).toContain('\n2. Delivery: 1 at PHP 1.00 = PHP 1.00')
+    expect(message.html).not.toMatch(/[—–→]/)
+  })
+
+  it('leaves the purchase order email unchanged when no lines are given', () => {
+    const message = templates['po-issued']({
+      po_number: 'PO-0042',
+      total_php: '1.00',
+      supplier_name: 'Concrete Co',
+      company_name: 'Northwind',
+    })
+
+    expect(message.html).not.toContain('Lines')
+    expect(message.text).not.toContain('Lines:')
+  })
+
   it('keeps a tenant name with line breaks from adding header lines to the subject', () => {
     const message = templates['po-issued']({
       po_number: 'PO-0042',

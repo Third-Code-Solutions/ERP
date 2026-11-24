@@ -1,4 +1,4 @@
-import { test, expect, type ConsoleMessage, type Page } from '@playwright/test'
+import { test, expect, type ConsoleMessage, type Page } from './base-test'
 import { login } from './helpers/auth'
 
 /**

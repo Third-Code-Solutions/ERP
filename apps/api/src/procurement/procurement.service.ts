@@ -248,6 +248,12 @@ export class ProcurementService {
           'BOM must be approved before automatic RFQ dispatch'
         )
       }
+      // Suppliers quote a released BOM only; a draft or archived one is refused.
+      if (bom.status !== 'approved' && bom.status !== 'locked') {
+        throw new ConflictException(
+          'An RFQ can be created only for an approved or locked BOM'
+        )
+      }
 
       const [existing] = await transaction
         .select({

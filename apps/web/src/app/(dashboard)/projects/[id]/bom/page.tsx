@@ -3,10 +3,11 @@ import workspaceStyles from '@/components/bom/bom-workspace.module.css'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { requireUserProfile } from '@third-code-erp/auth'
+import { can, requireUserProfile } from '@third-code-erp/auth'
 import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
+  accounts,
   boms,
   bomLineItems,
   projects,
@@ -31,10 +32,12 @@ import { BomBuilder } from '@/components/bom/bom-builder'
 import { BomGrainReviewQueue } from '@/components/bom/bom-grain-review-queue'
 import { BomLocationReviewQueue } from '@/components/bom/bom-location-review-queue'
 import { BomLocationRollup } from '@/components/bom/bom-location-rollup'
+import { BomTakeoffReviewQueue } from '@/components/bom/bom-takeoff-review-queue'
 import { CadDropZone } from '@/components/cad/cad-dropzone'
 import {
   listPendingBomGrainReviews,
   listPendingBomLocationReviews,
+  listPendingTakeoffRows,
   listBomLocationRollup,
   listProjectLocations,
 } from './actions'
@@ -73,6 +76,7 @@ export default async function ProjectBomPage({
       id: projects.id,
       name: projects.name,
       projectCode: projects.project_code,
+      accountId: projects.account_id,
     })
     .from(projects)
     .where(
@@ -412,6 +416,7 @@ export default async function ProjectBomPage({
 
   const [
     pendingGrainReviews,
+    pendingTakeoffRows,
     locations,
     pendingLocationReviews,
     locationRollup,
@@ -419,6 +424,7 @@ export default async function ProjectBomPage({
     assemblyRows,
   ] = await Promise.all([
     listPendingBomGrainReviews(id, latestBom?.id ?? null),
+    listPendingTakeoffRows(id, latestBom?.id ?? null),
     listProjectLocations(id),
     listPendingBomLocationReviews(id, latestBom?.id ?? null),
     listBomLocationRollup(id, latestBom?.id ?? null),
@@ -445,6 +451,31 @@ export default async function ProjectBomPage({
           .limit(200)
       : Promise.resolve([]),
   ])
+  const [accountContact] = project.accountId
+    ? await db
+        .select({ email: accounts.primary_email })
+        .from(accounts)
+        .where(
+          and(
+            eq(accounts.id, project.accountId),
+            eq(accounts.tenant_id, profile.tenantId),
+          ),
+        )
+        .limit(1)
+    : []
+  const divisionNames =
+    controls.review && pendingTakeoffRows.length > 0
+      ? (
+          await db
+            .select({ name: boqDivisions.name })
+            .from(boqDivisions)
+            .where(eq(boqDivisions.tenant_id, profile.tenantId))
+            .orderBy(asc(boqDivisions.sort_order), asc(boqDivisions.code))
+            .limit(200)
+        ).map((division) => division.name)
+      : []
+  const canApprove = can(profile.role, 'bom.approve_internal')
+  const canImportTakeoff = controls.edit && can(profile.role, 'bom.generate')
   const grainReviewParents = lineItems
     .filter(
       (line) =>
@@ -681,6 +712,34 @@ export default async function ProjectBomPage({
         />
       )}
 
+      {canImportTakeoff && (
+        <div style={{ marginBottom: 16 }}>
+          <Link
+            href={`/projects/${id}/bom/togal`}
+            style={{
+              display: 'inline-block',
+              padding: '6px 14px',
+              border: '1px solid var(--color-navy-700)',
+              borderRadius: 6,
+              color: 'var(--color-navy-text)',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            Import a takeoff spreadsheet (CSV or XLSX)
+          </Link>
+        </div>
+      )}
+
+      {controls.review && (
+        <BomTakeoffReviewQueue
+          projectId={id}
+          rows={pendingTakeoffRows}
+          divisions={divisionNames}
+        />
+      )}
+
       {controls.review && (
         <BomGrainReviewQueue
           projectId={id}
@@ -713,6 +772,8 @@ export default async function ProjectBomPage({
         locations={locations}
         assemblyOptions={assemblyOptions}
         readOnly={!controls.edit}
+        canApprove={canApprove}
+        clientEmail={accountContact?.email ?? ''}
       />
 
       {controls.award && latestBom?.status === 'locked' && (

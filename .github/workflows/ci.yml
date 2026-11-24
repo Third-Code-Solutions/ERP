@@ -438,6 +438,7 @@ jobs:
             e2e/claim-document-attach.spec.ts \
             e2e/kyc-artifact-workflow.spec.ts \
             e2e/authenticated-smoke-readiness.spec.ts \
+            e2e/vercel-preview-headers.spec.ts \
             e2e/user-role-workflow.spec.ts \
             e2e/inspection-rfi-offline.spec.ts \
             e2e/inspection-draft-durability.spec.ts \
