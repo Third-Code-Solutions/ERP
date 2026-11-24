@@ -1,4 +1,5 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -38,6 +39,8 @@ export default async function WeeklyReportPrintPage({
   const { id } = await requireUuidRouteParams(params)
 
   const profile = await requireUserProfile()
+  // Print pages sit outside the dashboard layout: repeat the role rule of the page they print.
+  requireRouteAccess(profile.role, '/projects/[id]/reports')
 
   const [report] = await db
     .select({
@@ -70,7 +73,7 @@ export default async function WeeklyReportPrintPage({
         account_id: projects.account_id,
       })
       .from(projects)
-      .where(eq(projects.id, report.project_id))
+      .where(and(eq(projects.id, report.project_id), eq(projects.tenant_id, profile.tenantId)))
       .limit(1),
     db
       .select({ name: tenants.name })
@@ -90,7 +93,7 @@ export default async function WeeklyReportPrintPage({
           billing_address: accounts.billing_address,
         })
         .from(accounts)
-        .where(eq(accounts.id, project.account_id))
+        .where(and(eq(accounts.id, project.account_id), eq(accounts.tenant_id, profile.tenantId)))
         .limit(1)
     : [null]
 
