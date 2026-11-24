@@ -450,6 +450,12 @@ describe('RFQ quote API contracts', () => {
     ).toBe(false)
   })
 
+  it.each([0, -1])('refuses a quote priced %i centavos', (unitPriceCents) => {
+    const quote = { submissionId: UUID, bomLineItemId: UUID, vendorId: UUID }
+    expect(logRfqQuoteCommandSchema.safeParse({ ...quote, unitPriceCents }).success).toBe(false)
+    expect(logRfqQuoteCommandSchema.safeParse({ ...quote, unitPriceCents: 1 }).success).toBe(true)
+  })
+
   it('requires a strict durable result', () => {
     expect(
       rfqQuoteResultSchema.safeParse({
