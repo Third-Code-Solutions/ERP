@@ -31,6 +31,10 @@ export interface BomLineRowItem {
   item_no: string | null
   notes?: string | null
   dupa?: BomDupaDetail
+  /** An AI-drafted line stays unpriced until a DUPA is attached. */
+  ai_drafted?: boolean
+  /** The row version the edit row sends back, so a newer line is never overwritten. */
+  updated_at?: Date | string
 }
 
 export interface BomDupaDetail {

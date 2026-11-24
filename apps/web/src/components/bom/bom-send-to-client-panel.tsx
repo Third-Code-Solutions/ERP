@@ -15,6 +15,7 @@ interface SentLinks {
   signingUrl: string
   lineItemUrl: string | null
   expiresAt: string | null
+  emailDelivered: boolean
 }
 
 function toAbsoluteUrl(url: string): string {
@@ -47,6 +48,7 @@ export function BomSendToClientPanel({ bomId, defaultEmail }: BomSendToClientPan
           signingUrl: toAbsoluteUrl(result.portal_url),
           lineItemUrl: result.line_item_url ? toAbsoluteUrl(result.line_item_url) : null,
           expiresAt: result.expires_at ?? null,
+          emailDelivered: result.email_delivered !== false,
         })
       } catch {
         setError('The link could not be created. Check your connection and try again.')
@@ -121,12 +123,19 @@ export function BomSendToClientPanel({ bomId, defaultEmail }: BomSendToClientPan
 
       {sent ? (
         <div style={{ display: 'grid', gap: 10 }}>
-          <p role="status" style={{ margin: 0, fontSize: 12.5, color: 'var(--color-neutral-700)' }}>
-            The signing link was emailed to {sent.email}. Both links are shown once, so copy them now
-            if you also want to send them yourself.
-          </p>
+          {sent.emailDelivered ? (
+            <p role="status" style={{ margin: 0, fontSize: 12.5, color: 'var(--color-neutral-700)' }}>
+              The signing link was emailed to {sent.email}. Both links are shown once, so copy them
+              now if you also want to send them yourself.
+            </p>
+          ) : (
+            <p role="alert" style={{ margin: 0, fontSize: 12.5, color: 'var(--color-danger)' }}>
+              The links were created, but the email to {sent.email} was not delivered. Copy the
+              signing link now and send it to the client yourself. It is shown only once.
+            </p>
+          )}
           <PortalLinkDisplay
-            label="Signing page (emailed)"
+            label={sent.emailDelivered ? 'Signing page (emailed)' : 'Signing page (not emailed)'}
             url={sent.signingUrl}
             expiresAt={sent.expiresAt ?? undefined}
           />

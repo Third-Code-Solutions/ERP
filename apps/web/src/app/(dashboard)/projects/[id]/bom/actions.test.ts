@@ -217,11 +217,9 @@ vi.mock('@third-code-erp/shared-types/bom', async (importOriginal) => ({
   takeoffIssueStillApplies: (
     await importOriginal<typeof import('@third-code-erp/shared-types/bom')>()
   ).takeoffIssueStillApplies,
-  lineTotal: vi.fn(),
-  bomTotalCost: vi.fn(() => 0),
-  topLevelBomLines: vi.fn((lines: unknown[]) => lines),
-  computeGP: vi.fn(() => 0),
-  computeGPMargin: vi.fn(() => 0),
+  computeBomTotals: (
+    await importOriginal<typeof import('@third-code-erp/shared-types/bom')>()
+  ).computeBomTotals,
   dupaUpsertInputSchema: { safeParse: mocks.dupaSafeParse },
   bomGrainReviewResolutionSchema: { safeParse: mocks.grainReviewSafeParse },
   bomLocationReviewResolutionSchema: { safeParse: mocks.locationReviewSafeParse },
@@ -1732,12 +1730,14 @@ describe('updateBomLineItem', () => {
     insert: mocks.transactionInsert,
     update: mocks.transactionUpdate,
   }
+  const LINE_VERSION = new Date('2026-11-20T08:30:00.123Z')
   const input = {
     description: 'Concrete slab work',
     unit: 'm',
     quantity: '12.50',
     unit_cost_cents: 2_500,
     code: 'C-01',
+    expected_updated_at: LINE_VERSION.toISOString(),
   }
   const currentLine = {
     id: LINE_ITEM_ID,
@@ -1745,12 +1745,14 @@ describe('updateBomLineItem', () => {
     unit: 'm',
     quantity: '10.0000',
     unitCostCents: 2_000,
-    code: null,
+    code: null as string | null,
     divisionId: null,
     unitRateSource: 'manual',
     kind: 'work_item',
     classificationStatus: 'classified',
     parentLineItemId: null,
+    aiDrafted: false,
+    updatedAt: LINE_VERSION,
   }
 
   beforeEach(() => {
@@ -1903,6 +1905,62 @@ describe('updateBomLineItem', () => {
       }),
     )
     expect(review.onConflictDoNothing).toHaveBeenCalled()
+  })
+
+  it('refuses to overwrite a line that changed since the edit row opened', async () => {
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(
+        selectResult([{ ...currentLine, updatedAt: new Date('2026-11-20T08:31:00.000Z') }]),
+      )
+
+    await expect(updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, input)).resolves.toEqual({
+      error: 'This line changed since you opened it. Reload the page and make your edit again.',
+    })
+    expect(mocks.transactionUpdate).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+  })
+
+  it('refuses an edit that does not say which version of the line it was made on', async () => {
+    const { expected_updated_at: _omitted, ...unversioned } = input
+
+    await expect(
+      updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, unversioned),
+    ).resolves.toEqual({
+      error: 'This line changed since you opened it. Reload the page and make your edit again.',
+    })
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('refuses a unit cost on an AI-drafted line that has no DUPA, in plain words', async () => {
+    mocks.transactionSelect
+      .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+      .mockReturnValueOnce(selectResult([{ ...currentLine, aiDrafted: true, unitCostCents: 0 }]))
+
+    await expect(updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, input)).resolves.toEqual({
+      error:
+        'An AI-drafted line stays unpriced until a DUPA is attached. Attach a DUPA to price it.',
+    })
+    expect(mocks.transactionUpdate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the code when the edit omits it and clears it when the edit sends it blank', async () => {
+    const { code: _omitted, ...withoutCode } = input
+    for (const [data, expected] of [
+      [withoutCode, 'OLD-1'],
+      [{ ...input, code: '' }, null],
+    ] as const) {
+      mocks.transactionSelect
+        .mockReturnValueOnce(selectResult([{ id: BOM_ID, status: 'draft' }]))
+        .mockReturnValueOnce(selectResult([{ ...currentLine, code: 'OLD-1' }]))
+        .mockReturnValueOnce(selectResult([]))
+      const lineUpdate = updateChain()
+      mocks.transactionUpdate.mockReset()
+      mocks.transactionUpdate.mockReturnValueOnce(lineUpdate).mockReturnValue(updateChain())
+
+      await expect(updateBomLineItem(LINE_ITEM_ID, BOM_ID, PROJECT_ID, data)).resolves.toEqual({})
+      expect(lineUpdate.set).toHaveBeenCalledWith(expect.objectContaining({ code: expected }))
+    }
   })
 
   it('refuses a unit change that would strand material lines attached to the work item', async () => {
@@ -2060,10 +2118,47 @@ describe('imported takeoff rows', () => {
       status: 'classified',
       reason: null,
     })
+    // The fifth update closes the pending grain review and returns it.
+    const grainReview = returningUpdateChain([{ id: 'review-1' }])
+    let updateCount = 0
+    mocks.transactionUpdate.mockImplementation(() => {
+      updateCount += 1
+      const chain = updateCount === 5 ? grainReview : updateChain()
+      updates.push(chain)
+      return chain
+    })
 
     await expect(
       resolveTakeoffUnresolvedItem({ itemId: ITEM_ID, projectId: PROJECT_ID, quantity: '12.5' }),
     ).resolves.toEqual({ unresolved: [] })
+
+    // Taking the line out of review is audited, and so is the grain review it closed.
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        tenantId: TENANT_ID,
+        entityType: 'bom_line_item',
+        entityId: LINE_ITEM_ID,
+        diff: expect.objectContaining({
+          field_changed: 'classification',
+          before: { kind: 'work_item', status: 'review' },
+          after: { kind: 'work_item', status: 'classified' },
+        }),
+      }),
+    )
+    expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
+      transaction,
+      expect.objectContaining({
+        tenantId: TENANT_ID,
+        entityType: 'bom_line_item_grain_review',
+        entityId: 'review-1',
+        action: 'status_change',
+        diff: expect.objectContaining({ status: { before: 'pending', after: 'resolved' } }),
+      }),
+    )
+    expect(grainReview.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'resolved', resolved_kind: 'work_item' }),
+    )
 
     // line edit, BOM totals, reason closed, line out of review, grain review closed, import recount
     expect(updates).toHaveLength(6)

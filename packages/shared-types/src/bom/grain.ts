@@ -70,6 +70,14 @@ export function classifyBomLineKind(unit: string | null | undefined): BomLineIte
   }
 }
 
+/** Whether two units are the same once spacing and case are ignored. */
+export function sameBomLineUnit(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  return normalizeUnit(a) === normalizeUnit(b)
+}
+
 export interface BomLineGrainState {
   unit: string | null
   kind: string
@@ -95,7 +103,7 @@ export function reclassifyBomLineForUnit(
   current: BomLineGrainState,
   nextUnit: string | null | undefined,
 ): BomLineReclassification | null {
-  if (normalizeUnit(current.unit) === normalizeUnit(nextUnit)) return null
+  if (sameBomLineUnit(current.unit, nextUnit)) return null
 
   const next = classifyBomLineKind(nextUnit)
   if (

@@ -101,9 +101,15 @@ for (const fragment of [
   'takeoff_import_id: takeoffImport.id',
   'bomLineItems.takeoff_import_id,',
   'bomLineItems.source_row_key,',
-  // A re-import keeps the estimator's unit cost and refreshes the line total
-  // from it; a line left in review gets a grain review; BOM totals follow.
+  // A re-import keeps a DUPA line's cost and total, keeps the estimator's unit
+  // cost for the same unit and refreshes the line total from it, keeps a grain
+  // decision the unit does not change and reopens only issues that still hold;
+  // a line left in review gets a grain review; BOM totals follow.
+  "unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa'",
+  "line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa'",
   'this.lineTotalOrReject(',
+  'reclassifyBomLineForUnit(existing',
+  'takeoffIssueStillApplies(issue.code, lineNow)',
   '.insert(bomLineItemGrainReviews)',
   'await this.recalculateBomTotals(',
   'takeoffUnresolvedItems',
@@ -125,9 +131,6 @@ if (lineConflictStart < 0 || lineConflictEnd < 0) {
 const lineConflict = source.coreService.slice(lineConflictStart, lineConflictEnd)
 if (/\bnotes\s*:/.test(lineConflict)) {
   throw new Error('WO-08 re-import conflict set must not overwrite vendor evidence stored in notes')
-}
-if (/\b(?:unit_cost_cents|line_total_cents)\s*:/.test(lineConflict)) {
-  throw new Error('WO-08 re-import conflict set must not overwrite the unit cost the estimator entered')
 }
 forbid(
   'route',

@@ -50,13 +50,7 @@ import {
   takeoffIssueStillApplies,
   type BomLineItemKind,
 } from '@third-code-erp/shared-types/bom'
-import {
-  manualLineTotal,
-  bomTotalCost,
-  topLevelBomLines,
-  computeGP,
-  computeGPMargin,
-} from '@third-code-erp/shared-types/bom'
+import { computeBomTotals, manualLineTotal } from '@third-code-erp/shared-types/bom'
 
 const bomLineItemReferenceSchema = z
   .object({
@@ -134,12 +128,25 @@ const addBomLineItemActionSchema = z
   })
   .strict()
 
+const STALE_LINE_EDIT_ERROR =
+  'This line changed since you opened it. Reload the page and make your edit again.'
+const AI_DRAFT_UNPRICED_ERROR =
+  'An AI-drafted line stays unpriced until a DUPA is attached. Attach a DUPA to price it.'
+
 const updateBomLineItemActionSchema = z
   .object({
     lineItemId: z.string().uuid(),
     bomId: z.string().uuid(),
     projectId: z.string().uuid(),
-    data: bomLineItemFieldsSchema.strict().superRefine(refineSafeManualLineTotal),
+    data: bomLineItemFieldsSchema
+      .extend({
+        // The line's updated_at when the edit row opened; a newer line is not overwritten.
+        expected_updated_at: z
+          .string({ required_error: STALE_LINE_EDIT_ERROR, invalid_type_error: STALE_LINE_EDIT_ERROR })
+          .datetime({ offset: true, message: STALE_LINE_EDIT_ERROR }),
+      })
+      .strict()
+      .superRefine(refineSafeManualLineTotal),
   })
   .strict()
 
@@ -909,6 +916,8 @@ interface EditableBomLine {
   kind: string
   classificationStatus: string
   parentLineItemId: string | null
+  aiDrafted: boolean
+  updatedAt: Date
 }
 
 interface BomLineEdit {
@@ -942,6 +951,8 @@ async function selectEditableLineForUpdate(
       kind: bomLineItems.kind,
       classificationStatus: bomLineItems.classification_status,
       parentLineItemId: bomLineItems.parent_line_item_id,
+      aiDrafted: bomLineItems.ai_drafted,
+      updatedAt: bomLineItems.updated_at,
     })
     .from(bomLineItems)
     .where(
@@ -998,6 +1009,11 @@ async function applyBomLineEditInTransaction(
       current.unitRateSource === 'dupa'
         ? current.unitCostCents
         : (edit.unitCostCents ?? current.unitCostCents),
+  }
+
+  // The takeoff_ai_draft_guard trigger would refuse this; say why instead.
+  if (current.aiDrafted && current.unitRateSource !== 'dupa' && next.unitCostCents !== 0) {
+    return { error: AI_DRAFT_UNPRICED_ERROR }
   }
 
   let lineTotalCents: number
@@ -1197,6 +1213,12 @@ export async function updateBomLineItem(
         lineItemId,
       )
       if (!current) return { error: 'Line item not found' }
+      if (
+        current.updatedAt.toISOString() !==
+        new Date(lineInput.expected_updated_at).toISOString()
+      ) {
+        return { error: STALE_LINE_EDIT_ERROR }
+      }
 
       return applyBomLineEditInTransaction(
         tx,
@@ -1207,7 +1229,8 @@ export async function updateBomLineItem(
           unit: lineInput.unit,
           quantity: lineInput.quantity,
           unitCostCents: lineInput.unit_cost_cents,
-          code: lineInput.code ? lineInput.code : null,
+          // An omitted code stays as it is; a blank one clears it.
+          code: lineInput.code === undefined ? undefined : lineInput.code || null,
         },
       )
     })
@@ -2046,10 +2069,11 @@ export async function resolveTakeoffUnresolvedItem(
       if (stillOpen.length === 0 && line.classificationStatus === 'review') {
         const grain = classifyBomLineKind(line.unit)
         if (grain.status === 'classified') {
+          const kind = grain.kind ?? 'work_item'
           await tx
             .update(bomLineItems)
             .set({
-              kind: grain.kind ?? 'work_item',
+              kind,
               classification_status: 'classified',
               classification_reason: null,
               updated_at: now,
@@ -2061,11 +2085,11 @@ export async function resolveTakeoffUnresolvedItem(
                 eq(bomLineItems.tenant_id, scope.tenantId),
               ),
             )
-          await tx
+          const resolvedReviews = await tx
             .update(bomLineItemGrainReviews)
             .set({
               status: 'resolved',
-              resolved_kind: 'work_item',
+              resolved_kind: kind,
               resolved_by: scope.actorId,
               updated_by: scope.actorId,
               resolved_at: now,
@@ -2079,6 +2103,35 @@ export async function resolveTakeoffUnresolvedItem(
                 eq(bomLineItemGrainReviews.status, 'pending'),
               ),
             )
+            .returning({ id: bomLineItemGrainReviews.id })
+          await writeAuditLogInTransaction(tx, {
+            tenantId: scope.tenantId,
+            actorId: scope.actorId,
+            entityType: 'bom_line_item',
+            entityId: lineItemId,
+            action: 'update',
+            diff: {
+              field_changed: 'classification',
+              before: { kind: line.kind, status: line.classificationStatus },
+              after: { kind, status: 'classified' },
+              reason: 'takeoff_row_resolved',
+            },
+          })
+          for (const review of resolvedReviews) {
+            await writeAuditLogInTransaction(tx, {
+              tenantId: scope.tenantId,
+              actorId: scope.actorId,
+              entityType: 'bom_line_item_grain_review',
+              entityId: review.id,
+              action: 'status_change',
+              diff: {
+                bom_line_item_id: lineItemId,
+                status: { before: 'pending', after: 'resolved' },
+                resolved_kind: kind,
+                reason: 'takeoff_row_resolved',
+              },
+            })
+          }
         } else {
           await insertPendingGrainReviewInTransaction(tx, scope, lineItemId, {
             proposedKind: grain.kind,
@@ -2935,21 +2988,8 @@ async function recalcBomTotalsInTransaction(
     .from(bomLineItems)
     .where(and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, tenantId)))
 
-  // total_cost = sum of raw costs (no markup)
-  // tcv        = sum of line totals (rate-source-adjusted, never UI markup)
-  // gp         = tcv - cost
-  // gp_margin  = gp / tcv (in basis points)
-  const commercialLines = topLevelBomLines(lines, (line) => line.parent_line_item_id)
-  const total_cost_cents = commercialLines.reduce(
-    (s, l) => s + manualLineTotal(l.unit_cost_cents, l.quantity),
-    0,
-  )
-  const tcv_cents = bomTotalCost(commercialLines)
-  const gp_cents = computeGP(tcv_cents, total_cost_cents)
-  const gp_margin_bps = computeGPMargin(gp_cents, tcv_cents)
-
   await tx
     .update(boms)
-    .set({ total_cost_cents, tcv_cents, gp_cents, gp_margin_bps })
+    .set(computeBomTotals(lines))
     .where(and(eq(boms.id, bomId), eq(boms.tenant_id, tenantId)))
 }

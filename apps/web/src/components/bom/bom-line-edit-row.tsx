@@ -11,6 +11,8 @@ export interface BomLineEditInput {
   unit: string
   quantity: string
   unit_cost_cents: number
+  /** The line's updated_at when the row opened; the server refuses a newer line. */
+  expected_updated_at: string
 }
 
 interface BomLineEditRowProps {
@@ -40,6 +42,9 @@ function centavosToPesoInput(centavos: number): string {
 export function BomLineEditRow({ item, depth = 0, onSave, onCancel }: BomLineEditRowProps) {
   // The rate of a DUPA-priced line comes from its DUPA, not from this row.
   const isDupaPriced = item.unit_rate_source === 'dupa' && Boolean(item.dupa)
+  // An AI draft is priced only through a DUPA; its unit cost stays 0 until then.
+  const isUnpricedAiDraft = Boolean(item.ai_drafted) && item.unit_rate_source !== 'dupa'
+  const isUnitCostLocked = isDupaPriced || isUnpricedAiDraft
   const currentCents = isDupaPriced
     ? Number(item.dupa?.unit_rate_centavos ?? item.unit_cost_cents)
     : item.unit_cost_cents
@@ -63,7 +68,7 @@ export function BomLineEditRow({ item, depth = 0, onSave, onCancel }: BomLineEdi
     if (exactQuantity === null || exactQuantity === '0') {
       return setError('Quantity must be greater than 0, with at most 4 decimal places.')
     }
-    const unitCostCents = isDupaPriced ? item.unit_cost_cents : parsePesosToCents(unitCost)
+    const unitCostCents = isUnitCostLocked ? item.unit_cost_cents : parsePesosToCents(unitCost)
     if (unitCostCents === undefined) {
       return setError('Unit cost must be an amount in pesos, like 1250 or 1250.50.')
     }
@@ -76,6 +81,7 @@ export function BomLineEditRow({ item, depth = 0, onSave, onCancel }: BomLineEdi
         unit: unit.trim(),
         quantity: exactQuantity,
         unit_cost_cents: unitCostCents,
+        expected_updated_at: item.updated_at ? new Date(item.updated_at).toISOString() : '',
       })
       if (failure) setError(failure)
     } catch {
@@ -145,8 +151,14 @@ export function BomLineEditRow({ item, depth = 0, onSave, onCancel }: BomLineEdi
           aria-label={`Unit cost in pesos for ${item.description}`}
           inputMode="decimal"
           value={unitCost}
-          disabled={isDupaPriced}
-          title={isDupaPriced ? 'Set by the DUPA. Edit the DUPA to change it.' : undefined}
+          disabled={isUnitCostLocked}
+          title={
+            isDupaPriced
+              ? 'Set by the DUPA. Edit the DUPA to change it.'
+              : isUnpricedAiDraft
+                ? 'An AI-drafted line stays unpriced. Attach a DUPA to price it.'
+                : undefined
+          }
           onChange={(event) => setUnitCost(event.target.value)}
           style={{ ...inputStyle, textAlign: 'right', fontFamily: 'var(--font-mono)' }}
         />

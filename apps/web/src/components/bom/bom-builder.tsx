@@ -61,6 +61,8 @@ interface BomLineItem {
   item_no: string | null
   notes?: string | null
   dupa?: BomDupaDetail
+  ai_drafted?: boolean
+  updated_at?: Date | string
 }
 
 type LineSource =

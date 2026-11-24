@@ -75,6 +75,23 @@ describe('BomLineEditRow', () => {
     expect(html).toContain('Set by the DUPA. Edit the DUPA to change it.')
     expect(html).toContain('disabled=""')
   })
+
+  it('keeps an AI-drafted line without a DUPA unpriced from the row', () => {
+    const html = renderToStaticMarkup(
+      <table>
+        <tbody>
+          <BomLineEditRow
+            item={{ ...LINE, unit_cost_cents: 0, ai_drafted: true }}
+            onSave={vi.fn()}
+            onCancel={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    )
+
+    expect(html).toContain('An AI-drafted line stays unpriced. Attach a DUPA to price it.')
+    expect(html).toContain('disabled=""')
+  })
 })
 
 describe('BomSendToClientPanel', () => {

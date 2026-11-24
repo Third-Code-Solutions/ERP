@@ -118,6 +118,7 @@ describe('takeoff review and line edit stay inside the caller tenant', () => {
         quantity: '12.50',
         unit_cost_cents: 2_500,
         code: 'C-01',
+        expected_updated_at: '2026-11-20T08:30:00.000Z',
       })
     ).resolves.toEqual({ error: 'BOM not found' })
 
