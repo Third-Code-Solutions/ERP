@@ -7,6 +7,7 @@ import {
 import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { sql } from 'drizzle-orm'
+import { manilaToday } from '@/lib/manila-date'
 import { StockMovementForm } from '../movement-form'
 
 export const metadata: Metadata = { title: 'New Stock Movement' }
@@ -158,7 +159,7 @@ export default async function NewStockMovementPage() {
             quantityMicros: balance.quantity_micros,
             valueCents: balance.value_cents,
           }))}
-          today={new Date().toISOString().slice(0, 10)}
+          today={manilaToday()}
         />
       )}
     </div>

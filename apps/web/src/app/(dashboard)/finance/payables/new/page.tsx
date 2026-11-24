@@ -11,6 +11,7 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import { and, asc, eq, inArray, or, sql } from 'drizzle-orm'
+import { manilaToday } from '@/lib/manila-date'
 import { PayableForm } from '../payable-form'
 import { loadPayableEvidence } from '../payable-evidence'
 
@@ -179,7 +180,7 @@ export default async function NewSupplierBillPage({
             id: account.id,
             label: `${account.code} · ${account.name}`,
           }))}
-          defaultDate={new Date().toISOString().slice(0, 10)}
+          defaultDate={manilaToday()}
           defaultPurchaseOrderId={defaultPurchaseOrderId}
         />
       )}

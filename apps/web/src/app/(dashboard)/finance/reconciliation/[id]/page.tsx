@@ -175,7 +175,7 @@ export default async function BankStatementDetailPage({
           and line.tenant_id = ${profile.tenantId}::uuid
         order by line.line_number
       `),
-      statement.status === 'draft'
+      statement.status === 'draft' && canManageCash
         ? db.execute<ReconciliationCandidateRow>(sql`
             select
               cash_tx.id,
@@ -339,15 +339,14 @@ export default async function BankStatementDetailPage({
             manual.
           </p>
         </div>
-        {canManageCash && (
-          <BankStatementActions
-            statementId={statement.id}
-            status={statement.status}
-            currency={statement.currency}
-            lines={lines}
-            candidates={candidates}
-          />
-        )}
+        <BankStatementActions
+          statementId={statement.id}
+          status={statement.status}
+          canManage={canManageCash}
+          currency={statement.currency}
+          lines={lines}
+          candidates={canManageCash ? candidates : []}
+        />
       </section>
 
       {statement.status === 'voided' && (

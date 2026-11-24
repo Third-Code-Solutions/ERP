@@ -13,6 +13,14 @@ import {
   financeReceivablesReadsUseCoreApi,
   getFinanceReceivablesThroughCoreApi,
 } from '@/lib/erp-core-client'
+import { formatManilaDate, manilaToday } from '@/lib/manila-date'
+import {
+  agingBucket,
+  agingBucketTotals,
+  daysPastDue,
+  listCapNotice,
+  MAX_LISTED_ROWS,
+} from '../aging'
 
 export const metadata: Metadata = { title: 'Customer receivables' }
 
@@ -23,29 +31,16 @@ function formatPHP(cents: number): string {
   }).format(cents / 100)
 }
 
-function daysFromToday(value: Date | null): number | null {
+/** Days past due in Manila calendar days; null when the invoice has no due date. */
+function daysFromToday(value: Date | null, today: string): number | null {
   if (!value) return null
-  const today = new Date()
-  const utcToday = Date.UTC(
-    today.getUTCFullYear(),
-    today.getUTCMonth(),
-    today.getUTCDate()
-  )
-  const utcDue = Date.UTC(
-    value.getUTCFullYear(),
-    value.getUTCMonth(),
-    value.getUTCDate()
-  )
-  return Math.floor((utcToday - utcDue) / 86_400_000)
+  return daysPastDue(manilaToday(value), today)
 }
 
-function agingLabel(daysPastDue: number | null): string {
-  if (daysPastDue === null) return 'No due date'
-  if (daysPastDue <= 0) return 'Current'
-  if (daysPastDue <= 30) return '1–30 days'
-  if (daysPastDue <= 60) return '31–60 days'
-  if (daysPastDue <= 90) return '61–90 days'
-  return '90+ days'
+function agingLabel(daysLate: number | null): string {
+  if (daysLate === null) return 'No due date'
+  const bucket = agingBucket(daysLate)
+  return bucket === 'Current' ? bucket : `${bucket} days`
 }
 
 type ReceivableRow = {
@@ -72,6 +67,7 @@ export default async function ReceivablesPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
   requireRouteAccess(profile.role, '/finance/receivables')
+  const today = manilaToday()
 
   let openRows: ReceivableRow[]
   let totalDue: number
@@ -212,7 +208,7 @@ export default async function ReceivablesPage() {
       0
     )
     const overdue = openRows.filter((invoice) => {
-      const days = daysFromToday(invoice.due_date)
+      const days = daysFromToday(invoice.due_date, today)
       return days !== null && days > 0
     })
     overdueCount = overdue.length
@@ -222,6 +218,14 @@ export default async function ReceivablesPage() {
     )
     openCount = openRows.length
   }
+
+  const aging = agingBucketTotals(
+    openRows,
+    (invoice) =>
+      agingBucket(daysFromToday(invoice.due_date, today) ?? 0),
+    (invoice) => invoice.current_open_cents
+  )
+  const capNotice = listCapNotice(openRows.length)
 
   return (
     <div>
@@ -267,6 +271,33 @@ export default async function ReceivablesPage() {
         </div>
       </div>
 
+      <section className="finance-section">
+        <div className="finance-section-heading">
+          <div>
+            <p className="finance-eyebrow">Due-date exposure</p>
+            <h2>Receivables aging</h2>
+          </div>
+          <p>
+            Open balance by days past due. An invoice with no due date counts as
+            Current.
+          </p>
+        </div>
+        <div className="finance-aging-grid">
+          {aging.map((bucket) => (
+            <div className="finance-aging-card" key={bucket.bucket}>
+              <span>{bucket.bucket}</span>
+              <strong>{formatPHP(bucket.amountCents)}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {capNotice && (
+        <p className="finance-ledger-limit" role="status">
+          {capNotice}
+        </p>
+      )}
+
       <div className="finance-table-shell">
         {openRows.length === 0 ? (
           <div className="card-empty">
@@ -287,8 +318,8 @@ export default async function ReceivablesPage() {
               </tr>
             </thead>
             <tbody>
-              {openRows.map((invoice) => {
-                const age = daysFromToday(invoice.due_date)
+              {openRows.slice(0, MAX_LISTED_ROWS).map((invoice) => {
+                const age = daysFromToday(invoice.due_date, today)
                 return (
                   <tr key={invoice.id}>
                     <td>
@@ -311,7 +342,7 @@ export default async function ReceivablesPage() {
                     </td>
                     <td>
                       {invoice.due_date
-                        ? invoice.due_date.toLocaleDateString('en-PH')
+                        ? formatManilaDate(invoice.due_date)
                         : '—'}
                     </td>
                     <td>

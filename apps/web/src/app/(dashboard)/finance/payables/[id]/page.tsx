@@ -17,7 +17,10 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import { and, asc, eq, sql } from 'drizzle-orm'
+import { formatManilaDateTime, manilaToday } from '@/lib/manila-date'
+import { canViewPath } from '@/lib/operations/nav-config'
 import { PayableActions } from './payable-actions'
+import { PurchaseOrderRef } from '../purchase-order-ref'
 
 export const metadata: Metadata = { title: 'Supplier bill' }
 
@@ -63,6 +66,8 @@ export default async function SupplierBillPage({
   requireCapability(profile, 'finance.read')
   requireRouteAccess(profile.role, '/finance/payables/[id]')
   const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
+  // Finance may read bills but the Purchase Order pages exclude its role.
+  const canOpenPurchaseOrder = canViewPath(profile.role, '/purchase-orders/x')
   const { id } = await requireUuidRouteParams(params)
   const postingJournal = alias(journalEntries, 'posting_journal')
   const reversalJournal = alias(journalEntries, 'reversal_journal')
@@ -289,9 +294,11 @@ export default async function SupplierBillPage({
         <div>
           <span>Purchase Order</span>
           <strong>
-            <Link href={`/purchase-orders/${bill.purchaseOrderId}`}>
-              {bill.purchaseOrderNumber}
-            </Link>
+            <PurchaseOrderRef
+              id={bill.purchaseOrderId}
+              number={bill.purchaseOrderNumber}
+              canOpen={canOpenPurchaseOrder}
+            />
           </strong>
         </div>
       </div>
@@ -347,14 +354,14 @@ export default async function SupplierBillPage({
             <PayableActions
               billId={bill.id}
               status={bill.status}
-              defaultDate={new Date().toISOString().slice(0, 10)}
+              defaultDate={manilaToday()}
             />
           )}
           {bill.postingJournalId && (
             <p className="finance-control-note">
               Posted by {bill.postedByName ?? 'Finance'}{' '}
               {bill.postedAt
-                ? `on ${new Date(bill.postedAt).toLocaleString('en-PH')}`
+                ? `on ${formatManilaDateTime(bill.postedAt)}`
                 : ''}
               .{' '}
               <Link href={`/finance/journals/${bill.postingJournalId}`}>
@@ -366,7 +373,7 @@ export default async function SupplierBillPage({
             <p className="finance-control-note">
               Reversed by {bill.reversedByName ?? 'Finance'}{' '}
               {bill.reversedAt
-                ? `on ${new Date(bill.reversedAt).toLocaleString('en-PH')}`
+                ? `on ${formatManilaDateTime(bill.reversedAt)}`
                 : ''}
               . Reason: {bill.reversalReason}.{' '}
               <Link href={`/finance/journals/${bill.reversalJournalId}`}>
