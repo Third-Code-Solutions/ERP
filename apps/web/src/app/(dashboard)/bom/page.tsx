@@ -4,11 +4,13 @@ import { db } from '@third-code-erp/database'
 import { boms, projects } from '@third-code-erp/database/schema'
 import { and, eq, desc, isNull } from 'drizzle-orm'
 import { BomIndex } from '@/components/bom/bom-index'
+import { requireRouteAccess } from '@/lib/require-route-access'
 
 export const metadata: Metadata = { title: 'BOM Builder' }
 
 export default async function BomBuilderPage() {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/bom')
   const rows = await db
     .select({
       id: boms.id,

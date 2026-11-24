@@ -33,6 +33,41 @@ interface PermitRunSummary {
   errors: number
 }
 
+const PERMIT_TYPE_LABEL: Record<string, string> = {
+  building_admin_vetting: 'Building admin vetting',
+  lgu_building_permit: 'LGU building permit',
+  dole_permit: 'DOLE permit',
+  occupancy_permit: 'Occupancy permit',
+  cari: 'CARI',
+  performance_bond: 'Performance bond',
+  surety_bond: 'Surety bond',
+  construction_bond: 'Construction bond',
+}
+
+function humanize(value: string): string {
+  const words = value.replace(/_/g, ' ').trim()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** Wording for the stale-permit notification; raw enum values never reach a person. */
+export function buildStalePermitNotice(
+  row: { permit_type: string; status: string; project_name: string | null },
+  linkUrl: string
+) {
+  const permitLabel = PERMIT_TYPE_LABEL[row.permit_type] ?? humanize(row.permit_type)
+  const projectName = row.project_name ?? 'Unknown project'
+  return {
+    subject: `Permit stale: ${permitLabel} on ${projectName}`,
+    body: `${permitLabel} on ${projectName} has been in status "${humanize(row.status).toLowerCase()}" for over ${STALE_THRESHOLD_DAYS} days.`,
+    templateVars: {
+      entity_label: permitLabel,
+      sla_label: 'Permit status update',
+      project_name: projectName,
+      link_url: linkUrl,
+    },
+  }
+}
+
 function siteBase(): string {
   return (
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -95,22 +130,17 @@ export const permitStalenessChecker = inngest.createFunction(
     for (const row of staleRows) {
       try {
         await step.run(`notify-${row.id}`, async () => {
-          const projectName = row.project_name ?? 'Unknown project'
           const linkUrl = `${siteBase()}/projects/${row.project_id}/permits`
+          const notice = buildStalePermitNotice(row, linkUrl)
           await notifyRoles({
             tenantId: row.tenant_id,
             recipientRoles: [...STALE_RECIPIENT_ROLES],
-            subject: `Permit stale: ${row.permit_type} on ${projectName}`,
-            body: `Permit "${row.permit_type}" on ${projectName} has been in status "${row.status}" for over ${STALE_THRESHOLD_DAYS} days.`,
+            subject: notice.subject,
+            body: notice.body,
             linkUrl,
             alsoEmail: true,
             templateId: 'sla-breach',
-            templateVars: {
-              entity_label: row.permit_type,
-              sla_label: 'permit_status_update',
-              project_name: projectName,
-              link_url: linkUrl,
-            },
+            templateVars: notice.templateVars,
           })
         })
         summary.processed += 1

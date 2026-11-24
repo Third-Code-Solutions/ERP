@@ -131,10 +131,10 @@ export function UpdatePermitStatus({
             style={{ border: '1px solid var(--color-border)', borderRadius: '4px', fontFamily: 'inherit', fontSize: '0.72rem', padding: '5px', resize: 'vertical' }}
           />
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button type="button" className="btn btn-primary" disabled={pending || reason.trim().length < 3} onClick={handleEscalate}>
+            <button type="button" className="button-primary" disabled={pending || reason.trim().length < 3} onClick={handleEscalate}>
               {pending ? 'Saving…' : 'Log escalation'}
             </button>
-            <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => setShowEscalation(false)}>
+            <button type="button" className="button-secondary" disabled={pending} onClick={() => setShowEscalation(false)}>
               Cancel
             </button>
           </div>

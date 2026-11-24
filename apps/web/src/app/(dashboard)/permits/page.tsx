@@ -4,6 +4,7 @@ import { requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { permits, projects, users } from '@third-code-erp/database/schema'
 import type { Metadata } from 'next'
+import { requireRouteAccess } from '@/lib/require-route-access'
 
 export const metadata: Metadata = { title: 'Permits' }
 
@@ -32,6 +33,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 export default async function PermitsPage() {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/permits')
 
   const rows = await db
     .select({
@@ -95,8 +97,9 @@ export default async function PermitsPage() {
                 )
                 const isStale = daysSinceUpdate > 7 && !['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(p.status)
                 const expectedReturn = p.expected_return_at ?? p.expected_approval_at
-                const daysAtRisk = expectedReturn
-                  ? Math.max(0, Math.ceil((Date.now() - new Date(expectedReturn).getTime()) / 86_400_000))
+                const isClosed = ['approved', 'rejected', 'released', 'refunded', 'cancelled'].includes(p.status)
+                const daysAtRisk = expectedReturn && !isClosed
+                  ? Math.max(0, Math.floor((Date.now() - new Date(expectedReturn).getTime()) / 86_400_000))
                   : null
                 return (
                   <tr key={p.id}>

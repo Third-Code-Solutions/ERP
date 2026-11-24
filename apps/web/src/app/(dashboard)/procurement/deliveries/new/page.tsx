@@ -10,6 +10,7 @@ import {
   projects,
 } from '@third-code-erp/database/schema'
 import { ScheduleDeliveryForm } from '@/components/deliveries/schedule-delivery-form'
+import { requireRouteAccess } from '@/lib/require-route-access'
 
 export const metadata: Metadata = { title: 'Schedule delivery' }
 
@@ -23,6 +24,7 @@ export default async function NewDeliveryPage({
   searchParams: Promise<SearchParams>
 }) {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/procurement/deliveries/new')
   const { po: defaultPoId } = await searchParams
 
   const poRows = await db

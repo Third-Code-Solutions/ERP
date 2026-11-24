@@ -9,6 +9,7 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import { DeliveryListTable } from '@/components/deliveries/delivery-list-table'
+import { requireRouteAccess } from '@/lib/require-route-access'
 
 export const metadata: Metadata = { title: 'Deliveries' }
 
@@ -35,6 +36,7 @@ export default async function DeliveriesPage({
   searchParams: Promise<SearchParams>
 }) {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/procurement/deliveries')
   const { status: rawStatus } = await searchParams
   const activeStatus = (
     STATUS_FILTERS.some((f) => f.value === rawStatus) ? rawStatus : 'all'
