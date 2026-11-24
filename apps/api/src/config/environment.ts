@@ -6,6 +6,9 @@ const optionalHttpUrl = z
   .string()
   .url()
   .refine((value) => {
+    // zod still runs refinements after `.url()` fails; a throwing `new URL`
+    // would replace the named validation error with a bare "Invalid URL".
+    if (!URL.canParse(value)) return false
     const protocol = new URL(value).protocol
     return protocol === 'http:' || protocol === 'https:'
   }, 'must use http or https')
@@ -15,7 +18,8 @@ const optionalHttpsUrl = z
   .string()
   .url()
   .refine(
-    (value) => new URL(value).protocol === 'https:',
+    (value) =>
+      URL.canParse(value) && new URL(value).protocol === 'https:',
     'must use https'
   )
   .optional()
@@ -1539,6 +1543,8 @@ const environmentSchema = z.object({
     .default(15_000),
   DXF_PARSER_URL: optionalHttpUrl,
   PARSER_SHARED_SECRET: z.string().min(20).optional(),
+  // Error monitoring. Unset disables the Sentry SDK (src/instrument.ts).
+  SENTRY_DSN: optionalHttpsUrl,
 })
 
 export type Environment = z.infer<typeof environmentSchema>
