@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 193,
-    "pendingCount": 36,
+    "sourceCount": 194,
+    "pendingCount": 37,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261124170000",
+    "sourceHead": "20261124210000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -254,6 +254,16 @@
       "hostedApplyApproved": false,
       "risk": "Adds the unique btree index ux_cnps_surveys_tenant_ticket on public.cnps_surveys (tenant_id, ticket_id) so a warranty ticket has at most one CNPS survey; the cnps-survey-sender edge function and the Inngest sender insert with ON CONFLICT (tenant_id, ticket_id) DO NOTHING and email only when their insert created the row; the edge function inserts it with sent_at null and stamps sent_at only after delivery, and the Inngest sender re-sends a still-unsent row only after claiming it by compare-and-swap on response_token_hash once it is 15 minutes old. No column, constraint, function, trigger, policy or grant changes and no data UPDATE. A preflight raises 23505 and aborts, changing nothing, if a ticket already has two surveys. Plain CREATE UNIQUE INDEX inside the transaction takes SHARE on cnps_surveys (reads continue, writes wait) for the build, under a 5-second lock and 60-second statement timeout; chosen because the table is small. Deploy order: the senders' ON CONFLICT needs the index (42P10 without it), so the index must be live before the new web build and the edge function deploy. Preflight: duplicate (tenant_id, ticket_id) count must be 0, row count and size, index name free.",
       "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: revert the senders first (their ON CONFLICT needs the index), then drop ux_cnps_surveys_tenant_ticket and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-notifications-recipient-read",
+      "migrations": [
+        "20261124210000_notifications_recipient_read.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Policy-only. Replaces the SELECT policy notifications_tenant_read (tenant_id = auth_tenant_id(), all roles) on public.notifications with notifications_recipient_read for authenticated (tenant_id = auth_tenant_id() and recipient_user_id = auth.uid()), so a signed-in user no longer reads colleagues' notifications (their body and link_url carry live links such as the CNPS survey link) through PostgREST or Realtime. No table, column, grant, index or data change. The bell's Realtime subscription filters recipient_user_id=eq.<auth user id> and still passes; the list comes from Core as postgres and is unaffected; rows without a recipient become unreadable through the user JWT (the bell never showed them). DROP POLICY and CREATE POLICY take ACCESS EXCLUSIVE on notifications until commit (catalog only), under a 5-second lock and 60-second statement timeout. Preflight: ledger head, the current notifications policies, and the count of rows without a recipient.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: drop notifications_recipient_read, recreate notifications_tenant_read for select using (tenant_id = auth_tenant_id()), and delete the ledger row; no data to restore. This source-only batch does not authorize hosted application."
     }
   ]
 }
