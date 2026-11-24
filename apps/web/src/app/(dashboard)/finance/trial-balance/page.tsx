@@ -14,6 +14,7 @@ import {
   resolveTrialBalanceRange,
   trialBalanceParamsSchema,
 } from '@/lib/finance/trial-balance'
+import { ExportCsvLink } from '../export-csv-link'
 
 export const metadata: Metadata = { title: 'Trial balance' }
 
@@ -106,13 +107,12 @@ export default async function TrialBalancePage({
           </p>
         </div>
         <div className="finance-header-actions">
-          <a
+          <ExportCsvLink
             href={`/api/finance/export/trial-balance?${trialBalanceQuery}`}
-            download
             className="finance-primary-link"
           >
             Export CSV
-          </a>
+          </ExportCsvLink>
           <Link href="/finance/ledger" className="finance-secondary-link">
             General ledger
           </Link>
@@ -275,34 +275,30 @@ export default async function TrialBalancePage({
           </p>
         </div>
         <div className="finance-header-actions">
-          <a
+          <ExportCsvLink
             href={`/api/finance/export/trial-balance?${trialBalanceQuery}`}
-            download
             className="finance-secondary-link"
           >
             Trial balance
-          </a>
-          <a
+          </ExportCsvLink>
+          <ExportCsvLink
             href={`/api/finance/export/ledger?${ledgerQuery}`}
-            download
             className="finance-secondary-link"
           >
             General ledger lines
-          </a>
-          <a
+          </ExportCsvLink>
+          <ExportCsvLink
             href="/api/finance/export/receivables-aging"
-            download
             className="finance-secondary-link"
           >
             Receivables aging
-          </a>
-          <a
+          </ExportCsvLink>
+          <ExportCsvLink
             href="/api/finance/export/payables-aging"
-            download
             className="finance-secondary-link"
           >
             Payables aging
-          </a>
+          </ExportCsvLink>
         </div>
       </section>
     </div>

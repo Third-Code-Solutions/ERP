@@ -19,9 +19,11 @@ import {
   PayablesAccountMapping,
   ReceivablesAccountMapping,
 } from './setup-controls'
+import { ExportCsvLink } from './export-csv-link'
 import { MappingSummary } from './mapping-summary'
 import {
   cashAccountKindLabel,
+  correctlyMappedSystemKeys,
   INVENTORY_MAPPINGS,
   journalSourceLabel,
   ledgerAccountTypeLabel,
@@ -114,11 +116,7 @@ export default async function FinancePage() {
     activeAccountCount: activeAccounts.length,
     openPeriodCount: openPeriods.length,
     activeCashAccountCount: cashAccountRows.filter((row) => row.is_active).length,
-    mappedSystemKeys: new Set(
-      activeAccounts.flatMap((account) =>
-        account.system_key ? [account.system_key] : []
-      )
-    ),
+    mappedSystemKeys: correctlyMappedSystemKeys(activeAccounts),
   })
   const mappingAccounts = activeAccounts.map((account) => ({
     id: account.id,
@@ -523,18 +521,18 @@ export default async function FinancePage() {
           <Link href="/finance/trial-balance" className="finance-secondary-link">
             Trial balance
           </Link>
-          <a href="/api/finance/export/trial-balance" download className="finance-secondary-link">
+          <ExportCsvLink href="/api/finance/export/trial-balance" className="finance-secondary-link">
             Trial balance CSV
-          </a>
-          <a href="/api/finance/export/ledger" download className="finance-secondary-link">
+          </ExportCsvLink>
+          <ExportCsvLink href="/api/finance/export/ledger" className="finance-secondary-link">
             General ledger CSV
-          </a>
-          <a href="/api/finance/export/receivables-aging" download className="finance-secondary-link">
+          </ExportCsvLink>
+          <ExportCsvLink href="/api/finance/export/receivables-aging" className="finance-secondary-link">
             Receivables aging CSV
-          </a>
-          <a href="/api/finance/export/payables-aging" download className="finance-secondary-link">
+          </ExportCsvLink>
+          <ExportCsvLink href="/api/finance/export/payables-aging" className="finance-secondary-link">
             Payables aging CSV
-          </a>
+          </ExportCsvLink>
         </div>
       </section>
     </div>
