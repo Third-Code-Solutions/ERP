@@ -126,6 +126,35 @@ describe('cash allocation migration contract', () => {
   })
 })
 
+describe('reversed number reuse migration contract', () => {
+  const reuseSql = readFileSync(
+    resolve(
+      __dirname,
+      '../../../../supabase/migrations/20261124100000_reuse_reversed_bill_numbers_and_cash_references.sql'
+    ),
+    'utf8'
+  ).toLowerCase()
+
+  it('is gated, bounded and aborts its rollback if a number was reused', () => {
+    expect(reuseSql.startsWith('-- needs production migration approval')).toBe(true)
+    expect(reuseSql).toContain("begin;\n\nset local lock_timeout = '5s';")
+    expect(reuseSql.trimEnd().endsWith('commit;')).toBe(true)
+    expect(reuseSql).toMatch(/rollback[\s\S]*?raise exception[\s\S]*?errcode = '55000'/)
+  })
+
+  it('makes both indexes partial on live rows and keeps their names', () => {
+    const squashed = reuseSql.replace(/\s+/g, ' ')
+    expect(squashed).toContain(
+      "create unique index ux_supplier_bills_vendor_number_live on public.supplier_bills ( tenant_id, vendor_id, lower(btrim(vendor_bill_number)) ) where status <> 'reversed';"
+    )
+    expect(squashed).toContain(
+      "create unique index ux_cash_transactions_reference_live on public.cash_transactions ( tenant_id, cash_account_id, direction, lower(btrim(reference_number)) ) where status <> 'reversed';"
+    )
+    expect(reuseSql).toContain('rename to ux_supplier_bills_vendor_number;')
+    expect(reuseSql).toContain('rename to ux_cash_transactions_reference;')
+  })
+})
+
 const runtimeSuite =
   DATABASE_URL && process.env.DATABASE_CASH_EXPECTED === '1'
     ? describe
@@ -1015,6 +1044,92 @@ runtimeSuite('cash allocation runtime proof', () => {
       return nodes[0]!.count
     })
     expect(visible).toBe(0)
+  })
+
+  it('lets a reversed cash reference be used again but rejects a live duplicate', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedCashFixture(tx)
+      const first = await createCashDraft(tx, fixture)
+      const reference = (
+        (await tx.unsafe(
+          `select reference_number from cash_transactions where id = '${first}'`
+        )) as Rows
+      )[0]!.reference_number as string
+      await tx.unsafe(
+        `select * from post_cash_transaction(
+          '${first}', '${fixture.actorId}', '2026-07-27'
+        )`
+      )
+      await tx.unsafe(
+        `select * from reverse_cash_transaction(
+          '${first}', '${fixture.actorId}', 'Keyed the wrong amount', '2026-07-28'
+        )`
+      )
+
+      const reuse = (id: string) =>
+        tx.unsafe(
+          `update cash_transactions set reference_number = '${reference}' where id = '${id}'`
+        )
+      const second = await createCashDraft(tx, fixture)
+      await reuse(second)
+      const third = await createCashDraft(tx, fixture)
+      await tx.unsafe('savepoint live_duplicate')
+      let liveDuplicate = ''
+      try {
+        await reuse(third)
+      } catch (error) {
+        liveDuplicate = String(error)
+        await tx.unsafe('rollback to savepoint live_duplicate')
+      }
+      await tx.unsafe('release savepoint live_duplicate')
+      return { liveDuplicate }
+    })
+
+    expect(result.liveDuplicate).toContain('ux_cash_transactions_reference')
+  })
+
+  it('lets a reversed Supplier Bill number be entered again but rejects a live duplicate', async () => {
+    const result = await inRollback(sqlClient, async (tx) => {
+      const fixture = await seedCashFixture(tx)
+      await tx.unsafe(
+        `select * from reverse_supplier_bill(
+          '${fixture.supplierBillId}', '${fixture.actorId}', 'Vendor correction', '2026-07-28'
+        )`
+      )
+      const copyBill = () =>
+        tx.unsafe(
+          `insert into supplier_bills(
+             tenant_id, purchase_order_id, project_id, vendor_id,
+             vendor_bill_number, bill_date, subtotal_cents, total_payable_cents,
+             created_by
+           )
+           select
+             tenant_id, purchase_order_id, project_id, vendor_id,
+             vendor_bill_number, bill_date, subtotal_cents, subtotal_cents,
+             created_by
+           from supplier_bills
+           where id = '${fixture.supplierBillId}'`
+        )
+      await copyBill()
+      await tx.unsafe('savepoint live_duplicate')
+      let liveDuplicate = ''
+      try {
+        await copyBill()
+      } catch (error) {
+        liveDuplicate = String(error)
+        await tx.unsafe('rollback to savepoint live_duplicate')
+      }
+      await tx.unsafe('release savepoint live_duplicate')
+      const live = (await tx.unsafe(
+        `select count(*)::int as count
+         from supplier_bills
+         where vendor_id = '${fixture.vendorId}' and status <> 'reversed'`
+      )) as Rows
+      return { liveDuplicate, live: live[0]!.count }
+    })
+
+    expect(result.liveDuplicate).toContain('ux_supplier_bills_vendor_number')
+    expect(result.live).toBe(1)
   })
 
   it('keeps cash RPCs unavailable to authenticated', async () => {
