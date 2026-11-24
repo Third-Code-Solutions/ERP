@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { and, desc, eq } from 'drizzle-orm'
 import { requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { boms, projects } from '@third-code-erp/database/schema'
 import { TakeoffImportWizard } from '@/components/bom/takeoff-import-wizard'
@@ -20,6 +21,7 @@ export default async function ProjectBomTogalPage({ params }: PageProps) {
   const profile = await requireUserProfile()
   const access = getProjectDetailAccess(profile.role)
   if (!access.bom) return notFound()
+  requireRouteAccess(profile.role, '/projects/[id]/bom/togal')
   const tenantId = profile.tenantId
 
   const [project] = await db

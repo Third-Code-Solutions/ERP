@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   journalEntries,
@@ -37,6 +38,7 @@ export default async function JournalPage({
 }) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
+  requireRouteAccess(profile.role, '/finance/journals/[id]')
   const canManage = can(profile.role, 'finance.manage')
   const { id } = await requireUuidRouteParams(params)
 

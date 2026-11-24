@@ -75,7 +75,7 @@ export function CreatePermitForm({ projectId, users, permittedTypes }: CreatePer
 
   if (!open) {
     return (
-      <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
+      <button type="button" className="button-primary" onClick={() => setOpen(true)}>
         Add permit
       </button>
     )
@@ -205,7 +205,7 @@ export function CreatePermitForm({ projectId, users, permittedTypes }: CreatePer
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
         <button
           type="button"
-          className="btn btn-ghost"
+          className="button-secondary"
           disabled={pending}
           onClick={() => {
             reset()
@@ -214,7 +214,7 @@ export function CreatePermitForm({ projectId, users, permittedTypes }: CreatePer
         >
           Cancel
         </button>
-        <button type="button" className="btn btn-primary" disabled={pending} onClick={submit}>
+        <button type="button" className="button-primary" disabled={pending} onClick={submit}>
           {pending ? 'Saving…' : 'Create permit'}
         </button>
       </div>

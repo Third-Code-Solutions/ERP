@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { alias } from 'drizzle-orm/pg-core'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   journalEntries,
@@ -60,6 +61,7 @@ export default async function SupplierBillPage({
 }) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
+  requireRouteAccess(profile.role, '/finance/payables/[id]')
   const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
   const { id } = await requireUuidRouteParams(params)
   const postingJournal = alias(journalEntries, 'posting_journal')

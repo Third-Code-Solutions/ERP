@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { errorChainMessage } from './error-chain-message'
+import { errorChainMessage, errorChainSqlState } from './error-chain-message'
 
 describe('errorChainMessage', () => {
   it('exposes the database rule text wrapped by a driver error', () => {
@@ -25,5 +25,22 @@ describe('errorChainMessage', () => {
     a.cause = b
 
     expect(errorChainMessage(a)).toBe('a\nb')
+  })
+})
+
+describe('errorChainSqlState', () => {
+  it('reads the SQLSTATE from the driver error under a query wrapper', () => {
+    const driver = Object.assign(new Error('duplicate key value'), { code: '23505' })
+    const wrapped = new Error('Failed query: insert into "t" values ($1)', { cause: driver })
+
+    expect(errorChainSqlState(wrapped)).toBe('23505')
+  })
+
+  it('ignores codes that are not SQLSTATEs and errors without a code', () => {
+    const auth = Object.assign(new Error('session'), { code: 'refresh_token_not_found' })
+
+    expect(errorChainSqlState(auth)).toBeUndefined()
+    expect(errorChainSqlState(new Error('plain'))).toBeUndefined()
+    expect(errorChainSqlState('not an error')).toBeUndefined()
   })
 })

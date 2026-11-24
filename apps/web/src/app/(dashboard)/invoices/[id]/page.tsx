@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { can, requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   accounts,
@@ -51,6 +52,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.read')
+  requireRouteAccess(profile.role, '/invoices/[id]')
   const canIssueInvoice = can(profile.role, 'finance.issue_invoice')
   const canManageCash = can(profile.role, 'finance.manage_cash')
 

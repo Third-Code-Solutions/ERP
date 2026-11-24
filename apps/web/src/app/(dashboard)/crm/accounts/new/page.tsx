@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { requireUserProfile, can } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { redirect } from 'next/navigation'
 import { NewAccountForm } from '@/components/accounts/new-account-form'
 
@@ -10,6 +11,7 @@ export default async function NewAccountPage() {
   if (!can(profile.role, 'account.create')) {
     redirect('/crm/accounts?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/crm/accounts/new')
 
   return (
     <div>

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import {
   getPurchaseOrderDuplicateGroups,
   type PurchaseOrderDuplicateGroup,
@@ -31,6 +32,7 @@ export default async function DataQualityPage() {
   if (!can(profile.role, 'admin.system_config.read')) {
     redirect('/admin?error=forbidden')
   }
+  requireRouteAccess(profile.role, '/admin/data-quality')
 
   const groups = await getPurchaseOrderDuplicateGroups(profile.tenantId)
   const affectedRecords = totalRecords(groups)

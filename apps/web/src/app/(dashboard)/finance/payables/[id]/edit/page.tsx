@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   ledgerAccounts,
@@ -34,6 +35,7 @@ export default async function EditSupplierBillPage({
 }) {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.post_supplier_bill')
+  requireRouteAccess(profile.role, '/finance/payables/[id]/edit')
   const { id } = await requireUuidRouteParams(params)
 
   const [bill] = await db

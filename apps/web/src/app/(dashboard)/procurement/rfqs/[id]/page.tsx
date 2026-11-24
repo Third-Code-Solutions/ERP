@@ -31,6 +31,7 @@ import { LogQuoteForm } from '@/components/rfq/log-quote-form'
 import { PriceComparisonTable } from '@/components/rfq/price-comparison-table'
 import { BidLevelingSummary } from '@/components/rfq/bid-leveling-summary'
 import { getRfqBidLevelingThroughCoreApi, rfqBidLevelingReadsUseCoreApi } from '@/lib/erp-core-client'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { completeRfq, cancelRfq } from '../actions'
 
 export const metadata: Metadata = { title: 'RFQ Detail' }
@@ -58,6 +59,7 @@ interface PageProps {
 export default async function RfqDetailPage({ params }: PageProps) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, `/procurement/rfqs/${id}`)
 
   const [rfq] = await db
     .select({

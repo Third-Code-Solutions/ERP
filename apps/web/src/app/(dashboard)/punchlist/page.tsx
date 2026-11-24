@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { desc, eq } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import { punchlistItems, projects } from '@third-code-erp/database/schema'
 import type { Metadata } from 'next'
@@ -23,6 +24,7 @@ const PRIORITY_COLOR: Record<string, string> = {
 
 export default async function PunchlistPage() {
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, '/punchlist')
 
   const rows = await db
     .select({

@@ -17,6 +17,7 @@ import {
 import { SitePrepPanel } from '@/components/deliveries/site-prep-panel'
 import { InspectionPanel } from '@/components/deliveries/inspection-panel'
 import { DeliveryStatusActions } from '@/components/deliveries/delivery-status-actions'
+import { requireRouteAccess } from '@/lib/require-route-access'
 
 export const metadata: Metadata = { title: 'Delivery detail' }
 
@@ -88,6 +89,7 @@ export default async function DeliveryDetailPage({
 }) {
   const { id } = await requireUuidRouteParams(params)
   const profile = await requireUserProfile()
+  requireRouteAccess(profile.role, `/procurement/deliveries/${id}`)
 
   const [row] = await db
     .select({

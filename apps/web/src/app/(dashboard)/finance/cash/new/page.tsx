@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
 import {
   cashAccounts,
@@ -33,6 +34,7 @@ interface DisbursementTargetRow {
 export default async function NewCashTransactionPage() {
   const profile = await requireUserProfile()
   requireCapability(profile, 'finance.manage_cash')
+  requireRouteAccess(profile.role, '/finance/cash/new')
 
   const [accountRows, receiptRows, disbursementRows] = await Promise.all([
     db
