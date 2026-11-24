@@ -19,6 +19,7 @@
 -- old unique indexes could not be rebuilt without deleting evidence):
 --   begin;
 --   set local lock_timeout = '5s';
+--   set local statement_timeout = '60s';
 --   do $$
 --   begin
 --     if exists (
@@ -39,13 +40,13 @@
 --   $$;
 --   create unique index ux_supplier_bills_vendor_number_old
 --     on public.supplier_bills (tenant_id, vendor_id, lower(btrim(vendor_bill_number)));
---   drop index public.ux_supplier_bills_vendor_number;
---   alter index public.ux_supplier_bills_vendor_number_old
---     rename to ux_supplier_bills_vendor_number;
 --   create unique index ux_cash_transactions_reference_old
 --     on public.cash_transactions (
 --       tenant_id, cash_account_id, direction, lower(btrim(reference_number))
 --     );
+--   drop index public.ux_supplier_bills_vendor_number;
+--   alter index public.ux_supplier_bills_vendor_number_old
+--     rename to ux_supplier_bills_vendor_number;
 --   drop index public.ux_cash_transactions_reference;
 --   alter index public.ux_cash_transactions_reference_old
 --     rename to ux_cash_transactions_reference;
@@ -53,17 +54,31 @@
 begin;
 
 set local lock_timeout = '5s';
+set local statement_timeout = '60s';
 
 do $$
-begin
-  if not exists (
+declare
+  swap_bills boolean := not exists (
     select 1
     from pg_catalog.pg_indexes
     where schemaname = 'public'
       and tablename = 'supplier_bills'
       and indexname = 'ux_supplier_bills_vendor_number'
       and indexdef like '%reversed%'
-  ) then
+  );
+  swap_cash boolean := not exists (
+    select 1
+    from pg_catalog.pg_indexes
+    where schemaname = 'public'
+      and tablename = 'cash_transactions'
+      and indexname = 'ux_cash_transactions_reference'
+      and indexdef like '%reversed%'
+  );
+begin
+  -- Build both replacements first (SHARE: writes wait, reads continue). The
+  -- drops below take ACCESS EXCLUSIVE until commit, so they come last and
+  -- neither table is fully locked while the other index builds.
+  if swap_bills then
     create unique index ux_supplier_bills_vendor_number_live
       on public.supplier_bills (
         tenant_id,
@@ -71,19 +86,9 @@ begin
         lower(btrim(vendor_bill_number))
       )
       where status <> 'reversed';
-    drop index if exists public.ux_supplier_bills_vendor_number;
-    alter index public.ux_supplier_bills_vendor_number_live
-      rename to ux_supplier_bills_vendor_number;
   end if;
 
-  if not exists (
-    select 1
-    from pg_catalog.pg_indexes
-    where schemaname = 'public'
-      and tablename = 'cash_transactions'
-      and indexname = 'ux_cash_transactions_reference'
-      and indexdef like '%reversed%'
-  ) then
+  if swap_cash then
     create unique index ux_cash_transactions_reference_live
       on public.cash_transactions (
         tenant_id,
@@ -92,6 +97,15 @@ begin
         lower(btrim(reference_number))
       )
       where status <> 'reversed';
+  end if;
+
+  if swap_bills then
+    drop index if exists public.ux_supplier_bills_vendor_number;
+    alter index public.ux_supplier_bills_vendor_number_live
+      rename to ux_supplier_bills_vendor_number;
+  end if;
+
+  if swap_cash then
     drop index if exists public.ux_cash_transactions_reference;
     alter index public.ux_cash_transactions_reference_live
       rename to ux_cash_transactions_reference;

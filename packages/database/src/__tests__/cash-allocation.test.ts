@@ -137,7 +137,9 @@ describe('reversed number reuse migration contract', () => {
 
   it('is gated, bounded and aborts its rollback if a number was reused', () => {
     expect(reuseSql.startsWith('-- needs production migration approval')).toBe(true)
-    expect(reuseSql).toContain("begin;\n\nset local lock_timeout = '5s';")
+    expect(reuseSql).toContain(
+      "begin;\n\nset local lock_timeout = '5s';\nset local statement_timeout = '60s';"
+    )
     expect(reuseSql.trimEnd().endsWith('commit;')).toBe(true)
     expect(reuseSql).toMatch(/rollback[\s\S]*?raise exception[\s\S]*?errcode = '55000'/)
   })
@@ -152,6 +154,20 @@ describe('reversed number reuse migration contract', () => {
     )
     expect(reuseSql).toContain('rename to ux_supplier_bills_vendor_number;')
     expect(reuseSql).toContain('rename to ux_cash_transactions_reference;')
+  })
+
+  it('builds both replacement indexes before either drop takes ACCESS EXCLUSIVE', () => {
+    const body = reuseSql.slice(reuseSql.indexOf("begin;\n\nset local lock_timeout"))
+    const lastBuild = Math.max(
+      body.indexOf('create unique index ux_supplier_bills_vendor_number_live'),
+      body.indexOf('create unique index ux_cash_transactions_reference_live')
+    )
+    const firstDrop = Math.min(
+      body.indexOf('drop index if exists public.ux_supplier_bills_vendor_number;'),
+      body.indexOf('drop index if exists public.ux_cash_transactions_reference;')
+    )
+    expect(lastBuild).toBeGreaterThan(0)
+    expect(firstDrop).toBeGreaterThan(lastBuild)
   })
 })
 
