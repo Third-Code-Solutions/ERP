@@ -7,6 +7,7 @@ import {
   bankStatementImportStorageCleanupBodySchema,
   bankStatementImportStorageCleanupResultSchema,
 } from './finance-bank-statement-import'
+import { numberBankStatementOccurrences } from './finance-bank-statement-csv'
 
 const CASH_ACCOUNT_ID = '11111111-1111-4111-8111-111111111111'
 const TENANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -125,5 +126,29 @@ describe('bank statement import API contracts', () => {
       bankStatementImportStorageCleanupResultSchema.safeParse({ ok: true })
         .success
     ).toBe(true)
+  })
+})
+
+describe('bank statement statement-line occurrence numbering', () => {
+  const fee = {
+    transactionDate: '2026-07-01',
+    referenceNumber: 'FEE',
+    description: 'Card fee',
+    amountCents: -1500,
+  }
+
+  it('numbers the Nth identical row N so the fingerprint stays unique', () => {
+    expect(
+      numberBankStatementOccurrences([fee, { ...fee, amountCents: -2000 }, fee, fee]).map(
+        (line) => line.occurrence
+      )
+    ).toEqual([1, 1, 2, 3])
+  })
+
+  it('treats case and surrounding spaces as identical and keeps the input unchanged', () => {
+    const input = [fee, { ...fee, referenceNumber: 'fee', description: '  CARD FEE ' }]
+
+    expect(numberBankStatementOccurrences(input).map((line) => line.occurrence)).toEqual([1, 2])
+    expect(input[0]).not.toHaveProperty('occurrence')
   })
 })

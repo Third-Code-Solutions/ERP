@@ -35,6 +35,7 @@ import {
   bankStatementImportCommandSchema,
   bankStatementImportResultSchema,
   isTenantScopedStoragePath,
+  numberBankStatementOccurrences,
   parseBankStatementCsv,
   type BankStatementAutoMatchBody,
   type BankStatementAutoMatchResult,
@@ -50,7 +51,7 @@ import {
   type BankStatementImportCommand,
   type BankStatementImportBody,
   type BankStatementImportResult,
-  type ParsedBankStatementLine,
+  type NumberedBankStatementLine,
 } from '@third-code-erp/shared-types'
 import { and, eq, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
@@ -110,7 +111,7 @@ type ImportRequest = {
 
 type PreparedImport = {
   sourceSha256: string
-  lines: ParsedBankStatementLine[]
+  lines: NumberedBankStatementLine[]
 }
 
 function commandHash(command: { statementId: string }): string {
@@ -192,7 +193,7 @@ function replayImportResult(value: unknown): BankStatementImportResult {
   return parsed.data
 }
 
-function prepareImportBytes(
+export function prepareImportBytes(
   command: BankStatementImportCommand,
   sourceBytes: Uint8Array
 ): PreparedImport {
@@ -201,9 +202,12 @@ function prepareImportBytes(
     throw new BadRequestException('Source file must be 2 MB or smaller')
   }
 
-  let lines: ParsedBankStatementLine[]
+  let lines: NumberedBankStatementLine[]
   try {
-    lines = parseBankStatementCsv(sourceBuffer.toString('utf8'))
+    // Identical rows are real repeated bank entries: the Nth copy is numbered N.
+    lines = numberBankStatementOccurrences(
+      parseBankStatementCsv(sourceBuffer.toString('utf8'))
+    )
   } catch (error) {
     throw new BadRequestException(
       error instanceof Error ? error.message : 'Could not parse bank statement CSV'
@@ -220,22 +224,6 @@ function prepareImportBytes(
     throw new BadRequestException(
       'Bank statement line must match its tenant and date range'
     )
-  }
-
-  const fingerprints = new Set<string>()
-  for (const line of lines) {
-    const fingerprint = [
-      line.transactionDate,
-      line.referenceNumber?.toLowerCase() ?? '',
-      line.amountCents,
-      line.description.trim().toLowerCase(),
-    ].join('|')
-    if (fingerprints.has(fingerprint)) {
-      throw new BadRequestException(
-        'That statement reference or an exact duplicate line already exists.'
-      )
-    }
-    fingerprints.add(fingerprint)
   }
 
   const lineTotal = lines.reduce((sum, line) => sum + line.amountCents, 0)
@@ -663,6 +651,7 @@ export class FinanceReconciliationWorkflowService {
           reference_number: line.referenceNumber,
           description: line.description,
           amount_cents: line.amountCents,
+          occurrence: line.occurrence,
         }))
       )
 
