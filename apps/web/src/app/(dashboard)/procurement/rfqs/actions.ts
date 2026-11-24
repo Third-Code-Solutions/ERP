@@ -17,7 +17,15 @@ import {
   createRfqFromBomRecord,
   notifyRfqCreated,
 } from '@/lib/procurement/rfq-service'
-import { UNIT_PRICE_REQUIRED_ERROR } from '@/lib/procurement/rfq-quote-price'
+import {
+  UNIT_PRICE_FORMAT_ERROR,
+  UNIT_PRICE_REQUIRED_ERROR,
+} from '@/lib/procurement/rfq-quote-price'
+import {
+  CANCEL_REASON_MAX_LENGTH,
+  CANCEL_REASON_REQUIRED_ERROR,
+  CANCEL_REASON_TOO_LONG_ERROR,
+} from '@/lib/procurement/rfq-terminal-command'
 import {
   awardRfqQuoteRecord,
   logRfqQuoteRecord,
@@ -43,8 +51,8 @@ const logQuoteSchema = z.object({
   // A quote is price evidence: blank or zero is refused, never logged as 0.00.
   unit_price_cents: z
     .number({ invalid_type_error: UNIT_PRICE_REQUIRED_ERROR })
-    .int()
-    .safe()
+    .int(UNIT_PRICE_FORMAT_ERROR)
+    .safe(UNIT_PRICE_FORMAT_ERROR)
     .positive(UNIT_PRICE_REQUIRED_ERROR),
   lead_time_days: z
     .number()
@@ -58,7 +66,7 @@ const logQuoteSchema = z.object({
 
 const cancelRfqSchema = z.object({
   rfqId: z.string().uuid(),
-  reason: z.string().trim().min(1).max(1000),
+  reason: z.string().trim().min(1).max(CANCEL_REASON_MAX_LENGTH),
 })
 
 // ── createRfqFromBom (authenticated compatibility action) ────────────────────
@@ -137,7 +145,9 @@ export async function logQuote(
     bom_line_item_id: formData.get('bom_line_item_id'),
     vendor_id: formData.get('vendor_id'),
     submission_id: formData.get('submission_id'),
-    unit_price_cents: typeof priceRaw === 'string' ? Number(priceRaw) : NaN,
+    // Whole centavos only: Number() alone would accept '0x10' and '1e3'.
+    unit_price_cents:
+      typeof priceRaw === 'string' && /^\d+$/.test(priceRaw.trim()) ? Number(priceRaw) : NaN,
     lead_time_days:
       typeof leadRaw === 'string' && leadRaw ? Number(leadRaw) : undefined,
     valid_until: (formData.get('valid_until') as string) || undefined,
@@ -290,11 +300,9 @@ export async function cancelRfq(
   const parsed = cancelRfqSchema.safeParse({ rfqId, reason })
   if (!parsed.success) {
     if (!reason.trim()) {
-      return { error: 'Cancellation reason is required' }
+      return { error: CANCEL_REASON_REQUIRED_ERROR }
     }
-    return {
-      error: 'Cancellation reason must be 1000 characters or fewer',
-    }
+    return { error: CANCEL_REASON_TOO_LONG_ERROR }
   }
 
   try {

@@ -66,6 +66,7 @@ import {
   createRfqFromBom,
   logQuote,
 } from './actions'
+import { UNIT_PRICE_FORMAT_ERROR } from '@/lib/procurement/rfq-quote-price'
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const ACTOR_ID = '22222222-2222-4222-8222-222222222222'
@@ -269,7 +270,8 @@ describe('RFQ Server Action authority', () => {
     )
   })
 
-  it.each(['', '0', '-100'])(
+  // '0x10' and '1e3' are numbers to Number() but not whole centavos.
+  it.each(['', '0', '-100', '0x10', '1e3', '12.5'])(
     'refuses a quote priced %j instead of logging it as 0.00',
     async (price) => {
       const formData = new FormData()
@@ -286,6 +288,19 @@ describe('RFQ Server Action authority', () => {
       expect(mocks.logRfqQuoteThroughCoreApi).not.toHaveBeenCalled()
     }
   )
+
+  it('refuses a price beyond the safe integer range with the format message', async () => {
+    const formData = new FormData()
+    formData.set('rfq_id', RFQ_ID)
+    formData.set('bom_line_item_id', LINE_ID)
+    formData.set('vendor_id', VENDOR_ID)
+    formData.set('submission_id', SUBMISSION_ID)
+    formData.set('unit_price_cents', '9007199254740993')
+
+    await expect(logQuote(formData)).resolves.toEqual({ error: UNIT_PRICE_FORMAT_ERROR })
+    expect(mocks.logRfqQuoteRecord).not.toHaveBeenCalled()
+    expect(mocks.logRfqQuoteThroughCoreApi).not.toHaveBeenCalled()
+  })
 
   it('rejects an unkeyed quote before transaction authority', async () => {
     const formData = new FormData()
