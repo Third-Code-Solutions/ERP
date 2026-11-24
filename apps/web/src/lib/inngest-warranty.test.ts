@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   selectLimit: vi.fn(),
   insert: vi.fn(),
   insertValues: vi.fn(),
+  insertOnConflictDoNothing: vi.fn(),
   insertReturning: vi.fn(),
   update: vi.fn(),
   updateSet: vi.fn(),
@@ -52,7 +53,8 @@ describe('CNPS survey delivery evidence', () => {
     mocks.selectFrom.mockReturnValue({ where: mocks.selectWhere })
     mocks.selectWhere.mockReturnValue({ limit: mocks.selectLimit })
     mocks.insert.mockReturnValue({ values: mocks.insertValues })
-    mocks.insertValues.mockReturnValue({ returning: mocks.insertReturning })
+    mocks.insertValues.mockReturnValue({ onConflictDoNothing: mocks.insertOnConflictDoNothing })
+    mocks.insertOnConflictDoNothing.mockReturnValue({ returning: mocks.insertReturning })
     mocks.update.mockReturnValue({ set: mocks.updateSet })
     mocks.updateSet.mockReturnValue({ where: mocks.updateWhere })
     mocks.updateWhere.mockResolvedValue(undefined)
@@ -73,6 +75,23 @@ describe('CNPS survey delivery evidence', () => {
       expect.objectContaining({ sent_at: null })
     )
     expect(mocks.updateSet).toHaveBeenCalledWith({ sent_at: expect.any(Date) })
+  })
+
+  it('inserts on conflict with the ticket survey and sends nothing when another sender won', async () => {
+    mocks.selectLimit
+      .mockResolvedValueOnce([ticket])
+      .mockResolvedValueOnce([])
+    mocks.insertReturning.mockResolvedValue([])
+
+    await expect(dispatchOneSurvey('ticket-id', 'tenant-id')).resolves.toEqual({
+      sent: false,
+      reason: 'already-claimed',
+    })
+
+    const [{ target }] = mocks.insertOnConflictDoNothing.mock.calls[0] as [{ target: Array<{ name: string }> }]
+    expect(target.map((column) => column.name)).toEqual(['tenant_id', 'ticket_id'])
+    expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
+    expect(mocks.updateSet).not.toHaveBeenCalled()
   })
 
   it('leaves a failed provider delivery retryable', async () => {

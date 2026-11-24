@@ -107,6 +107,8 @@ export const cnpsSurveys = pgTable(
     tenantIdx: index('idx_cnps_tenant_id').on(table.tenant_id),
     ticketIdx: index('idx_cnps_ticket_id').on(table.ticket_id),
     accountIdx: index('idx_cnps_account_id').on(table.account_id),
+    // One survey per ticket: both senders insert on conflict (tenant_id, ticket_id) do nothing.
+    tenantTicketUq: uniqueIndex('ux_cnps_surveys_tenant_ticket').on(table.tenant_id, table.ticket_id),
   })
 )
 

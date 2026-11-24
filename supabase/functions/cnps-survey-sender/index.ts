@@ -3,11 +3,13 @@
 // Finds warranty tickets closed > 48h ago that don't yet have a sent CNPS
 // survey. For each: generate a random token, hash it, INSERT a
 // `cnps_surveys` row with sent_at = now(), and email the submitter the
-// survey link.
+// survey link. The insert does nothing when the ticket already has a survey
+// (ux_cnps_surveys_tenant_ticket), and then no email goes out.
 
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
 import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import { pgInsert, pgSelect, sendEmail } from '../_shared/email.ts'
+import { insertSurveyOnce } from './claim-survey.ts'
 import { buildSurveyEmail, surveyUrl, tenantNamesById } from './survey-email.ts'
 
 interface TicketRow {
@@ -29,6 +31,7 @@ interface RunSummary {
   processed: number
   sent: number
   skipped_no_email: number
+  skipped_existing: number
   errors: Array<{ id: string; error: string }>
 }
 
@@ -62,6 +65,7 @@ Deno.serve(async (req) => {
     processed: 0,
     sent: 0,
     skipped_no_email: 0,
+    skipped_existing: 0,
     errors: [],
   }
   const nowMs = Date.now()
@@ -115,13 +119,18 @@ Deno.serve(async (req) => {
         const tokenHash = await sha256Hex(token)
         const nowIso = new Date(nowMs).toISOString()
 
-        await pgInsert('cnps_surveys', {
+        const created = await insertSurveyOnce({
           tenant_id: ticket.tenant_id,
           ticket_id: ticket.id,
           account_id: ticket.account_id,
           sent_at: nowIso,
           response_token_hash: tokenHash,
         })
+        // Another sender created this ticket's survey since the read above.
+        if (!created) {
+          summary.skipped_existing += 1
+          continue
+        }
 
         const { subject, html, text } = buildSurveyEmail({
           ticketNumber: ticket.ticket_number,

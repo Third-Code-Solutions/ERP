@@ -107,8 +107,10 @@ export async function dispatchOneSurvey(
         sent_at: null,
         response_token_hash: tokenHash,
       })
+      // ux_cnps_surveys_tenant_ticket: a concurrent sender's row wins and this run sends nothing.
+      .onConflictDoNothing({ target: [cnpsSurveys.tenant_id, cnpsSurveys.ticket_id] })
       .returning({ id: cnpsSurveys.id })
-    if (!created?.id) return { sent: false, reason: 'survey-not-created' }
+    if (!created?.id) return { sent: false, reason: 'already-claimed' }
     surveyId = created.id
   }
 
