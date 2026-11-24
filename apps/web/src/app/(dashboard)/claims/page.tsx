@@ -1,11 +1,12 @@
 import Link from 'next/link'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import type { Metadata } from 'next'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
-import { progressClaims, projects } from '@third-code-erp/database/schema'
+import { invoices, progressClaims, projects } from '@third-code-erp/database/schema'
 import { ClaimListTable } from '@/components/claims/claim-list-table'
+import { CLAIM_PAID_IN_FULL, paidClaimPaymentLabel } from '@/lib/claim-invoice-link'
 
 export const metadata: Metadata = { title: 'Progress claims' }
 
@@ -62,9 +63,18 @@ export default async function ClaimsPage({
       status: progressClaims.status,
       created_at: progressClaims.created_at,
       paid_at: progressClaims.paid_at,
+      invoice_status: invoices.status,
+      invoice_reversed_at: invoices.reversed_at,
     })
     .from(progressClaims)
-    .innerJoin(projects, eq(projects.id, progressClaims.project_id))
+    .innerJoin(
+      projects,
+      and(eq(projects.id, progressClaims.project_id), eq(projects.tenant_id, profile.tenantId))
+    )
+    .leftJoin(
+      invoices,
+      and(eq(invoices.id, progressClaims.invoice_id), eq(invoices.tenant_id, profile.tenantId))
+    )
     .where(eq(progressClaims.tenant_id, profile.tenantId))
     .orderBy(desc(progressClaims.created_at))
     .limit(200)
@@ -76,11 +86,14 @@ export default async function ClaimsPage({
   ).length
 
   // Paid-this-month: paid_at within the current calendar month (PH tz
-  // approximation via local time on the server).
+  // approximation via local time on the server). One receipt marks a claim
+  // paid, so a claim whose invoice is not yet paid in full does not count.
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const paidThisMonth = allRows.filter((r) => {
     if (r.status !== 'paid' || !r.paid_at) return false
+    const payment = paidClaimPaymentLabel(r)
+    if (payment !== null && payment !== CLAIM_PAID_IN_FULL) return false
     const paidAt = new Date(r.paid_at as unknown as string)
     return paidAt >= monthStart
   }).length

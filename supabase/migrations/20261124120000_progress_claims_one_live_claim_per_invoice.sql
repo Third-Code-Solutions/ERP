@@ -13,7 +13,11 @@
 -- duplicate claim, or relink it) and rerun; no row is rewritten here.
 --
 -- Rollback (instant, no data effect):
+--   begin;
+--   set local lock_timeout = '5s';
 --   drop index if exists public.ux_progress_claims_tenant_invoice_live;
+--   delete from supabase_migrations.schema_migrations where version = '20261124120000';
+--   commit;
 begin;
 
 set local lock_timeout = '5s';

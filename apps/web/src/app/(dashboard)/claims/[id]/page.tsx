@@ -35,6 +35,7 @@ import { ClaimStepper } from '@/components/claims/claim-stepper'
 import { ClaimTransitionActions } from '@/components/claims/claim-transition-actions'
 import { ClaimDocumentAttach } from '@/components/claims/claim-document-attach'
 import { claimPaymentLabel } from '@/lib/claim-invoice-link'
+import { RELEASED_CLAIM_STATUSES } from '@third-code-erp/shared-types'
 
 export const metadata: Metadata = { title: 'Progress Claim' }
 
@@ -228,7 +229,7 @@ export default async function ClaimDetailPage({ params }: PageProps) {
       and(
         eq(progressClaims.invoice_id, invoices.id),
         eq(progressClaims.tenant_id, profile.tenantId),
-        notInArray(progressClaims.status, ['rejected', 'cancelled'])
+        notInArray(progressClaims.status, [...RELEASED_CLAIM_STATUSES])
       )
     )
     .where(
@@ -635,6 +636,7 @@ export default async function ClaimDetailPage({ params }: PageProps) {
             claimAmountCents={claim.amount_cents}
             status={claim.status as ClaimStatus}
             rejectedReason={claim.rejected_reason}
+            linkedInvoiceReversed={linkedInvoice?.reversed_at != null}
             certificateDocs={projectDocs.map((d) => ({
               id: d.id,
               file_name: d.file_name,

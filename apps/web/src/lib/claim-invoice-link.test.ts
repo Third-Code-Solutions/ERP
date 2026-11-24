@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   claimLinkOption,
   claimPaymentLabel,
+  paidClaimPaymentLabel,
   type ClaimLinkInvoice,
 } from './claim-invoice-link'
 
@@ -56,6 +57,23 @@ describe('claimPaymentLabel', () => {
     expect(claimPaymentLabel({ status: 'overdue', reversed: false })).toBe('Awaiting payment')
     expect(claimPaymentLabel({ status: 'partial_payment', reversed: false })).toBe('Partially paid')
     expect(claimPaymentLabel({ status: 'paid', reversed: false })).toBe('Paid in full')
-    expect(claimPaymentLabel({ status: 'paid', reversed: true })).toBe('Invoice reversed')
+    expect(claimPaymentLabel({ status: 'cancelled', reversed: true })).toBe('Invoice reversed')
+    expect(claimPaymentLabel({ status: 'cancelled', reversed: false })).toBe('Invoice cancelled')
+  })
+})
+
+describe('paidClaimPaymentLabel', () => {
+  it('shows a paid claim as paid in full only when its invoice is', () => {
+    const paid = { status: 'paid', invoice_reversed_at: null }
+    expect(paidClaimPaymentLabel({ ...paid, invoice_status: 'partial_payment' })).toBe('Partially paid')
+    expect(paidClaimPaymentLabel({ ...paid, invoice_status: 'paid' })).toBe('Paid in full')
+    expect(
+      paidClaimPaymentLabel({ ...paid, invoice_status: 'cancelled', invoice_reversed_at: new Date('2026-11-20') })
+    ).toBe('Invoice reversed')
+  })
+
+  it('leaves every other claim, and a paid claim without an invoice, to its status', () => {
+    expect(paidClaimPaymentLabel({ status: 'invoiced', invoice_status: 'paid', invoice_reversed_at: null })).toBeNull()
+    expect(paidClaimPaymentLabel({ status: 'paid', invoice_status: null, invoice_reversed_at: null })).toBeNull()
   })
 })

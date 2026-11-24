@@ -94,11 +94,25 @@ export function claimTransitionPayload(
   return JSON.stringify(payload)
 }
 
-/** Invoice statuses a claim may link to. A reversed invoice keeps its status, so reversed_at is checked separately. */
-export const CLAIM_LINKABLE_INVOICE_STATUSES: readonly string[] = ['issued', 'partial_payment', 'paid', 'overdue']
+/** Values of the invoice_status enum. */
+export type InvoiceStatus = 'draft' | 'issued' | 'partial_payment' | 'paid' | 'overdue' | 'cancelled'
+
+/** Invoice statuses a claim may link to. Reversal sets status to cancelled and stamps reversed_at. */
+export const CLAIM_LINKABLE_INVOICE_STATUSES: readonly InvoiceStatus[] = ['issued', 'partial_payment', 'paid', 'overdue']
 
 /** Invoice statuses with at least one posted customer receipt; a claim payment needs one of them. */
-export const CLAIM_PAYABLE_INVOICE_STATUSES: readonly string[] = ['partial_payment', 'paid']
+export const CLAIM_PAYABLE_INVOICE_STATUSES: readonly InvoiceStatus[] = ['partial_payment', 'paid']
+
+/** Claim statuses that release their invoice. Mirrors the partial unique index ux_progress_claims_tenant_invoice_live. */
+export const RELEASED_CLAIM_STATUSES: readonly ClaimTransitionStatus[] = ['rejected', 'cancelled']
+
+export function isClaimLinkableInvoiceStatus(status: string): boolean {
+  return (CLAIM_LINKABLE_INVOICE_STATUSES as readonly string[]).includes(status)
+}
+
+export function isClaimPayableInvoiceStatus(status: string): boolean {
+  return (CLAIM_PAYABLE_INVOICE_STATUSES as readonly string[]).includes(status)
+}
 
 /** Null when the claim amount and the invoice subtotal agree to the centavo. Core and Web show this same text. */
 export function claimInvoiceAmountMismatch(

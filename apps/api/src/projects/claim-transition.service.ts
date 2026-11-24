@@ -17,8 +17,7 @@ import {
   users,
 } from '@third-code-erp/database/schema'
 import {
-  CLAIM_LINKABLE_INVOICE_STATUSES,
-  CLAIM_PAYABLE_INVOICE_STATUSES,
+  RELEASED_CLAIM_STATUSES,
   claimInvoiceAmountMismatch,
   claimTransitionCommandReceiptSchema,
   claimTransitionCommandSchema,
@@ -28,6 +27,8 @@ import {
   type ClaimTransitionCommandReceipt,
   type ClaimTransitionResult,
   type ClaimTransitionStatus,
+  isClaimLinkableInvoiceStatus,
+  isClaimPayableInvoiceStatus,
 } from '@third-code-erp/shared-types'
 import { ERP_ROLES, roleHasCapability } from '@third-code-erp/shared-types/authorization'
 import { and, eq, isNull, ne, notInArray, sql } from 'drizzle-orm'
@@ -41,10 +42,9 @@ const COMMAND_ACTION = 'status_change'
 const COMMERCIAL_ROLES = new Set(['admin', 'owner', 'commercial'])
 const FINANCE_ROLES = new Set(['admin', 'owner', 'finance'])
 const TERMINAL_STATUSES = new Set<ClaimTransitionStatus>(['paid', 'rejected', 'cancelled'])
-// Mirrors the partial unique index ux_progress_claims_tenant_invoice_live.
-const RELEASED_CLAIM_STATUSES: ClaimTransitionStatus[] = ['rejected', 'cancelled']
 const INVOICE_ALREADY_LINKED = 'That invoice is already linked to another claim'
 const INVOICE_LIVE_CLAIM_INDEX = 'ux_progress_claims_tenant_invoice_live'
+const INVOICED_REJECT_REFUSED = 'An invoiced claim cannot be rejected. Void its invoice first with Reverse invoice in Finance.'
 
 function pgError(error: unknown): { code: string; constraint_name?: unknown } | undefined {
   const seen = new Set<object>()
@@ -138,6 +138,7 @@ export class ClaimTransitionService {
           if (command.action === 'certify') await this.assertCertificateDocument(transaction, actor, claim.projectId, command.certificateDocumentId)
           if (command.action === 'link_invoice') await this.assertInvoice(transaction, actor, claim, command.invoiceId)
           if (command.action === 'record_payment') await this.assertInvoiceReceived(transaction, actor, claim.invoiceId)
+          if (command.action === 'reject' && claim.status === 'invoiced') await this.assertInvoiceReversed(transaction, actor, claim.invoiceId)
 
           const now = await this.databaseClock(transaction)
           const patch = this.patchFor(command, actor.userId, now)
@@ -217,9 +218,6 @@ export class ClaimTransitionService {
   }
 
   private assertTransitionAllowed(status: ClaimTransitionStatus, action: ClaimTransitionCommand['action']): void {
-    if (action === 'reject' && status === 'invoiced') {
-      throw new ConflictException('An invoiced claim cannot be rejected. Void its invoice first with Reverse invoice in Finance.')
-    }
     const allowed = action === 'submit' ? status === 'draft'
       : action === 'certificate_pending' ? status === 'submitted'
         : action === 'certify' ? status === 'submitted' || status === 'certificate_pending'
@@ -274,8 +272,8 @@ export class ClaimTransitionService {
       .for('share', { noWait: true })
     if (!invoice) throw new NotFoundException('Invoice not found in the claim project')
     if (invoice.reversedAt) throw new ConflictException(`Invoice ${invoice.number} was reversed and cannot be linked to a claim`)
-    // A reversed invoice keeps its status and carries reversed_at, so status alone is not enough.
-    if (!CLAIM_LINKABLE_INVOICE_STATUSES.includes(invoice.status)) {
+    // Reversal also sets status to cancelled; reversed_at is checked first for the clearer message.
+    if (!isClaimLinkableInvoiceStatus(invoice.status)) {
       throw new ConflictException(
         invoice.status === 'draft'
           ? `Invoice ${invoice.number} is still a draft; issue it before linking it to a claim`
@@ -289,7 +287,7 @@ export class ClaimTransitionService {
         eq(progressClaims.tenant_id, actor.tenantId),
         eq(progressClaims.invoice_id, invoiceId),
         ne(progressClaims.id, claim.id),
-        notInArray(progressClaims.status, RELEASED_CLAIM_STATUSES),
+        notInArray(progressClaims.status, [...RELEASED_CLAIM_STATUSES]),
       ))
       .limit(1)
     if (other) throw new ConflictException(`Invoice ${invoice.number} is already linked to claim ${other.claimNumber}`)
@@ -309,9 +307,23 @@ export class ClaimTransitionService {
       .for('share', { noWait: true })
     if (!invoice) throw new NotFoundException('Linked invoice not found')
     if (invoice.reversedAt) throw new ConflictException(`Invoice ${invoice.number} was reversed; a reversed invoice cannot carry a claim payment`)
-    if (!CLAIM_PAYABLE_INVOICE_STATUSES.includes(invoice.status)) {
+    if (!isClaimPayableInvoiceStatus(invoice.status)) {
       throw new ConflictException(`Invoice ${invoice.number} has no customer payment yet; record the receipt in Finance first`)
     }
+  }
+
+  // Reversing an invoice leaves its claim invoiced; rejecting the claim then is the only way to
+  // free the invoice link (the live-claim index), so it is allowed once the invoice is reversed.
+  private async assertInvoiceReversed(transaction: DatabaseTransaction, actor: ErpPrincipal, invoiceId: string | null): Promise<void> {
+    if (!invoiceId) return
+    const [invoice] = await transaction
+      .select({ reversedAt: invoices.reversed_at })
+      .from(invoices)
+      .where(and(eq(invoices.id, invoiceId), eq(invoices.tenant_id, actor.tenantId)))
+      .limit(1)
+      .for('share', { noWait: true })
+    if (!invoice) throw new NotFoundException('Linked invoice not found')
+    if (!invoice.reversedAt) throw new ConflictException(INVOICED_REJECT_REFUSED)
   }
 
   private async databaseClock(transaction: DatabaseTransaction): Promise<Date> {

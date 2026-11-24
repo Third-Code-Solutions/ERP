@@ -1,6 +1,6 @@
 import {
-  CLAIM_LINKABLE_INVOICE_STATUSES,
   claimInvoiceAmountMismatch,
+  isClaimLinkableInvoiceStatus,
 } from '@third-code-erp/shared-types'
 
 export interface ClaimLinkInvoice {
@@ -22,7 +22,7 @@ export interface ClaimLinkOption extends ClaimLinkInvoice {
 function statusReason(invoice: ClaimLinkInvoice): string | null {
   if (invoice.reversed) return 'reversed'
   if (invoice.status === 'draft') return 'still a draft'
-  if (!CLAIM_LINKABLE_INVOICE_STATUSES.includes(invoice.status)) return invoice.status.replace(/_/g, ' ')
+  if (!isClaimLinkableInvoiceStatus(invoice.status)) return invoice.status.replace(/_/g, ' ')
   if (invoice.linked_claim_number) return `already on claim ${invoice.linked_claim_number}`
   return null
 }
@@ -39,10 +39,29 @@ export function claimLinkOption(
   return { ...invoice, linkable: true, reason: null }
 }
 
+export const CLAIM_PAID_IN_FULL = 'Paid in full'
+
 /** The claim's payment state, derived from the receipts posted against its linked invoice. */
 export function claimPaymentLabel(invoice: { status: string; reversed: boolean }): string {
   if (invoice.reversed) return 'Invoice reversed'
-  if (invoice.status === 'paid') return 'Paid in full'
+  if (invoice.status === 'cancelled') return 'Invoice cancelled'
+  if (invoice.status === 'paid') return CLAIM_PAID_IN_FULL
   if (invoice.status === 'partial_payment') return 'Partially paid'
   return 'Awaiting payment'
+}
+
+/**
+ * A claim reaches `paid` at its first receipt, so for a paid claim the reader
+ * sees its linked invoice's payment state instead. Null for any other claim.
+ */
+export function paidClaimPaymentLabel(claim: {
+  status: string
+  invoice_status: string | null
+  invoice_reversed_at: Date | null
+}): string | null {
+  if (claim.status !== 'paid' || claim.invoice_status === null) return null
+  return claimPaymentLabel({
+    status: claim.invoice_status,
+    reversed: claim.invoice_reversed_at !== null,
+  })
 }

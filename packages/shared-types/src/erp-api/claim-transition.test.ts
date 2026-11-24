@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   claimInvoiceAmountMismatch,
+  isClaimLinkableInvoiceStatus,
+  isClaimPayableInvoiceStatus,
   claimTransitionCommandReceiptSchema,
   claimTransitionCommandSchema,
   claimTransitionPayload,
@@ -69,5 +71,16 @@ describe('claimInvoiceAmountMismatch', () => {
     expect(message).toContain('The claim is')
     expect(message).toContain('the invoice subtotal is')
     expect(message).toContain('Make them match before linking.')
+  })
+})
+
+describe('claim invoice status rules', () => {
+  it('links only issued invoices and pays only invoices with a receipt', () => {
+    expect(['draft', 'issued', 'partial_payment', 'paid', 'overdue', 'cancelled'].filter(isClaimLinkableInvoiceStatus)).toEqual([
+      'issued', 'partial_payment', 'paid', 'overdue',
+    ])
+    expect(['draft', 'issued', 'partial_payment', 'paid', 'overdue', 'cancelled'].filter(isClaimPayableInvoiceStatus)).toEqual([
+      'partial_payment', 'paid',
+    ])
   })
 })

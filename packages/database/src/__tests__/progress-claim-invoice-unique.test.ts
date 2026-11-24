@@ -123,6 +123,27 @@ runtimeSuite('S9a one live claim per invoice', () => {
     expect(count).toBe(3)
   })
 
+  it('frees the invoice for a corrected claim once the invoiced claim is rejected', async () => {
+    const live = await inRollback(sql, async (tx) => {
+      const scope = await seedScope(tx)
+      const first = await insertClaim(tx, scope, 'PC-S9A-1', 'invoiced', scope.invoiceId)
+      await tx.unsafe(
+        `update progress_claims set status = 'rejected'
+          where id = '${first}' and tenant_id = '${scope.tenantId}'`,
+      )
+      await insertClaim(tx, scope, 'PC-S9A-2', 'invoiced', scope.invoiceId)
+      return (
+        (await tx.unsafe(
+          `select count(*)::int as n from progress_claims
+            where tenant_id = '${scope.tenantId}' and invoice_id = '${scope.invoiceId}'
+              and status not in ('rejected', 'cancelled')`,
+        )) as Rows
+      )[0]!.n
+    })
+
+    expect(live).toBe(1)
+  })
+
   it('ignores claims without an invoice and different invoices', async () => {
     const count = await inRollback(sql, async (tx) => {
       const scope = await seedScope(tx)

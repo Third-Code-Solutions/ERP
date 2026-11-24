@@ -2,6 +2,8 @@ import 'reflect-metadata'
 
 import { ConflictException, NotFoundException } from '@nestjs/common'
 import { claimInvoiceAmountMismatch } from '@third-code-erp/shared-types'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import type { AuditService } from '../audit/audit.service'
@@ -45,7 +47,12 @@ function build(script: Script) {
     [],
     ...script.guardRows,
   ]
-  const select = vi.fn(() => chain(queue.shift() ?? []))
+  const reads: Array<ReturnType<typeof chain>> = []
+  const select = vi.fn(() => {
+    const read = chain(queue.shift() ?? [])
+    reads.push(read)
+    return read
+  })
   const returning = vi.fn().mockResolvedValue([{ id: CLAIM_ID }])
   const set = vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ returning }) })
   const update = vi.fn().mockReturnValue({ set })
@@ -60,7 +67,18 @@ function build(script: Script) {
     { client: { transaction: async (callback: (tx: unknown) => unknown) => callback(transaction) } } as unknown as DatabaseService,
     audit as unknown as AuditService,
   )
-  return { service, update, set, audit }
+  return { service, update, set, audit, reads }
+}
+
+/** Queue position of the first guard read (after actor, tenant, claim, project and receipt). */
+const GUARD_READ = 5
+
+/** The WHERE of one recorded read, rendered as SQL text with its parameters. */
+function renderedWhere(read: ReturnType<typeof chain> | undefined): { sql: string; params: unknown[] } {
+  const where = read?.where as ReturnType<typeof vi.fn> | undefined
+  const condition = where?.mock.calls[0]?.[0] as SQL | undefined
+  if (!condition) throw new Error('read had no where clause')
+  return new PgDialect().sqlToQuery(condition)
 }
 
 const LINK = { action: 'link_invoice' as const, clientRequestId: REQUEST_ID, invoiceId: INVOICE_ID }
@@ -107,10 +125,10 @@ describe('ClaimTransitionService invoice guards', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('refuses a reversed invoice even though its status still reads issued', async () => {
+  it('refuses a reversed invoice with the reversal message', async () => {
     const { service, update } = build({
       claimStatus: 'handed_over_finance',
-      guardRows: [[invoice({ reversedAt: new Date('2026-11-17T00:00:00.000Z') })]],
+      guardRows: [[invoice({ status: 'cancelled', reversedAt: new Date('2026-11-17T00:00:00.000Z') })]],
     })
 
     await expect(service.transition(CLAIM_ID, LINK, FINANCE)).rejects.toThrow(
@@ -142,6 +160,21 @@ describe('ClaimTransitionService invoice guards', () => {
     expect(expected).not.toBeNull()
     await expect(service.transition(CLAIM_ID, LINK, FINANCE)).rejects.toThrow(expected ?? '')
     expect(update).not.toHaveBeenCalled()
+  })
+
+  it('reads the invoice and the competing claim only inside the actor tenant and claim project', async () => {
+    const { service, reads } = build({ claimStatus: 'handed_over_finance', guardRows: [[invoice()], []] })
+
+    await service.transition(CLAIM_ID, LINK, FINANCE)
+
+    const invoiceRead = renderedWhere(reads[GUARD_READ])
+    expect(invoiceRead.sql).toContain('"invoices"."tenant_id" = $')
+    expect(invoiceRead.sql).toContain('"invoices"."project_id" = $')
+    expect(invoiceRead.params).toEqual(expect.arrayContaining([INVOICE_ID, TENANT_ID, PROJECT_ID]))
+    const competingRead = renderedWhere(reads[GUARD_READ + 1])
+    expect(competingRead.sql).toContain('"progress_claims"."tenant_id" = $')
+    expect(competingRead.sql).toContain('"progress_claims"."status" not in')
+    expect(competingRead.params).toEqual(expect.arrayContaining([TENANT_ID, INVOICE_ID, CLAIM_ID, 'rejected', 'cancelled']))
   })
 
   it('answers not found for an invoice outside the claim project or tenant', async () => {
@@ -207,16 +240,19 @@ describe('ClaimTransitionService invoice guards', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('refuses payment when the paid invoice was reversed', async () => {
-    const { service } = build({
+  it('refuses payment when the linked invoice was reversed', async () => {
+    const { service, reads } = build({
       claimStatus: 'invoiced',
       claimInvoiceId: INVOICE_ID,
-      guardRows: [[invoice({ status: 'paid', reversedAt: new Date('2026-11-17T00:00:00.000Z') })]],
+      guardRows: [[invoice({ status: 'cancelled', reversedAt: new Date('2026-11-17T00:00:00.000Z') })]],
     })
 
     await expect(service.transition(CLAIM_ID, PAY, FINANCE)).rejects.toThrow(
       'Invoice INV-202611-001 was reversed; a reversed invoice cannot carry a claim payment',
     )
+    const invoiceRead = renderedWhere(reads[GUARD_READ])
+    expect(invoiceRead.sql).toContain('"invoices"."tenant_id" = $')
+    expect(invoiceRead.params).toEqual(expect.arrayContaining([INVOICE_ID, TENANT_ID]))
   })
 
   it('refuses payment for an invoiced claim that holds no invoice', async () => {
@@ -227,12 +263,36 @@ describe('ClaimTransitionService invoice guards', () => {
 })
 
 describe('ClaimTransitionService rejection', () => {
-  it('refuses to reject an invoiced claim', async () => {
-    const { service, update } = build({ claimStatus: 'invoiced', claimInvoiceId: INVOICE_ID, guardRows: [] })
+  it('refuses to reject an invoiced claim while its invoice is live', async () => {
+    const { service, update } = build({ claimStatus: 'invoiced', claimInvoiceId: INVOICE_ID, guardRows: [[{ reversedAt: null }]] })
 
     await expect(service.transition(CLAIM_ID, REJECT, FINANCE)).rejects.toThrow(
       'An invoiced claim cannot be rejected. Void its invoice first with Reverse invoice in Finance.',
     )
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invoiced claim once its invoice is reversed, freeing the invoice link', async () => {
+    const { service, set, reads } = build({
+      claimStatus: 'invoiced',
+      claimInvoiceId: INVOICE_ID,
+      guardRows: [[{ reversedAt: new Date('2026-11-17T00:00:00.000Z') }]],
+    })
+
+    await expect(service.transition(CLAIM_ID, REJECT, FINANCE)).resolves.toMatchObject({
+      changed: true,
+      receipt: { fromStatus: 'invoiced', toStatus: 'rejected' },
+    })
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ status: 'rejected', rejected_reason: 'Wrong scope' }))
+    const invoiceRead = renderedWhere(reads[GUARD_READ])
+    expect(invoiceRead.sql).toContain('"invoices"."tenant_id" = $')
+    expect(invoiceRead.params).toEqual(expect.arrayContaining([INVOICE_ID, TENANT_ID]))
+  })
+
+  it('answers not found when the invoiced claim invoice is outside the tenant', async () => {
+    const { service, update } = build({ claimStatus: 'invoiced', claimInvoiceId: INVOICE_ID, guardRows: [[]] })
+
+    await expect(service.transition(CLAIM_ID, REJECT, FINANCE)).rejects.toBeInstanceOf(NotFoundException)
     expect(update).not.toHaveBeenCalled()
   })
 

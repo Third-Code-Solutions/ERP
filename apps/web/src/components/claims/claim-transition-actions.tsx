@@ -12,7 +12,7 @@
  *   certificate_pending → Record certification (pick cert doc) · Reject
  *   certified           → Handover to Finance · Reject
  *   handed_over_finance → Link invoice (picker) · Reject
- *   invoiced            → Record payment (no Reject until the invoice is voided)
+ *   invoiced            → Record payment; Reject only once the invoice is reversed
  *   paid / rejected /   → read-only summary
  *   cancelled
  */
@@ -54,6 +54,8 @@ interface ClaimTransitionActionsProps {
   claimAmountCents: number
   status: ClaimStatus
   rejectedReason?: string | null
+  /** True when the linked invoice was reversed in Finance; the claim may then be rejected. */
+  linkedInvoiceReversed?: boolean
   certificateDocs: DocOption[]
   invoices: ClaimLinkInvoice[]
 }
@@ -64,6 +66,7 @@ export function ClaimTransitionActions({
   claimAmountCents,
   status,
   rejectedReason,
+  linkedInvoiceReversed = false,
   certificateDocs,
   invoices,
 }: ClaimTransitionActionsProps) {
@@ -328,7 +331,7 @@ export function ClaimTransitionActions({
           </button>
         ))}
 
-      {status === 'invoiced' && (
+      {status === 'invoiced' && !linkedInvoiceReversed && (
         <button
           type="button"
           className="claim-action claim-action-success"
@@ -340,13 +343,15 @@ export function ClaimTransitionActions({
       )}
       {status === 'invoiced' && (
         <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
-          To reject this claim, void its invoice first with Reverse invoice in Finance.
+          {linkedInvoiceReversed
+            ? 'Its invoice was reversed. Reject this claim to free it for a corrected invoice.'
+            : 'To reject this claim, void its invoice first with Reverse invoice in Finance.'}
         </p>
       )}
 
-      {/* Reject is available on every non-terminal status except Invoiced:
-          the posted invoice would stay live. Core enforces the same rule. */}
-      {!isTerminal && status !== 'invoiced' &&
+      {/* Reject is available on every non-terminal status. An invoiced claim
+          needs its invoice reversed first; Core enforces the same rule. */}
+      {!isTerminal && (status !== 'invoiced' || linkedInvoiceReversed) &&
         (showReject ? (
           <RejectInline
             reason={rejectReason}
