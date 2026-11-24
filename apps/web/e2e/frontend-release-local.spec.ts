@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test.use({
   launchOptions: process.env.E2E_CHROME_PATH

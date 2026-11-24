@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import { assertAuthenticatedSmokeReady } from './helpers/authenticated-smoke-readiness'
 
 let server: Server

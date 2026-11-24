@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './fixtures'
 import { login } from './helpers/auth'
 
 async function openInventoryRoute(page: Page, route: string) {

@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
-import { test, expect, type ConsoleMessage, type Page } from '@playwright/test'
+import { test, expect, type ConsoleMessage, type Page } from './fixtures'
 import { z } from 'zod'
 import { authenticateRole } from './helpers/supabase-magic-link'
 import { requireE2EBaseUrl } from './helpers/env'

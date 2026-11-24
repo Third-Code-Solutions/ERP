@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { authenticateRole } from './helpers/supabase-magic-link'
 
 const RUN_MUTATION = process.env.E2E_MAGIC_LINK_MUTATION === '1'

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from './fixtures'
 import { assertProductionDemoBoundary } from './helpers/production-demo-boundary'
 
 test('production role and project fixtures belong to the dedicated demo tenant', async () => {

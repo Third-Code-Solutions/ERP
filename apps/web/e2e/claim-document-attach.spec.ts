@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 
 const PROJECT_ID = '33333333-3333-4333-8333-333333333333'
 const CLAIM_ID = '44444444-4444-4444-8444-444444444444'

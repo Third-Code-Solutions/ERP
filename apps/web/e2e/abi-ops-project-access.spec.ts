@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import { login } from './helpers/auth'
 
 const PROJECT_ID = process.env.E2E_PROJECT_ID ?? ''

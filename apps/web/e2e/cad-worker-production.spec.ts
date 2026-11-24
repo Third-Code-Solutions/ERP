@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { requireE2EBaseUrl } from './helpers/env'
 import { authenticateRole } from './helpers/supabase-magic-link'
 

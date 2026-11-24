@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { authenticateRole, type MagicLinkRole } from './helpers/supabase-magic-link'
 
 const RUN_TENDER_MATRIX = process.env.E2E_TENDER_AUTH === '1'

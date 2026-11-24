@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 
 test.describe('M-Portal Sign (public)', () => {
   test('dummy sign token renders link-not-found state without auth', async ({

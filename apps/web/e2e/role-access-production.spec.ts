@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 import { roleHasCapability } from '@third-code-erp/shared-types/authorization'
 import { z } from 'zod'
 import {

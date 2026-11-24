@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Response } from '@playwright/test'
+import { expect, test, type Page, type Response } from './fixtures'
 
 const WEB_ORIGIN = 'http://127.0.0.1:4327'
 const AUTH_ORIGIN = 'http://127.0.0.1:4328'
