@@ -1,14 +1,24 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireUserProfile } from '@third-code-erp/auth'
-import { formatCentsCompact } from '@third-code-erp/shared-types'
+import { can, requireUserProfile } from '@third-code-erp/auth'
+import { formatCentsCompact, projectTypeValues } from '@third-code-erp/shared-types'
 import { getOpportunityDetail } from '@/lib/opportunity-queries'
+import {
+  OpportunityEditForm,
+  type OpportunityEditValues,
+} from '@/components/opportunities/opportunity-edit-form'
 import {
   formatOpportunityDate,
   opportunityTypeLabel,
   opportunityWorkspaceAccess,
 } from './opportunity-detail-presentation'
+import { getOpportunityEditContext } from './opportunity-edit-queries'
+import {
+  centsToPesoInput,
+  isOpportunityClosed,
+  manilaDateKey,
+} from './opportunity-update'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -45,6 +55,38 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
     projectId: opp.project_id,
     stage: opp.stage,
   })
+
+  const canEdit =
+    can(profile.role, 'opportunity.update') && !isOpportunityClosed(opp.stage)
+  const editContext = await getOpportunityEditContext({
+    tenantId: profile.tenantId,
+    opportunityId: id,
+    accountId: opp.account_id,
+    projectId: opp.project_id,
+    canEdit,
+  })
+  const repOptions =
+    editContext.repId && !editContext.reps.some((rep) => rep.id === editContext.repId)
+      ? [
+          { id: editContext.repId, name: editContext.repName ?? 'Current owner' },
+          ...editContext.reps,
+        ]
+      : editContext.reps
+  const editValues: OpportunityEditValues = {
+    tcv: centsToPesoInput(opp.tcv_cents),
+    gp: centsToPesoInput(opp.gp_cents),
+    closingDate: manilaDateKey(opp.closing_date) ?? '',
+    areaSqm: opp.area_sqm ? String(opp.area_sqm) : '',
+    opportunityType: opp.opportunity_type ?? '',
+    remarks: editContext.remarks ?? '',
+    repId: editContext.repId ?? '',
+  }
+  const typeOptions = [
+    ...projectTypeValues.map((value) => ({ value, label: opportunityTypeLabel(value) })),
+    ...(opp.opportunity_type && !(projectTypeValues as readonly string[]).includes(opp.opportunity_type)
+      ? [{ value: opp.opportunity_type, label: opportunityTypeLabel(opp.opportunity_type) }]
+      : []),
+  ]
 
   return (
     <div>
@@ -110,6 +152,11 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
               }
             />
             <Meta label="Type" value={opportunityTypeLabel(opp.opportunity_type)} />
+            <Meta label="Sales owner" value={editContext.repName ?? '—'} />
+            {editContext.lostReason && <Meta label="Lost reason" value={editContext.lostReason} />}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Meta label="Remarks" value={editContext.remarks ?? '—'} />
+            </div>
           </div>
         </div>
 
@@ -165,6 +212,21 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      {canEdit && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header">
+            <h2 className="card-title">Edit opportunity</h2>
+          </div>
+          <OpportunityEditForm
+            opportunityId={id}
+            values={editValues}
+            typeOptions={typeOptions}
+            reps={repOptions}
+            linkableProjects={opp.project_id ? null : editContext.linkableProjects}
+          />
+        </div>
+      )}
+
       <style>{`
         .opp-tabs {
           display: flex;
@@ -198,7 +260,7 @@ function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <span style={{ color: 'var(--color-neutral-500)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
-      <span style={{ color: 'var(--color-neutral-900)', fontWeight: 500 }}>{value}</span>
+      <span style={{ color: 'var(--color-neutral-900)', fontWeight: 500, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{value}</span>
     </div>
   )
 }

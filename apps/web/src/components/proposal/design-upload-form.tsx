@@ -136,7 +136,16 @@ export function DesignUploadForm({
                 Upload a document in the project Documents workspace.
               </a>
             </>
-          ) : null}
+          ) : (
+            <>
+              {' '}
+              Link a project on the{' '}
+              <a href={`/crm/opportunities/${opportunityId}`} style={{ color: 'var(--color-navy-text)' }}>
+                opportunity page
+              </a>{' '}
+              (Edit opportunity), then upload the file in that project&apos;s Documents workspace.
+            </>
+          )}
         </div>
       )}
 

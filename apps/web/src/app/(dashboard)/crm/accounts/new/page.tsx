@@ -17,8 +17,10 @@ export default async function NewAccountPage() {
         <p className="page-eyebrow">CRM</p>
         <h1 className="page-title">New account</h1>
         <p className="page-subtitle">
-          Create a client account. KYC artifacts (AFS, BIR 2303, VAT, suppliers, clients)
-          can be uploaded from the account detail after creation.
+          Create a client account. KYC evidence (AFS, BIR 2303, VAT, suppliers, clients) is
+          recorded from the account page after creation: pick a document already attached to
+          one of the client&apos;s projects or opportunities, or record the item as metadata only.
+          Files are not uploaded from this page.
         </p>
       </div>
       <div className="card" style={{ maxWidth: 720 }}>
