@@ -750,6 +750,74 @@ describe('resendSupplierPoEmail', () => {
     expect(mocks.writeAuditLog).not.toHaveBeenCalled()
   })
 
+  it('lets one resend through, refuses an immediate second, and leaves another tenant alone', async () => {
+    const OTHER_TENANT_ID = '99999999-9999-4999-8999-999999999999'
+    // Last delivered supplier email per tenant and PO, as sendSupplierPoEmail stamps it.
+    const sentAt = new Map<string, Date>()
+    const key = (tenantId: string, poId: string) => `${tenantId}:${poId}`
+    // The read answers with the PO named by its own id and tenant predicate.
+    const where = vi.fn((predicate: { and: Array<{ eq: [string, string] }> }) => {
+      const [poId, tenantId] = predicate.and.map((condition) => condition.eq[1])
+      return {
+        limit: vi.fn(async () => [
+          {
+            status: 'issued',
+            po_number: 'PO-0001',
+            total_cents: 313_125,
+            vendor_id: 'vendor-1',
+            supplier_name: 'Concrete Co',
+            supplier_email: 'supplier@example.com',
+            supplier_email_sent_at: sentAt.get(key(tenantId!, poId!)) ?? null,
+          },
+        ]),
+      }
+    })
+    mocks.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({ leftJoin: vi.fn().mockReturnValue({ where }) }),
+    })
+    mocks.sendSupplierPoEmail.mockImplementation(
+      async (input: { tenantId: string; poId: string }) => {
+        sentAt.set(key(input.tenantId, input.poId), new Date())
+        return 'sent'
+      }
+    )
+    const asTenant = (tenantId: string) =>
+      mocks.getUserProfile.mockResolvedValue({
+        tenantId,
+        role: 'procurement',
+        user: { id: ACTOR_ID },
+      })
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-11-24T09:00:00.000Z'))
+      await expect(resendSupplierPoEmail(PO_ID)).resolves.toEqual({ emailOutcome: 'sent' })
+
+      vi.setSystemTime(new Date('2026-11-24T09:00:05.000Z'))
+      await expect(resendSupplierPoEmail(PO_ID)).resolves.toEqual({
+        error: 'The supplier was emailed this Purchase Order a few minutes ago. Try again in 10 minutes.',
+      })
+      // Refused before any send, so the supplier gets one email and one audit row.
+      expect(mocks.sendSupplierPoEmail).toHaveBeenCalledOnce()
+      expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
+
+      // Another tenant's PO with the same id keeps its own clock.
+      asTenant(OTHER_TENANT_ID)
+      await expect(resendSupplierPoEmail(PO_ID)).resolves.toEqual({ emailOutcome: 'sent' })
+      expect(mocks.sendSupplierPoEmail).toHaveBeenLastCalledWith(
+        expect.objectContaining({ tenantId: OTHER_TENANT_ID, poId: PO_ID })
+      )
+
+      // Ten minutes after the first delivery the first tenant may resend again.
+      asTenant(TENANT_ID)
+      vi.setSystemTime(new Date('2026-11-24T09:10:00.000Z'))
+      await expect(resendSupplierPoEmail(PO_ID)).resolves.toEqual({ emailOutcome: 'sent' })
+      expect(mocks.sendSupplierPoEmail).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not find a PO of another tenant or a malformed id', async () => {
     readPo('issued', null)
 
