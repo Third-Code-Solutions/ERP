@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   bir2307Available,
   invoiceDocumentState,
+  invoicePrintable,
   invoiceStateMark,
   invoiceStateNotice,
 } from './invoice-document-state'
@@ -21,8 +22,18 @@ describe('invoiceDocumentState', () => {
     expect(invoiceDocumentState({ status: 'paid', reversed_at: '2026-11-10T00:00:00Z' })).toBe('reversed')
   })
 
-  it('does not mistake a missing status for a problem', () => {
-    expect(invoiceDocumentState({ status: undefined })).toBe('valid')
+  it.each([undefined, null, '', 'void', 'Issued'])('fails closed on a missing or unknown status (%s)', (status) => {
+    const state = invoiceDocumentState({ status, reversed_at: null })
+    expect(state).toBe('unknown')
+    expect(invoicePrintable(state)).toBe(false)
+    expect(bir2307Available(state)).toBe(false)
+  })
+
+  it('offers the 2307 only for an issued or reversed invoice', () => {
+    expect(bir2307Available('valid')).toBe(true)
+    expect(bir2307Available('reversed')).toBe(true)
+    expect(bir2307Available('draft')).toBe(false)
+    expect(bir2307Available('cancelled')).toBe(false)
   })
 })
 

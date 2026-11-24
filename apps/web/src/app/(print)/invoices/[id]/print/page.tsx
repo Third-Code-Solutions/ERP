@@ -6,14 +6,17 @@ import Link from 'next/link'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { accounts, invoices, projects, tenants } from '@third-code-erp/database/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
 import { tenantDisplayName } from '@/lib/tenant-branding'
+import { formatManilaLongDate } from '@/lib/manila-date'
 import {
   invoiceDocumentState,
+  invoicePrintable,
   invoiceStateMark,
   invoiceStateNotice,
 } from '@/app/(print)/invoices/invoice-document-state'
+import { invoiceClientAccountJoin, withholdingRateLabel } from '@/app/(print)/invoices/invoice-print'
 import { PrintButton } from './print-button'
 
 export const metadata: Metadata = { title: 'Invoice' }
@@ -24,7 +27,7 @@ function formatPHP(cents: number): string {
 
 function formatDate(d: Date | string | null): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+  return formatManilaLongDate(d)
 }
 
 export default async function InvoicePrintPage({ params }: { params: Promise<{ id: string }> }) {
@@ -65,16 +68,12 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
       and(eq(invoices.project_id, projects.id), eq(projects.tenant_id, profile.tenantId)),
     )
     // Same account the invoice screen shows: the invoice's own, else its project's.
-    .leftJoin(
-      accounts,
-      and(
-        eq(accounts.id, sql`coalesce(${invoices.account_id}, ${projects.account_id})`),
-        eq(accounts.tenant_id, profile.tenantId),
-      ),
-    )
+    .leftJoin(accounts, invoiceClientAccountJoin(profile.tenantId))
     .where(and(eq(invoices.id, id), eq(invoices.tenant_id, profile.tenantId)))
 
   if (!inv) return notFound()
+  const documentState = invoiceDocumentState(inv)
+  if (!invoicePrintable(documentState)) return notFound()
 
   const [tenant] = await db
     .select({ name: tenants.name, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license })
@@ -82,13 +81,12 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
     .where(eq(tenants.id, profile.tenantId))
 
   const billingPct = formatBps(inv.billing_percent_bps)
-  const documentState = invoiceDocumentState(inv)
   const stateMark = invoiceStateMark(documentState)
   const stateNotice = invoiceStateNotice(documentState)
   const billedTo = inv.account_name ?? inv.project_client ?? '—'
   const retentionPct = formatBps(inv.retention_bps)
   const vatPct = formatBps(TAX_DEFAULTS.vatBps)
-  const ewtPct = formatBps(TAX_DEFAULTS.ewtBps)
+  const ewtPct = withholdingRateLabel(inv)
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', background: '#f3f4f6' }}>

@@ -1,3 +1,5 @@
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { invoices, tenants } from '@third-code-erp/database/schema'
@@ -104,10 +106,17 @@ describe('invoice print page labels and stored amounts', () => {
       { name: 'Third Code Builders Inc.', bir_tin: null, pcab_license: null },
     ]
   ) {
+    const joins: SQL[] = []
     mocks.select.mockImplementation(() => ({
       from: (table: unknown) => {
         if (table === invoices) {
-          const chain = { leftJoin: () => chain, where: async () => [row] }
+          const chain = {
+            leftJoin: (_joined: unknown, condition: SQL) => {
+              joins.push(condition)
+              return chain
+            },
+            where: async () => [row],
+          }
           return chain
         }
         if (table === tenants) {
@@ -116,6 +125,7 @@ describe('invoice print page labels and stored amounts', () => {
         throw new Error('Unexpected table in invoice print test')
       },
     }))
+    return joins
   }
 
   it("keeps today's label text and prints the stored amounts unchanged (AC-TEN-11, AC-TEN-12)", async () => {
@@ -165,8 +175,13 @@ describe('invoice print page labels and stored amounts', () => {
   })
 
   it('bills to the account name and falls back to the project client text', async () => {
-    mockInvoice(STORED)
+    const joins = mockInvoice(STORED)
     expect(renderToStaticMarkup(await renderPage())).toContain('Somnus Studios Inc.')
+    // The billed-to account is read only inside the signed-in tenant.
+    const accountJoin = new PgDialect().sqlToQuery(joins[1] as SQL)
+    expect(accountJoin.sql).toContain('coalesce("invoices"."account_id", "projects"."account_id")')
+    expect(accountJoin.sql).toContain('"accounts"."tenant_id" = $1')
+    expect(accountJoin.params).toEqual([TENANT_ID])
 
     mockInvoice({ ...STORED, account_name: null })
     expect(renderToStaticMarkup(await renderPage())).toContain('Somnus Studios Corp.')
@@ -183,6 +198,42 @@ describe('invoice print page labels and stored amounts', () => {
     const draft = renderToStaticMarkup(await renderPage())
     expect(draft).toContain('Date prepared')
     expect(draft).toContain('November 4, 2026')
+  })
+
+  it('prints dates in Manila time, on a UTC server', async () => {
+    vi.stubEnv('TZ', 'UTC')
+    try {
+      // 17:00 UTC on 30 November is 01:00 on 1 December in Manila.
+      const lateUtc = new Date('2026-11-30T17:00:00.000Z')
+      mockInvoice({ ...STORED, status: 'paid', issued_at: lateUtc, due_date: lateUtc, paid_at: lateUtc })
+
+      const markup = renderToStaticMarkup(await renderPage())
+
+      expect(markup).toContain('Date issued:')
+      expect(markup.match(/December 1, 2026/g)).toHaveLength(3)
+      expect(markup).not.toContain('November 30, 2026')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('labels the withholding rate actually applied, from the stored amounts', async () => {
+    // A tenant tax profile at 1.5%: 1.5% of the ₱225,000 base.
+    mockInvoice({ ...STORED, withholding_tax_cents: 337_500 })
+
+    const markup = renderToStaticMarkup(await renderPage())
+
+    expect(markup).toContain('Less: Creditable Withholding Tax (1.5% — BIR Form 2307)')
+    expect(markup).toContain('(1.5% creditable withholding tax)')
+  })
+
+  it('does not print an invoice with an unknown status', async () => {
+    mocks.notFound.mockImplementation(() => {
+      throw new Error('NEXT_NOT_FOUND')
+    })
+    mockInvoice({ ...STORED, status: 'void' })
+
+    await expect(renderPage()).rejects.toThrow('NEXT_NOT_FOUND')
   })
 
   it('prints no state mark on an issued invoice', async () => {

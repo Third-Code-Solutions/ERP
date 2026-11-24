@@ -3,7 +3,10 @@
  * a valid document; the rest print with a state mark so nobody mistakes them
  * for one.
  */
-export type InvoiceDocumentState = 'valid' | 'draft' | 'cancelled' | 'reversed'
+export type InvoiceDocumentState = 'valid' | 'draft' | 'cancelled' | 'reversed' | 'unknown'
+
+// Only these statuses make an issued document; anything else fails closed.
+const VALID_STATUSES: ReadonlySet<string> = new Set(['issued', 'partial_payment', 'paid', 'overdue'])
 
 export function invoiceDocumentState(invoice: {
   status: string | null | undefined
@@ -13,7 +16,12 @@ export function invoiceDocumentState(invoice: {
   if (invoice.reversed_at) return 'reversed'
   if (invoice.status === 'draft') return 'draft'
   if (invoice.status === 'cancelled') return 'cancelled'
-  return 'valid'
+  return invoice.status && VALID_STATUSES.has(invoice.status) ? 'valid' : 'unknown'
+}
+
+/** An invoice whose status is not recognised is not printed at all. */
+export function invoicePrintable(state: InvoiceDocumentState): boolean {
+  return state !== 'unknown'
 }
 
 /** Banner and watermark text; null for a valid invoice. */
@@ -25,6 +33,8 @@ export function invoiceStateMark(state: InvoiceDocumentState): string | null {
       return 'CANCELLED'
     case 'reversed':
       return 'REVERSED'
+    case 'unknown':
+      return 'NOT VALID'
     case 'valid':
       return null
   }
@@ -38,12 +48,14 @@ export function invoiceStateNotice(state: InvoiceDocumentState): string | null {
       return 'This invoice was cancelled and is not a valid invoice.'
     case 'reversed':
       return 'This invoice was reversed and is not a valid invoice.'
+    case 'unknown':
+      return 'This invoice has no recognised status and is not a valid invoice.'
     case 'valid':
       return null
   }
 }
 
-/** A draft or cancelled invoice has no withholding to certify. */
+/** Only an issued invoice, or one later reversed, has withholding to certify. */
 export function bir2307Available(state: InvoiceDocumentState): boolean {
-  return state !== 'draft' && state !== 'cancelled'
+  return state === 'valid' || state === 'reversed'
 }
