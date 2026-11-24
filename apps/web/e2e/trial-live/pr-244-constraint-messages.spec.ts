@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../base-test'
 import { z } from 'zod'
 import { RUN_ID, gateTrialLive, needsData, openRole, tenantRows, trialTarget } from '../helpers/trial-live'
 

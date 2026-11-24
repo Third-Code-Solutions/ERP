@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './base-test'
 import type { ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
