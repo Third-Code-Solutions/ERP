@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { test } from '../base-test'
 import { gateTrialLive, needsData } from '../helpers/trial-live'
 
 gateTrialLive()

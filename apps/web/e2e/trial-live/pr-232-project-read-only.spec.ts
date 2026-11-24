@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../base-test'
 import { roleHasCapability } from '@third-code-erp/shared-types/authorization'
 import { z } from 'zod'
 import { canViewPath } from '../../src/lib/operations/nav-config'
