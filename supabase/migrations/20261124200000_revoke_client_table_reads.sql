@@ -22,7 +22,9 @@
 --   purchase_orders  Realtime in components/dashboard/realtime-refresher.tsx
 --   invoices         Realtime in components/dashboard/realtime-refresher.tsx
 --   boms             Realtime in components/dashboard/realtime-refresher.tsx
--- Realtime evaluates RLS as the subscriber, so those tables need SELECT.
+-- Realtime evaluates RLS as the subscriber, so those tables need SELECT. They
+-- are granted explicitly below (a no-op in production, where they already hold
+-- it) so every environment ends with the same browser reads.
 -- tenants has no user-JWT reader (settings reads it through Drizzle;
 -- auth_tenant_id() reads it as SECURITY DEFINER), so it is revoked too.
 -- No anon read of any public table exists. The only other user-JWT calls are the
@@ -291,6 +293,18 @@ revoke select on table
   public.warranty_tickets,
   public.weekly_reports
 from authenticated, anon;
+
+-- The kept user-JWT reads, granted explicitly so a fresh replay matches
+-- production, where they came from the bootstrap default ACL (boms and
+-- purchase_orders have no migration grant). A no-op where the grant exists.
+grant select on table
+  public.boms,
+  public.invoices,
+  public.notifications,
+  public.opportunities,
+  public.purchase_orders,
+  public.users
+to authenticated;
 
 -- Tables created later by postgres in public must not regain SELECT.
 alter default privileges for role postgres in schema public

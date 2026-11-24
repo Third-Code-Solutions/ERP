@@ -84,10 +84,14 @@ describe('client table read revocation migration (static replay)', () => {
     expect(statements[2]).toBe("set local statement_timeout = '60s'")
     expect(statements[statements.length - 1]).toBe('commit')
     const body = statements.slice(3, -1)
-    expect(body).toHaveLength(2)
+    expect(body).toHaveLength(3)
     expect(body[0]).toMatch(/^revoke select on table public\./)
     expect(body[0]).toMatch(/ from authenticated, anon$/)
+    // The kept reads are granted explicitly, so a fresh replay matches production.
     expect(body[1]).toBe(
+      `grant select on table ${ALLOWED_BROWSER_READS.map((table) => `public.${table}`).join(', ')} to authenticated`
+    )
+    expect(body[2]).toBe(
       'alter default privileges for role postgres in schema public revoke select on tables from authenticated, anon'
     )
   })
