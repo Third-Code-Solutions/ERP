@@ -79,7 +79,7 @@ export async function createRfqFromBomRecord(
 
   return db.transaction(async (tx) => {
     const [bom] = await tx
-      .select({ id: boms.id, project_id: boms.project_id })
+      .select({ id: boms.id, project_id: boms.project_id, status: boms.status })
       .from(boms)
       .where(
         and(
@@ -92,6 +92,10 @@ export async function createRfqFromBomRecord(
       .for('update')
 
     if (!bom) return { error: 'BOM not found' }
+    // Suppliers quote a released BOM only; a draft or archived one is refused.
+    if (bom.status !== 'approved' && bom.status !== 'locked') {
+      return { error: 'An RFQ can be created only for an approved or locked BOM' }
+    }
 
     let auditActorId: string | null = null
     if (params.actorId) {

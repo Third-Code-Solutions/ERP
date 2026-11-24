@@ -8,6 +8,7 @@ import {
   postSupplierBill,
   reverseSupplierBill,
 } from '../actions'
+import { IRREVERSIBLE_CONFIRMATIONS } from '../../irreversible-confirmations'
 
 export function PayableActions({
   billId,
@@ -87,6 +88,9 @@ export function PayableActions({
             className="finance-primary-button"
             disabled={pending}
             onClick={() => {
+              if (!window.confirm(IRREVERSIBLE_CONFIRMATIONS.postSupplierBill)) {
+                return
+              }
               setError(null)
               startTransition(async () => {
                 if (!postIdempotencyKeyRef.current) {
@@ -128,9 +132,7 @@ export function PayableActions({
             disabled={pending || reason.trim().length < 3}
             onClick={() => {
               if (
-                !window.confirm(
-                  'Reverse this supplier bill with an equal-and-opposite journal?'
-                )
+                !window.confirm(IRREVERSIBLE_CONFIRMATIONS.reverseSupplierBill)
               ) {
                 return
               }

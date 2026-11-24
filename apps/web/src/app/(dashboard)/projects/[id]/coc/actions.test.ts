@@ -113,6 +113,10 @@ describe('sendCocForSignature', () => {
     })
     expect(mocks.update).toHaveBeenCalledOnce()
     expect(mocks.writeAuditLog).toHaveBeenCalledOnce()
+    // The signing link is a bearer credential and never reaches the tenant-readable audit log.
+    const audited = JSON.stringify(mocks.writeAuditLog.mock.calls[0]?.[0])
+    expect(audited).not.toContain('signing_url')
+    expect(audited).not.toContain('https://sign.example.test/submission-1')
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/coc`)
   })
 })

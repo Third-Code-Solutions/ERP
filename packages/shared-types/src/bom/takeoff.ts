@@ -1,4 +1,8 @@
-import { boqQuantityFromNumber, MAX_BOM_LINE_ITEM_QUANTITY } from './quantity'
+import { classifyBomLineKind } from './grain'
+import { boqQuantityFromNumber, MAX_BOM_LINE_ITEM_QUANTITY, parseBoqQuantity } from './quantity'
+
+// A row with no description is stored under this placeholder so it stays visible.
+export const TAKEOFF_PLACEHOLDER_DESCRIPTION_PREFIX = 'Unresolved takeoff row '
 
 export interface StructuredTakeoffRow {
   sourceRowKey: string
@@ -58,6 +62,11 @@ function normalizeUnit(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
+/** Whether a takeoff unit is one the BOM recognizes (validation raises INVALID_UOM otherwise). */
+export function isRecognizedTakeoffUnit(value: string): boolean {
+  return RECOGNIZED_UOMS.has(normalizeUnit(value))
+}
+
 export function validateTakeoffRows(
   rows: ReadonlyArray<StructuredTakeoffRow>,
 ): TakeoffValidationIssue[] {
@@ -114,4 +123,46 @@ export function validateTakeoffRows(
   }
 
   return issues
+}
+
+export interface TakeoffLineState {
+  description: string
+  // numeric(18,4) decimal string as stored on the line.
+  quantity: string
+  unit: string | null
+  hasDivision: boolean
+  parentLineItemId: string | null
+  unitRateSource: string
+}
+
+/**
+ * Whether an unresolved takeoff row's reason still holds for the line as it is
+ * now. Only the line decides: a duplicated source key needs a person to confirm
+ * the surviving row, so it never blocks once the row is saved.
+ */
+export function takeoffIssueStillApplies(code: string, line: TakeoffLineState): boolean {
+  switch (code) {
+    case 'EMPTY_DESCRIPTION':
+      return (
+        line.description.trim() === '' ||
+        line.description.startsWith(TAKEOFF_PLACEHOLDER_DESCRIPTION_PREFIX)
+      )
+    case 'INVALID_QUANTITY': {
+      const quantity = parseBoqQuantity(line.quantity)
+      return quantity === null || quantity === '0'
+    }
+    case 'INVALID_UOM':
+      return !RECOGNIZED_UOMS.has(normalizeUnit(line.unit ?? ''))
+    case 'MISSING_DIVISION':
+      return !line.hasDivision
+    case 'NO_CATALOG_MATCH':
+      return line.unitRateSource !== 'dupa'
+    case 'MATERIAL_PARENT_REQUIRED':
+      return (
+        classifyBomLineKind(line.unit).kind === 'material_line' &&
+        line.parentLineItemId === null
+      )
+    default:
+      return false
+  }
 }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { takeoffCommitQuantity, validateTakeoffRows } from '../takeoff'
+import {
+  takeoffCommitQuantity,
+  takeoffIssueStillApplies,
+  validateTakeoffRows,
+  type TakeoffLineState,
+} from '../takeoff'
 
 const row = (quantity: number | null) => ({
   sourceRowKey: 'concrete-1',
@@ -47,5 +52,58 @@ describe('takeoff validation', () => {
     }
     expect(validateTakeoffRows([row(2_147_483_648)])[0]?.code).toBe('INVALID_QUANTITY')
     expect(takeoffCommitQuantity(2_147_483_648)).toBe('0')
+  })
+})
+
+describe('takeoffIssueStillApplies', () => {
+  const line: TakeoffLineState = {
+    description: 'Stair footing concrete',
+    quantity: '12.5000',
+    unit: 'cu.m',
+    hasDivision: true,
+    parentLineItemId: null,
+    unitRateSource: 'manual',
+  }
+
+  it('clears every reason once the line is complete', () => {
+    for (const code of [
+      'EMPTY_DESCRIPTION',
+      'INVALID_QUANTITY',
+      'INVALID_UOM',
+      'MISSING_DIVISION',
+      'MATERIAL_PARENT_REQUIRED',
+      'DUPLICATE_SOURCE_ROW_KEY',
+    ]) {
+      expect(takeoffIssueStillApplies(code, line)).toBe(false)
+    }
+  })
+
+  it('keeps the placeholder description and a zero quantity open', () => {
+    expect(
+      takeoffIssueStillApplies('EMPTY_DESCRIPTION', {
+        ...line,
+        description: 'Unresolved takeoff row row-4',
+      }),
+    ).toBe(true)
+    expect(takeoffIssueStillApplies('INVALID_QUANTITY', { ...line, quantity: '0.0000' })).toBe(true)
+  })
+
+  it('keeps an unrecognised unit and a missing division open', () => {
+    expect(takeoffIssueStillApplies('INVALID_UOM', { ...line, unit: 'bundle' })).toBe(true)
+    expect(takeoffIssueStillApplies('INVALID_UOM', { ...line, unit: null })).toBe(true)
+    expect(takeoffIssueStillApplies('MISSING_DIVISION', { ...line, hasDivision: false })).toBe(true)
+  })
+
+  it('needs a parent for a material unit and a DUPA for an unpriced candidate', () => {
+    expect(takeoffIssueStillApplies('MATERIAL_PARENT_REQUIRED', { ...line, unit: 'pc' })).toBe(true)
+    expect(
+      takeoffIssueStillApplies('MATERIAL_PARENT_REQUIRED', {
+        ...line,
+        unit: 'pc',
+        parentLineItemId: '11111111-1111-4111-8111-111111111111',
+      }),
+    ).toBe(false)
+    expect(takeoffIssueStillApplies('NO_CATALOG_MATCH', line)).toBe(true)
+    expect(takeoffIssueStillApplies('NO_CATALOG_MATCH', { ...line, unitRateSource: 'dupa' })).toBe(false)
   })
 })

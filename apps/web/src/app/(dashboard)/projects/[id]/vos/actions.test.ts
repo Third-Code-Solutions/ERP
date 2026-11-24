@@ -128,6 +128,11 @@ describe('variation order signing link lifecycle', () => {
       )
       expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(tx, expect.any(Object))
       expect(JSON.stringify(mocks.writeAuditLogInTransaction.mock.calls)).not.toContain('secret-token')
+      // The new link row is written in the same transaction, so a rollback leaves no live link.
+      expect(mocks.createSigningSession).toHaveBeenCalledWith(
+        expect.objectContaining({ tenantId: TENANT_ID, entityType: 'variation_order', entityId: VO_ID }),
+        tx
+      )
     })
 
     it('stores the DocuSeal submission id, never the signing slug', async () => {

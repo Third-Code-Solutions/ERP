@@ -221,8 +221,10 @@ export class PublicSigningService {
 
     try {
       await this.storage.upload(objectKey, bytes)
-      const result = await this.database.client.transaction((transaction) =>
-        this.commit(
+      const result = await this.database.client.transaction(async (transaction) => {
+        // A link's entity never changes, so the pre-read session names the row to lock first.
+        await this.lockSigningSource(transaction, session)
+        return this.commit(
           transaction,
           session.id,
           session.tenant_id,
@@ -234,7 +236,7 @@ export class PublicSigningService {
           idempotencyKey,
           requestHash
         )
-      )
+      })
       return result
     } catch (error) {
       if (await this.canRemoveUploadedObject(session.tenant_id, requestHash)) {
@@ -454,6 +456,44 @@ export class PublicSigningService {
     return document.id
   }
 
+  /**
+   * Lock the signed entity's row before the signing link. The web send, resend,
+   * cancel, reject and record actions lock the entity first and then its
+   * links, so signing takes the same order and cannot deadlock against them.
+   */
+  private async lockSigningSource(
+    transaction: DatabaseTransaction,
+    session: Pick<typeof signatureSessions.$inferSelect, 'tenant_id' | 'entity_type' | 'entity_id'>
+  ): Promise<void> {
+    const { tenant_id: tenantId, entity_id: entityId } = session
+    switch (session.entity_type) {
+      case 'bom':
+        await transaction.select({ id: boms.id }).from(boms)
+          .where(and(eq(boms.id, entityId), eq(boms.tenant_id, tenantId)))
+          .limit(1)
+        .for('update')
+        return
+      case 'contract':
+        await transaction.select({ id: contracts.id }).from(contracts)
+          .where(and(eq(contracts.id, entityId), eq(contracts.tenant_id, tenantId)))
+          .limit(1)
+        .for('update')
+        return
+      case 'variation_order':
+        await transaction.select({ id: variationOrders.id }).from(variationOrders)
+          .where(and(eq(variationOrders.id, entityId), eq(variationOrders.tenant_id, tenantId)))
+          .limit(1)
+        .for('update')
+        return
+      case 'coc':
+        await transaction.select({ id: certificatesOfCompletion.id }).from(certificatesOfCompletion)
+          .where(and(eq(certificatesOfCompletion.id, entityId), eq(certificatesOfCompletion.tenant_id, tenantId)))
+          .limit(1)
+        .for('update')
+        return
+    }
+  }
+
   private async stampSignedSource(
     transaction: DatabaseTransaction,
     session: typeof signatureSessions.$inferSelect,
@@ -476,11 +516,16 @@ export class PublicSigningService {
       const rows = await transaction
         .update(contracts)
         .set({ status: 'signed', signed_at: now, signed_document_id: signatureDocumentId, updated_at: now })
-        .where(and(eq(contracts.id, session.entity_id), eq(contracts.tenant_id, session.tenant_id)))
+        .where(and(
+          eq(contracts.id, session.entity_id),
+          eq(contracts.tenant_id, session.tenant_id),
+          eq(contracts.status, 'pending_signature')
+        ))
         .returning({ id: contracts.id })
-      return rows.length === 1
+      if (rows.length !== 1) throw new ConflictException(NOT_AWAITING_SIGNATURE)
+      return true
     }
-    // A VO or COC is signed only while it waits for the signature, so a link
+    // A contract, VO or COC is signed only while it waits for the signature, so a link
     // still open after a reject, withdrawal or manual signing cannot stamp it.
     if (session.entity_type === 'variation_order') {
       const rows = await transaction
