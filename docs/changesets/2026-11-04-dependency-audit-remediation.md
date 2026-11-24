@@ -29,7 +29,7 @@ only with a new written justification.
 
 | Advisory | Package | Why waived | Remove when |
 |---|---|---|---|
-| GHSA-mrhx-c7xc-m3w5 | zod 3.25.76 | Patch is zod ≥4.6.6 (major, ~230 files). zod 3 is affected; compensating controls: Core API array budget, JWT guard before pipes, token-first webhook, 3 MB Server Action cap | zod 4 migration |
+| ~~GHSA-mrhx-c7xc-m3w5~~ | zod 3.25.76 | Removed: the workspace is on zod 4.6.7, so no zod 3 remains in the graph. The Core API array budget stays as a request cap. | done (zod 4 migration) |
 | GHSA-g3hv-75wg-m249 | minimatch 3.x/5.x | Patch is 11.0.1, incompatible with archiver's glob 7/8; patterns are library-fixed | exceljs/archiver upgrade |
 | GHSA-gcqx-w48m-w2h4 | deepmerge | No patched release; build-time only (`@nestjs/cli`) | upstream patch |
 

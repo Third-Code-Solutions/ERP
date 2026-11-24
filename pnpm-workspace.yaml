@@ -59,33 +59,9 @@ overrides:
 # verifies clean. This waiver names one advisory; the audit level is unchanged
 # and every other advisory still fails the gate.
 #
-# The following three waivers are time-boxed to 2026-12-04
+# The following two waivers are time-boxed to 2026-12-04
 # (docs/changesets/2026-11-04-dependency-audit-remediation.md).
 #
-# - zod GHSA-mrhx-c7xc-m3w5 (direct prod dependency: api, web, operations,
-#   shared-types; also openai > zod): only zod >=4.6.6 is patched, a major
-#   upgrade across ~230 files. zod 3 is affected too: ZodArray records one
-#   issue per failing element and `.max()` does not stop early, so an
-#   oversized invalid array costs ~200 MB of heap per MB of body. Compensating
-#   controls until the migration:
-#     * Core API: `rejectOversizedJsonArrays` (apps/api/src/main.ts) rejects
-#       bodies with more than 20,000 array elements before guards and pipes.
-#     * Core API: every non-public route sits behind the global Supabase JWT
-#       guard, which runs before pipes; the DocuSeal webhook checks its token
-#       before validating; public signing and vendor confirmation bodies have
-#       no array or record fields.
-#     * Web: Server Action bodies are capped at 3 MB (next.config.ts).
-#     * Web: Route Handlers that call `request.json()` have no app-level cap;
-#       Vercel's ~4.5 MB request limit applies.
-#   Residual risk, authenticated callers only:
-#     * Core API array-shaped bodies: ~0.2 s and ~76 MB heap per request
-#       under the budget (was ~4.5 s and ~1 GB).
-#     * Core API takeoff import: `raw` is a record of a 3-way union, so a
-#       2.4 MB body of failing keys still costs ~0.9 GB (follow-up in
-#       docs/changesets/2026-11-04-dependency-audit-remediation.md).
-#     * Web: one Server Action or Route Handler invocation can allocate
-#       several hundred MB.
-#   Remove the waiver with the zod 4 migration.
 # - minimatch GHSA-g3hv-75wg-m249 (exceljs > archiver > glob@7 > minimatch@3,
 #   archiver-utils > glob@8 > minimatch@5): only 11.0.1 is patched. Patterns
 #   are library-fixed; an attack needs attacker-controlled glob patterns,
@@ -97,7 +73,6 @@ overrides:
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
-    - GHSA-mrhx-c7xc-m3w5
     - GHSA-g3hv-75wg-m249
     - GHSA-gcqx-w48m-w2h4
 

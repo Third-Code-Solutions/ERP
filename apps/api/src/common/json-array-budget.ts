@@ -1,10 +1,9 @@
 import type { NextFunction, Request, Response } from 'express'
 
-// zod 3 records one issue per failing array element and `.max()` does not stop
-// it early (GHSA-mrhx-c7xc-m3w5), so a 4 MB body of bad elements costs ~1 GB of
-// heap before any schema rejects it. The largest legitimate request carries
-// 5,000 rows (TAKEOFF_IMPORT_MAX_ROWS) plus a few small arrays.
-// shortcut: remove with the zod >= 4.6.6 migration, which caps issue growth.
+// Added for zod 3, which recorded one issue per failing array element and did
+// not stop at `.max()` (GHSA-mrhx-c7xc-m3w5). zod 4.6.7 is patched; the budget
+// stays as a cheap cap that runs before guards and pipes. The largest legitimate
+// request carries 5,000 rows (TAKEOFF_IMPORT_MAX_ROWS) plus a few small arrays.
 export const MAX_JSON_ARRAY_ELEMENTS = 20_000
 
 /** Total elements across every array in a parsed JSON value. Stops counting past `limit`. */
