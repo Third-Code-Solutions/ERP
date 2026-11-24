@@ -70,8 +70,7 @@ const ROUTE_OUTCOME_READY_TIMEOUT_MS = 15_000
 
 // Routes that ship dark behind a server-only flag the audit cannot read. With
 // the flag off the page calls notFound() after its segment's loading shell has
-// streamed (HTTP 200), so the not-found view appears only after hydration and
-// the 80-character body wait can sample the skeleton and layout instead. Wait
+// streamed (HTTP 200), so the not-found view appears only after hydration. Wait
 // for either outcome's own heading; only these routes may resolve to not found,
 // and only on the requested URL.
 type DarkRouteExpectation = { flag: string; heading: RegExp }
@@ -118,6 +117,28 @@ async function waitForCanonicalRedirect(
   } catch {
     return false
   }
+}
+
+const NOT_FOUND_TEXT = /this page could not be found|does not exist|could not find that/i
+
+/**
+ * Runs in the page. React streaming SSR (checked against a Next 15.5 build on
+ * React 19.2) keeps a <template id="B:n"> after the start comment of every
+ * boundary not yet swapped in: "$?" while pending, "$~" once resolved but
+ * waiting for a batched reveal, "$!" once it failed on the server (notFound()
+ * or redirect() after the shell) until hydration renders it on the client.
+ * Until then the page shows the loading fallback, and the layout chrome alone
+ * can clear the 80-character threshold.
+ */
+function streamedRouteSettled(): boolean {
+  const text = document.body?.innerText.trim() ?? ''
+  if (/Runtime Error|Application error:/i.test(text)) return true
+  if (document.querySelector('template[id^="B:"]')) return false
+  const comments = document.createTreeWalker(document, NodeFilter.SHOW_COMMENT)
+  for (let node = comments.nextNode(); node; node = comments.nextNode()) {
+    if (['$?', '$~', '$!'].includes((node as Comment).data)) return false
+  }
+  return text.length > 80
 }
 
 function inventory(directory: string, pattern = /^page\.tsx?$/): string[] {
@@ -280,24 +301,17 @@ test('inventory every page with explicit live render and guard evidence', async 
           } else {
             // Next streams the route shell and page content separately. The
             // load event avoids waiting on long-lived realtime requests, but
-            // it can still fire before the streamed body is useful to a user.
-            // Wait for the same minimum content threshold used by the response
-            // assertion (or an explicit runtime error) without waiting for
-            // network idle.
-            await page.waitForFunction(
-              () => {
-                const text = document.body?.innerText.trim() ?? ''
-                return text.length > 80 || /Runtime Error|Application error:/i.test(text)
-              },
-              undefined,
-              { timeout: 15_000 },
-            )
+            // a boundary can still show its loading fallback after it. Wait
+            // until every streamed boundary has settled and the body clears
+            // the response threshold (or a runtime error shows), without
+            // waiting for network idle.
+            await page.waitForFunction(streamedRouteSettled, undefined, { timeout: ROUTE_OUTCOME_READY_TIMEOUT_MS })
           }
           status = response?.status() ?? 0
           const body = await page.locator('body').innerText()
           const failed = /Runtime Error|Application error:|Workspace paused before anything changed\./i.test(body)
           const denied = /access denied|permission denied|not authorized|don't have permission|do not have permission/i.test(body)
-          const missing = status === 404 || /this page could not be found|does not exist|could not find that/i.test(body)
+          const missing = status === 404 || NOT_FOUND_TEXT.test(body)
           const finalPath = new URL(page.url()).pathname.replace(/\/+$/, '') || '/'
           const login = !publicPage && finalPath.startsWith('/auth/')
           const accessDenied = status === 401 || status === 403 || denied
@@ -495,6 +509,69 @@ test('redirect audit requires the target view, not only the target page', async 
     expect(await waitForCanonicalRedirect(page, expectation, 500), 'the board view is not the list view').toBe(false)
     await page.goto(`${origin}/pipeline/list`, { waitUntil: 'load', timeout: 15_000 })
     expect(await waitForCanonicalRedirect(page, expectation)).toBe(true)
+  } finally {
+    await context.close()
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve())
+    })
+  }
+})
+
+test('route readiness waits until every streamed Suspense boundary has settled', async ({ browser }) => {
+  test.setTimeout(30_000)
+  // The markup Next 15.5 / React 19.2 streams for a page behind loading.tsx,
+  // with layout chrome that clears the 80-character threshold on its own.
+  const shell = `<nav>${'Dashboard Projects Pipeline Procurement Finance Reports Settings '.repeat(2)}</nav>`
+    + '<div id="main-content"><!--$?--><template id="B:0"></template><div class="skeleton"></div><!--/$--></div>'
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' }).end(shell)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Local streaming regression server did not bind')
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const origin = `http://127.0.0.1:${address.port}`
+  const settled = () => page.evaluate(streamedRouteSettled)
+  // Stand-ins for React's inline scripts: $RC marks a resolved boundary "$~",
+  // $RX marks a failed one "$!", and $RV or hydration swaps the content in.
+  const mark = (data: '$~' | '$!') => page.evaluate((value) => {
+    const start = document.getElementById('B:0')?.previousSibling
+    if (!(start instanceof Comment)) throw new Error('No pending boundary to mark')
+    start.data = value
+  }, data)
+  const render = (html: string) => page.evaluate((content) => {
+    const start = document.getElementById('B:0')?.previousSibling
+    if (!(start instanceof Comment) || !start.parentNode) throw new Error('No pending boundary to render')
+    let node = start.nextSibling
+    while (node && !(node instanceof Comment && node.data === '/$')) {
+      const next = node.nextSibling
+      node.remove()
+      node = next
+    }
+    start.parentNode.insertBefore(document.createRange().createContextualFragment(content), node)
+    start.data = '$'
+  }, html)
+  try {
+    await page.goto(`${origin}/resolves`, { waitUntil: 'load', timeout: 15_000 })
+    expect((await page.locator('body').innerText()).length).toBeGreaterThan(80)
+    expect(await settled(), 'a pending skeleton boundary is not ready').toBe(false)
+    await mark('$~')
+    expect(await settled(), 'a resolved boundary waiting for its batched reveal is not ready').toBe(false)
+    const ready = page.waitForFunction(streamedRouteSettled, undefined, { timeout: 5_000 })
+    await render('<main><h1>Resolved</h1><p>Streamed content arrived.</p></main>')
+    await ready
+    expect(await settled(), 'a revealed boundary is ready').toBe(true)
+
+    await page.goto(`${origin}/missing`, { waitUntil: 'load', timeout: 15_000 })
+    await mark('$!')
+    expect(await settled(), 'a boundary that failed on the server is not ready before hydration').toBe(false)
+    await render('<main><h1>We could not find that workspace record</h1></main>')
+    expect(await settled(), 'a boundary rendered as not found is ready').toBe(true)
+    expect(await page.locator('body').innerText(), 'and counts as not found').toMatch(NOT_FOUND_TEXT)
   } finally {
     await context.close()
     await new Promise<void>((resolve, reject) => {
