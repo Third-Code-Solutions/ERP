@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { pgTable, uuid, varchar, text, bigint, integer, timestamp, index, uniqueIndex, pgEnum } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { projects } from './projects'
@@ -59,6 +60,10 @@ export const progressClaims = pgTable(
     projectIdx: index('idx_progress_claims_project').on(table.project_id),
     tenantStatusIdx: index('idx_progress_claims_tenant_status').on(table.tenant_id, table.status),
     tenantNumberUq: uniqueIndex('idx_progress_claims_tenant_number').on(table.tenant_id, table.claim_number),
+    // One invoice backs at most one live claim; a rejected or cancelled claim releases it.
+    tenantInvoiceLiveUq: uniqueIndex('ux_progress_claims_tenant_invoice_live')
+      .on(table.tenant_id, table.invoice_id)
+      .where(sql`${table.invoice_id} is not null and ${table.status} not in ('rejected', 'cancelled')`),
   })
 )
 

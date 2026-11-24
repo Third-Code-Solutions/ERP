@@ -64,6 +64,9 @@ describe('middleware Supabase session recovery', () => {
     expect(response.headers.get('referrer-policy')).toBe(
       'strict-origin-when-cross-origin'
     )
+    expect(response.headers.get('content-security-policy')).toMatch(
+      /connect-src [^;]* https:\/\/o4512451278274560\.ingest\.us\.sentry\.io[ ;]/
+    )
     const setCookies = response.headers.getSetCookie()
     const staleCookies = setCookies.filter((cookie) =>
       cookie.startsWith('sb-example-auth-token')

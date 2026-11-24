@@ -47,3 +47,17 @@ export function formatManilaDate(value: Date | string): string {
     timeZone: MANILA_TIME_ZONE,
   }).format(new Date(value))
 }
+
+/**
+ * Long calendar date ("November 30, 2026") of an instant in Manila time, for
+ * printed documents. A YYYY-MM-DD string parses as UTC midnight, which is the
+ * same day in Manila, so it prints as that day.
+ */
+export function formatManilaLongDate(value: Date | string): string {
+  return new Intl.DateTimeFormat('en-PH', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: MANILA_TIME_ZONE,
+  }).format(new Date(value))
+}

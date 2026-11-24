@@ -17,6 +17,8 @@ import {
   users,
 } from '@third-code-erp/database/schema'
 import {
+  RELEASED_CLAIM_STATUSES,
+  claimInvoiceAmountMismatch,
   claimTransitionCommandReceiptSchema,
   claimTransitionCommandSchema,
   claimTransitionPayload,
@@ -25,9 +27,11 @@ import {
   type ClaimTransitionCommandReceipt,
   type ClaimTransitionResult,
   type ClaimTransitionStatus,
+  isClaimLinkableInvoiceStatus,
+  isClaimPayableInvoiceStatus,
 } from '@third-code-erp/shared-types'
 import { ERP_ROLES, roleHasCapability } from '@third-code-erp/shared-types/authorization'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, ne, notInArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -38,13 +42,16 @@ const COMMAND_ACTION = 'status_change'
 const COMMERCIAL_ROLES = new Set(['admin', 'owner', 'commercial'])
 const FINANCE_ROLES = new Set(['admin', 'owner', 'finance'])
 const TERMINAL_STATUSES = new Set<ClaimTransitionStatus>(['paid', 'rejected', 'cancelled'])
+const INVOICE_ALREADY_LINKED = 'That invoice is already linked to another claim'
+const INVOICE_LIVE_CLAIM_INDEX = 'ux_progress_claims_tenant_invoice_live'
+const INVOICED_REJECT_REFUSED = 'An invoiced claim cannot be rejected. Void its invoice first with Reverse invoice in Finance.'
 
-function pgCode(error: unknown): string | undefined {
+function pgError(error: unknown): { code: string; constraint_name?: unknown } | undefined {
   const seen = new Set<object>()
   let current: unknown = error
   while (current && typeof current === 'object' && !seen.has(current)) {
     seen.add(current)
-    if ('code' in current && typeof current.code === 'string') return current.code
+    if ('code' in current && typeof current.code === 'string') return current as { code: string; constraint_name?: unknown }
     current = 'cause' in current ? current.cause : undefined
   }
   return undefined
@@ -103,6 +110,8 @@ export class ClaimTransitionService {
               id: progressClaims.id,
               projectId: progressClaims.project_id,
               status: progressClaims.status,
+              invoiceId: progressClaims.invoice_id,
+              amountCents: progressClaims.amount_cents,
             })
             .from(progressClaims)
             .where(and(eq(progressClaims.id, claimId), eq(progressClaims.tenant_id, actor.tenantId)))
@@ -127,7 +136,9 @@ export class ClaimTransitionService {
 
           this.assertTransitionAllowed(claim.status, command.action)
           if (command.action === 'certify') await this.assertCertificateDocument(transaction, actor, claim.projectId, command.certificateDocumentId)
-          if (command.action === 'link_invoice') await this.assertInvoice(transaction, actor, claim.projectId, command.invoiceId)
+          if (command.action === 'link_invoice') await this.assertInvoice(transaction, actor, claim, command.invoiceId)
+          if (command.action === 'record_payment') await this.assertInvoiceReceived(transaction, actor, claim.invoiceId)
+          if (command.action === 'reject' && claim.status === 'invoiced') await this.assertInvoiceReversed(transaction, actor, claim.invoiceId)
 
           const now = await this.databaseClock(transaction)
           const patch = this.patchFor(command, actor.userId, now)
@@ -167,7 +178,10 @@ export class ClaimTransitionService {
           return claimTransitionResultSchema.parse({ claimId, changed: true, receipt })
         })
       } catch (error) {
-        const code = pgCode(error)
+        const pg = pgError(error)
+        const code = pg?.code
+        // Only the live-claim index means "already linked"; any other unique violation stays an error.
+        if (code === '23505' && pg?.constraint_name === INVOICE_LIVE_CLAIM_INDEX) throw new ConflictException(INVOICE_ALREADY_LINKED)
         if ((code === '55P03' || code === '40P01') && attempt < 2) continue
         if (code === '55P03' || code === '40P01') throw new ConflictException('Claim authority is changing; retry the unchanged command')
         throw error
@@ -238,14 +252,78 @@ export class ClaimTransitionService {
     if (!document) throw new NotFoundException('Certificate document not found in the claim project')
   }
 
-  private async assertInvoice(transaction: DatabaseTransaction, actor: ErpPrincipal, projectId: string, invoiceId: string): Promise<void> {
+  private async assertInvoice(
+    transaction: DatabaseTransaction,
+    actor: ErpPrincipal,
+    claim: { id: string; projectId: string; amountCents: number },
+    invoiceId: string,
+  ): Promise<void> {
     const [invoice] = await transaction
-      .select({ id: invoices.id })
+      .select({
+        id: invoices.id,
+        number: invoices.invoice_number,
+        status: invoices.status,
+        reversedAt: invoices.reversed_at,
+        subtotalCents: invoices.subtotal_cents,
+      })
       .from(invoices)
-      .where(and(eq(invoices.id, invoiceId), eq(invoices.tenant_id, actor.tenantId), eq(invoices.project_id, projectId)))
+      .where(and(eq(invoices.id, invoiceId), eq(invoices.tenant_id, actor.tenantId), eq(invoices.project_id, claim.projectId)))
       .limit(1)
       .for('share', { noWait: true })
     if (!invoice) throw new NotFoundException('Invoice not found in the claim project')
+    if (invoice.reversedAt) throw new ConflictException(`Invoice ${invoice.number} was reversed and cannot be linked to a claim`)
+    // Reversal also sets status to cancelled; reversed_at is checked first for the clearer message.
+    if (!isClaimLinkableInvoiceStatus(invoice.status)) {
+      throw new ConflictException(
+        invoice.status === 'draft'
+          ? `Invoice ${invoice.number} is still a draft; issue it before linking it to a claim`
+          : `Invoice ${invoice.number} is ${invoice.status} and cannot be linked to a claim`,
+      )
+    }
+    const [other] = await transaction
+      .select({ claimNumber: progressClaims.claim_number })
+      .from(progressClaims)
+      .where(and(
+        eq(progressClaims.tenant_id, actor.tenantId),
+        eq(progressClaims.invoice_id, invoiceId),
+        ne(progressClaims.id, claim.id),
+        notInArray(progressClaims.status, [...RELEASED_CLAIM_STATUSES]),
+      ))
+      .limit(1)
+    if (other) throw new ConflictException(`Invoice ${invoice.number} is already linked to claim ${other.claimNumber}`)
+    const mismatch = claimInvoiceAmountMismatch(claim.amountCents, invoice.subtotalCents)
+    if (mismatch) throw new ConflictException(mismatch)
+  }
+
+  // Progress claims are routinely paid in parts (retention, staggered releases), so one posted
+  // receipt is enough; the claim page derives partially paid or paid in full from the invoice.
+  private async assertInvoiceReceived(transaction: DatabaseTransaction, actor: ErpPrincipal, invoiceId: string | null): Promise<void> {
+    if (!invoiceId) throw new ConflictException('This claim has no linked invoice')
+    const [invoice] = await transaction
+      .select({ number: invoices.invoice_number, status: invoices.status, reversedAt: invoices.reversed_at })
+      .from(invoices)
+      .where(and(eq(invoices.id, invoiceId), eq(invoices.tenant_id, actor.tenantId)))
+      .limit(1)
+      .for('share', { noWait: true })
+    if (!invoice) throw new NotFoundException('Linked invoice not found')
+    if (invoice.reversedAt) throw new ConflictException(`Invoice ${invoice.number} was reversed; a reversed invoice cannot carry a claim payment`)
+    if (!isClaimPayableInvoiceStatus(invoice.status)) {
+      throw new ConflictException(`Invoice ${invoice.number} has no customer payment yet; record the receipt in Finance first`)
+    }
+  }
+
+  // Reversing an invoice leaves its claim invoiced; rejecting the claim then is the only way to
+  // free the invoice link (the live-claim index), so it is allowed once the invoice is reversed.
+  private async assertInvoiceReversed(transaction: DatabaseTransaction, actor: ErpPrincipal, invoiceId: string | null): Promise<void> {
+    if (!invoiceId) return
+    const [invoice] = await transaction
+      .select({ reversedAt: invoices.reversed_at })
+      .from(invoices)
+      .where(and(eq(invoices.id, invoiceId), eq(invoices.tenant_id, actor.tenantId)))
+      .limit(1)
+      .for('share', { noWait: true })
+    if (!invoice) throw new NotFoundException('Linked invoice not found')
+    if (!invoice.reversedAt) throw new ConflictException(INVOICED_REJECT_REFUSED)
   }
 
   private async databaseClock(transaction: DatabaseTransaction): Promise<Date> {

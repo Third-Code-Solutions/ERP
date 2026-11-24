@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 
@@ -47,6 +48,14 @@ const DEFAULT_MAPPING = {
   notes: 'Notes',
 }
 
+/** What the importer is told about earlier lines the file rewrote, or null when there are none. */
+export function takeoffCommitNotice(linesChanged: number | undefined): string | null {
+  if (!linesChanged) return null
+  return linesChanged === 1
+    ? '1 line already on this BOM was updated from the file (description, unit, quantity, code, division or unit cost). The change is in the line history.'
+    : `${linesChanged} lines already on this BOM were updated from the file (description, unit, quantity, code, division or unit cost). Each change is in the line history.`
+}
+
 /** A preview quantity in BOQ display form; a value BOQ rejects is shown as received. */
 export function formatTakeoffQuantity(quantity: number | null): string {
   return quantity === null ? '—' : formatBoqQuantity(String(quantity))
@@ -66,6 +75,7 @@ export function TakeoffImportWizard({
   const [preview, setPreview] = useState<Preview | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [committedNotice, setCommittedNotice] = useState<string | null>(null)
 
   const isEditable = bomStatus === 'draft'
   const issueRows = useMemo(
@@ -77,6 +87,7 @@ export function TakeoffImportWizard({
     if (!file || !isEditable) return
     setBusy(true)
     setError(null)
+    setCommittedNotice(null)
     try {
       const form = new FormData()
       form.set('file', file)
@@ -94,17 +105,25 @@ export function TakeoffImportWizard({
       const response = await fetch('/api/bom/takeoff-import', { method: 'POST', body: form })
       const payload = (await response.json()) as
         | (Preview & { ok: true; mode: 'preview' })
+        | { ok: true; mode: 'commit'; linesChanged?: number }
         | { ok: false; error?: { message?: string } }
 
       if (!response.ok || !payload.ok) {
         throw new Error(!payload.ok ? payload.error?.message ?? 'Import failed.' : `Import failed (${response.status}).`)
       }
 
-      if (mode === 'preview') {
+      if (payload.mode === 'preview') {
         setPreview(payload)
       } else {
-        router.push(`/projects/${projectId}/bom`)
-        router.refresh()
+        const notice = takeoffCommitNotice(payload.linesChanged)
+        if (notice) {
+          // Stay here so the importer reads what the file changed.
+          setPreview(null)
+          setCommittedNotice(notice)
+        } else {
+          router.push(`/projects/${projectId}/bom`)
+          router.refresh()
+        }
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Import failed.')
@@ -155,6 +174,11 @@ export function TakeoffImportWizard({
             <button type="button" className="button button-secondary" onClick={reset} disabled={busy}>Reset</button>
           </div>
           {error && <p role="alert" style={{ margin: 0, color: 'var(--color-danger)', fontSize: 13 }}>{error}</p>}
+          {committedNotice && (
+            <div role="status" style={{ padding: 12, border: '1px solid var(--color-warning)', color: 'var(--color-neutral-700)', background: 'var(--color-warning-soft)', borderRadius: 8, fontSize: 13 }}>
+              Import complete. {committedNotice} <Link href={`/projects/${projectId}/bom`}>Open the BOM</Link>
+            </div>
+          )}
         </div>
       </section>
 

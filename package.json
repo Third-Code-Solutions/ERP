@@ -24,6 +24,7 @@
     "test:bootstrap-trial-tenant": "node --test scripts/lib/trial-tenant-bootstrap.test.mjs",
     "test:trial-flags": "node --test scripts/lib/trial-flags.test.mjs",
     "check:trial-flags": "node scripts/check-trial-flags.mjs",
+    "test:material-items-import": "node --test scripts/lib/material-items-import.test.mjs",
     "test:process-sla-sql": "node --test scripts/verify-process-sla-migration.test.mjs",
     "test:wo-04-migration": "node --test scripts/verify-wo-04-migration.test.mjs",
     "test:wo-05-migration": "node --test scripts/verify-wo-05-migration.test.mjs",

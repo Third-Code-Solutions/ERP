@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './base-test'
 import { readE2EEnv } from './helpers/env'
 
 const RUN_MAGIC_LINK_TEST = process.env.E2E_MAGIC_LINK_AUTH === '1'
@@ -336,9 +336,8 @@ test.describe('permission-aware dashboard', () => {
           await expect(
             page.getByRole('heading', { name: 'Process Health' })
           ).toBeVisible()
-          await expect(page.getByText('Observe mode active')).toBeVisible()
           await expect(
-            page.getByText(/Escalation remains suppressed during the initial BU observation period/)
+            page.getByRole('heading', { name: 'Open deadlines' })
           ).toBeVisible()
         }
       }

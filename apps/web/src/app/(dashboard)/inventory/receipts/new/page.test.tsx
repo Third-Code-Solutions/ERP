@@ -13,8 +13,10 @@ vi.mock('@third-code-erp/auth', async (original) => ({
   requireUserProfile: mocks.profile,
   requireCapability: vi.fn(),
 }))
-vi.mock('@third-code-erp/database', () => ({
+vi.mock('@third-code-erp/database', async (importOriginal) => ({
   db: { select: mocks.select },
+  liveProjectCondition: (await importOriginal<typeof import('@third-code-erp/database')>())
+    .liveProjectCondition,
 }))
 vi.mock('drizzle-orm', async (original) => {
   const actual = await original<typeof import('drizzle-orm')>()
@@ -24,14 +26,19 @@ vi.mock('drizzle-orm', async (original) => {
 vi.mock('../../receipt-form', () => ({
   StockReceiptForm: ({
     purchaseOrders,
+    lines,
     defaultPurchaseOrderId,
   }: {
     purchaseOrders: { number: string }[]
+    lines: { id: string; notReadyReason: string | null }[]
     defaultPurchaseOrderId?: string
   }) => (
     <ul data-default-po={defaultPurchaseOrderId ?? ''}>
       {purchaseOrders.map((po) => (
         <li key={po.number}>{po.number}</li>
+      ))}
+      {lines.map((line) => (
+        <li key={line.id} data-line={line.id}>{line.notReadyReason}</li>
       ))}
     </ul>
   ),
@@ -145,5 +152,51 @@ describe('New Stock Receipt page', () => {
         ]
       )
     }
+  })
+
+  it('drops the link hint on a retired project line, read in the tenant', async () => {
+    const unlinked = {
+      purchaseOrderId: 'po-1',
+      code: 'MAT-9',
+      description: 'Cable',
+      uom: null,
+      orderedMicros: 1_000_000,
+      receivedMicros: 0,
+      unitCostCents: 100,
+      materialItemId: null,
+      uomId: null,
+      itemCode: null,
+      tracked: null,
+      itemActive: null,
+      itemBaseUomId: null,
+      itemBaseUomCode: null,
+      uomActive: null,
+    }
+    for (const rows of [
+      [{ id: 'po-1', number: 'PO-1', projectId: 'p-1', projectCode: 'P', projectName: 'P', vendorName: 'V' }],
+      [
+        { ...unlinked, id: 'line-live', projectLive: true },
+        { ...unlinked, id: 'line-retired', projectLive: false },
+      ],
+      [{ id: 'w-1', code: 'W1', name: 'Main', projectId: 'p-1' }],
+      [],
+    ]) {
+      mocks.select.mockReturnValueOnce(queryReturning(rows))
+    }
+
+    const html = renderToStaticMarkup(
+      await NewStockReceiptPage({ searchParams: Promise.resolve({}) })
+    )
+
+    expect(html).toContain(
+      '<li data-line="line-live">Not linked to a stock item. Open the Purchase Order and link it.</li>'
+    )
+    expect(html).toContain('<li data-line="line-retired">Not linked to a stock item.</li>')
+    const projectLive = new PgDialect().sqlToQuery(
+      (mocks.select.mock.calls[1]![0] as { projectLive: SQL }).projectLive
+    )
+    expect(projectLive.sql).toContain('"projects"."id" = "purchase_orders"."project_id" and "projects"."tenant_id" = $1')
+    expect(projectLive.sql).toContain('"projects"."deleted_at" is null')
+    expect(projectLive.params).toEqual([TENANT_ID])
   })
 })

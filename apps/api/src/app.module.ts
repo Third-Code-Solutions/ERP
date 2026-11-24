@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common'
 import { BullModule } from '@nestjs/bullmq'
 import { ConfigModule, ConfigService } from '@nestjs/config'
-import { APP_GUARD } from '@nestjs/core'
+import { APP_FILTER, APP_GUARD } from '@nestjs/core'
+import { SentryGlobalFilter } from '@sentry/nestjs/setup'
 import {
   redisConnectionOptions,
   validateEnvironment,
@@ -79,6 +80,13 @@ import { RoadmapModule } from './roadmap/roadmap.module'
   ],
   controllers: [HealthController],
   providers: [
+    // Reports unhandled (non-HttpException) errors, then delegates to Nest's
+    // BaseExceptionFilter, so HTTP error responses are unchanged. Inert when
+    // SENTRY_DSN is unset.
+    {
+      provide: APP_FILTER,
+      useClass: SentryGlobalFilter,
+    },
     {
       provide: APP_GUARD,
       useClass: SupabaseJwtGuard,

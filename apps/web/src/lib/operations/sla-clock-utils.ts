@@ -6,6 +6,7 @@ import { formatInTimeZone } from 'date-fns-tz'
 import { z } from 'zod'
 
 const PHILIPPINE_TIME_ZONE = 'Asia/Manila'
+const DAY_MS = 24 * 60 * 60 * 1000
 
 const businessDayConfigSchema = z.object({
   clock_type: z.literal('business_days'),
@@ -51,7 +52,7 @@ export function parseSlaConfig(raw: unknown): SlaConfig | null {
   }
 }
 
-function dateInPhilippines(value: Date): string {
+export function dateInPhilippines(value: Date): string {
   return formatInTimeZone(value, PHILIPPINE_TIME_ZONE, 'yyyy-MM-dd')
 }
 
@@ -85,4 +86,28 @@ export function getSlaProgress(
     warning_at: (config.breach_at_seconds / (60 * 60)) * config.warning_at_pct,
     unit: 'calendar_hours',
   }
+}
+
+/**
+ * The instant a clock breaches: from then on getSlaProgress reports elapsed >=
+ * total. Business days are counted over [start day, today), so a business-day
+ * clock breaches at the Manila midnight after its total-th business day,
+ * counting the start day when it is a business day itself.
+ */
+export function slaBreachAt(
+  config: SlaConfig,
+  startedAt: Date,
+  businessDays: BusinessDayService = philippineBusinessDays
+): Date {
+  if (Number.isNaN(startedAt.getTime())) {
+    throw new RangeError('SLA breach time requires a valid start')
+  }
+  if (config.clock_type === 'calendar_hours') {
+    return new Date(startedAt.getTime() + config.breach_at_seconds * 1000)
+  }
+  const start = dateInPhilippines(startedAt)
+  const total = config.breach_business_days
+  const lastDay = businessDays.add(start, businessDays.isBusinessDay(start) ? total - 1 : total)
+  // Manila has no daylight saving, so the next midnight is 24 hours later.
+  return new Date(new Date(`${lastDay}T00:00:00+08:00`).getTime() + DAY_MS)
 }

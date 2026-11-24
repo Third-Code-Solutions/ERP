@@ -9,6 +9,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common'
 import {
+  bomLineItemGrainReviews,
   bomLineItems,
   boms,
   boqDivisions,
@@ -30,8 +31,15 @@ import {
   type TakeoffImportRow,
 } from '@third-code-erp/shared-types'
 import {
+  TAKEOFF_PLACEHOLDER_DESCRIPTION_PREFIX,
   classifyBomLineKind,
+  computeBomTotals,
+  isRecognizedTakeoffUnit,
+  manualLineTotal,
+  reclassifyBomLineForUnit,
+  sameBomLineUnit,
   takeoffCommitQuantity,
+  takeoffIssueStillApplies,
   validateTakeoffRows,
   type TakeoffValidationIssue,
 } from '@third-code-erp/shared-types/bom'
@@ -40,7 +48,7 @@ import { and, desc, eq, isNull, max, sql } from 'drizzle-orm'
 import { roleHasCapability } from '../auth/capability.guard'
 import type { ErpPrincipal, ErpRole } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
-import { DatabaseService } from '../database/database.service'
+import { DatabaseService, type DatabaseTransaction } from '../database/database.service'
 
 const TAKEOFF_MAPPING_VERSION = 'stable-v1'
 
@@ -456,9 +464,39 @@ export class TakeoffImportService {
           )
         )
 
+      // The lines an earlier commit of this import created, locked, so a
+      // re-import can keep the estimator's grain and pricing decisions.
+      const existingLines = await transaction
+        .select({
+          id: bomLineItems.id,
+          sourceRowKey: bomLineItems.source_row_key,
+          kind: bomLineItems.kind,
+          classificationStatus: bomLineItems.classification_status,
+          parentLineItemId: bomLineItems.parent_line_item_id,
+          unit: bomLineItems.unit,
+          unitCostCents: bomLineItems.unit_cost_cents,
+          unitRateSource: bomLineItems.unit_rate_source,
+          description: bomLineItems.description,
+          quantity: bomLineItems.quantity_decimal,
+          code: bomLineItems.code,
+          divisionId: bomLineItems.division_id,
+        })
+        .from(bomLineItems)
+        .where(
+          and(
+            eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId),
+            eq(bomLineItems.takeoff_import_id, takeoffImport.id)
+          )
+        )
+        .for('update')
+      const existingByRowKey = new Map(
+        existingLines.map((line) => [line.sourceRowKey, line])
+      )
+
       const locations = new Map<string, string>()
       const divisions = new Map<string, string>()
       let linesUpserted = 0
+      let linesChanged = 0
 
       for (const [index, row] of parsedCommand.rows.entries()) {
         let locationId: string | null = null
@@ -537,9 +575,72 @@ export class TakeoffImportService {
           }
         }
 
-        const classification = classifyBomLineKind(row.unit)
         const rowValidationIssues = rowIssues.get(row.sourceRowKey) ?? []
-        const quantity = takeoffCommitQuantity(row.quantity)
+        const existing = existingByRowKey.get(row.sourceRowKey)
+        // An empty or invalid file value never replaces what an earlier line
+        // holds, so re-importing a file does not undo takeoff-queue fixes. An
+        // unrecognized file unit counts as invalid: it would drop the line's
+        // parent and unit cost.
+        const fileUnit = row.unit && isRecognizedTakeoffUnit(row.unit) ? row.unit : null
+        const unit = fileUnit || existing?.unit || row.unit || null
+        const fileQuantity = takeoffCommitQuantity(row.quantity)
+        const quantity =
+          fileQuantity === '0' && existing !== undefined ? existing.quantity : fileQuantity
+        const description =
+          row.description ||
+          existing?.description ||
+          `${TAKEOFF_PLACEHOLDER_DESCRIPTION_PREFIX}${row.sourceRowKey}`
+        const code = row.itemNo || existing?.code || null
+        const lineDivisionId = divisionId ?? existing?.divisionId ?? null
+        const classification = classifyBomLineKind(unit)
+        // A re-import keeps every DUPA line's grain, and a classified line's
+        // grain when the file's unit does not change it (the BOM editor's
+        // unit-edit rule), so resolved grain work is not undone.
+        const keepsGrain =
+          existing !== undefined &&
+          (existing.unitRateSource === 'dupa' ||
+            (existing.classificationStatus === 'classified' &&
+              reclassifyBomLineForUnit(existing, unit) === null))
+        // A work item with material lines attached cannot stop being a work
+        // item; the BOM editor refuses the same unit change.
+        if (
+          existing !== undefined &&
+          !keepsGrain &&
+          existing.kind === 'work_item' &&
+          classification.kind !== 'work_item'
+        ) {
+          const [attached] = await transaction
+            .select({ id: bomLineItems.id })
+            .from(bomLineItems)
+            .where(
+              and(
+                eq(bomLineItems.tenant_id, authorizedPrincipal.tenantId),
+                eq(bomLineItems.bom_id, bomId),
+                eq(bomLineItems.parent_line_item_id, existing.id)
+              )
+            )
+            .limit(1)
+          if (attached) {
+            throw new UnprocessableEntityException(
+              `Takeoff line ${row.sourceRowKey} has material lines attached, and the file's unit "${unit ?? ''}" would make it no longer a work item. Detach its material lines or keep its unit, then import again.`
+            )
+          }
+        }
+        // The estimator's unit cost survives a re-import, but only for the
+        // same unit (a price per set is not a price per piece), and never on
+        // an AI draft, which stays unpriced until a DUPA is attached.
+        const unitCostCents =
+          !isAiDocumentCandidate &&
+          existing !== undefined &&
+          existing.unitRateSource !== 'dupa' &&
+          sameBomLineUnit(existing.unit, unit)
+            ? existing.unitCostCents
+            : 0
+        const lineTotalCents = this.lineTotalOrReject(
+          unitCostCents,
+          quantity,
+          `Takeoff line ${row.sourceRowKey}`
+        )
         const [line] = await transaction
           .insert(bomLineItems)
           .values({
@@ -547,7 +648,7 @@ export class TakeoffImportService {
             bom_id: bomId,
             kind: classification.kind ?? 'work_item',
             location_id: locationId,
-            division_id: divisionId,
+            division_id: lineDivisionId,
             item_no: row.itemNo,
             drawing_revision_id: revision.id,
             takeoff_import_id: takeoffImport.id,
@@ -568,10 +669,9 @@ export class TakeoffImportService {
                 : classification.reason,
             sort_order: index,
             is_group: 0,
-            code: row.itemNo,
-            description:
-              row.description || `Unresolved takeoff row ${row.sourceRowKey}`,
-            unit: row.unit || null,
+            code,
+            description,
+            unit,
             quantity_decimal: quantity,
             unit_cost_cents: 0,
             markup_bps: 0,
@@ -598,24 +698,138 @@ export class TakeoffImportService {
               ai_drafted: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.ai_drafted} else excluded.ai_drafted end`,
               source_model: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.source_model} else excluded.source_model end`,
               extraction_timestamp: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.extraction_timestamp} else excluded.extraction_timestamp end`,
-              classification_status: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_status} else excluded.classification_status end`,
-              classification_reason: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.classification_reason} else excluded.classification_reason end`,
+              kind: keepsGrain ? sql`${bomLineItems.kind}` : sql`excluded.kind`,
+              parent_line_item_id: keepsGrain
+                ? sql`${bomLineItems.parent_line_item_id}`
+                : null,
+              classification_status: keepsGrain
+                ? sql`${bomLineItems.classification_status}`
+                : sql`excluded.classification_status`,
+              classification_reason: keepsGrain
+                ? sql`${bomLineItems.classification_reason}`
+                : sql`excluded.classification_reason`,
               unit_rate_source: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_rate_source} else 'manual' end`,
-              unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else 0 end`,
+              // recompute_dupa_totals() owns a DUPA line's cost and total.
+              unit_cost_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.unit_cost_cents} else ${unitCostCents}::bigint end`,
               markup_bps: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.markup_bps} else 0 end`,
-              line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else 0 end`,
+              line_total_cents: sql`case when ${bomLineItems.unit_rate_source} = 'dupa' then ${bomLineItems.line_total_cents} else ${lineTotalCents}::bigint end`,
               updated_at: now,
             },
           })
-          .returning({ id: bomLineItems.id })
+          .returning({
+            id: bomLineItems.id,
+            kind: bomLineItems.kind,
+            classificationStatus: bomLineItems.classification_status,
+            description: bomLineItems.description,
+            quantity: bomLineItems.quantity_decimal,
+            unit: bomLineItems.unit,
+            code: bomLineItems.code,
+            divisionId: bomLineItems.division_id,
+            parentLineItemId: bomLineItems.parent_line_item_id,
+            unitRateSource: bomLineItems.unit_rate_source,
+            unitCostCents: bomLineItems.unit_cost_cents,
+          })
         if (!line) {
           throw new InternalServerErrorException(
             `Takeoff line ${row.sourceRowKey} was not persisted.`
           )
         }
         linesUpserted += 1
+        // Each overwritten field is also row-audited (before/after) by the
+        // audit_bom_line_items trigger; the import audit carries the count.
+        if (
+          existing !== undefined &&
+          (existing.description !== line.description ||
+            existing.unit !== line.unit ||
+            existing.quantity !== line.quantity ||
+            existing.code !== line.code ||
+            existing.divisionId !== line.divisionId ||
+            existing.unitCostCents !== line.unitCostCents)
+        ) {
+          linesChanged += 1
+        }
 
-        for (const issue of rowValidationIssues) {
+        // A line left in review needs a grain review row, or the estimator has
+        // nowhere to resolve it and approval stays blocked.
+        if (line.classificationStatus === 'review') {
+          await transaction
+            .insert(bomLineItemGrainReviews)
+            .values({
+              tenant_id: authorizedPrincipal.tenantId,
+              bom_id: bomId,
+              bom_line_item_id: line.id,
+              proposed_kind: classification.kind,
+              reason:
+                rowValidationIssues.length > 0
+                  ? rowValidationIssues.map((issue) => issue.message).join(' ')
+                  : (classification.reason ?? 'Explicit grain review required.'),
+              created_by: authorizedPrincipal.userId,
+              updated_by: authorizedPrincipal.userId,
+            })
+            .onConflictDoNothing()
+        }
+
+        // The file's unit now classifies a line that waited on a grain review:
+        // close the review, or approval stays blocked on a settled line.
+        if (
+          existing !== undefined &&
+          existing.classificationStatus !== 'classified' &&
+          line.classificationStatus === 'classified'
+        ) {
+          const closedReviews = await transaction
+            .update(bomLineItemGrainReviews)
+            .set({
+              status: 'resolved',
+              resolved_kind: line.kind,
+              resolved_parent_line_item_id: line.parentLineItemId,
+              resolved_by: authorizedPrincipal.userId,
+              updated_by: authorizedPrincipal.userId,
+              resolved_at: now,
+              updated_at: now,
+            })
+            .where(
+              and(
+                eq(bomLineItemGrainReviews.tenant_id, authorizedPrincipal.tenantId),
+                eq(bomLineItemGrainReviews.bom_id, bomId),
+                eq(bomLineItemGrainReviews.bom_line_item_id, line.id),
+                eq(bomLineItemGrainReviews.status, 'pending')
+              )
+            )
+            .returning({ id: bomLineItemGrainReviews.id })
+          for (const review of closedReviews) {
+            await this.audit.writeSemantic(transaction, {
+              tenantId: authorizedPrincipal.tenantId,
+              actorId: authorizedPrincipal.userId,
+              entityType: 'bom_line_item_grain_review',
+              entityId: review.id,
+              action: 'status_change',
+              diff: {
+                bom_line_item_id: line.id,
+                status: { before: 'pending', after: 'resolved' },
+                resolved_kind: line.kind,
+                reason: 'takeoff_reimport_classified',
+              },
+            })
+          }
+        }
+
+        // Only what still holds for the line as saved is (re)opened, so an issue
+        // the estimator resolved and the re-import kept stays resolved. A
+        // duplicated key is a fact about this file and is always reported.
+        const lineNow = {
+          description: line.description,
+          quantity: line.quantity,
+          unit: line.unit,
+          hasDivision: line.divisionId !== null,
+          parentLineItemId: line.parentLineItemId,
+          unitRateSource: line.unitRateSource,
+        }
+        const openIssues = rowValidationIssues.filter(
+          (issue) =>
+            issue.code === 'DUPLICATE_SOURCE_ROW_KEY' ||
+            takeoffIssueStillApplies(issue.code, lineNow)
+        )
+        for (const issue of openIssues) {
           await transaction
             .insert(takeoffUnresolvedItems)
             .values({
@@ -649,6 +863,13 @@ export class TakeoffImportService {
             })
         }
       }
+
+      await this.recalculateBomTotals(
+        transaction,
+        authorizedPrincipal.tenantId,
+        bomId,
+        now
+      )
 
       const [pending] = await transaction
         .select({ count: sql<number>`count(*)::int` })
@@ -694,6 +915,9 @@ export class TakeoffImportService {
               }
             : {}),
           rows: linesUpserted,
+          // Earlier lines the file rewrote (description, unit, quantity, code,
+          // division or unit cost); each is row-audited with before/after.
+          lines_changed: linesChanged,
           unresolved_count: unresolvedCount,
           authority: 'erp_core',
         },
@@ -707,9 +931,61 @@ export class TakeoffImportService {
         source,
         sourceKey,
         linesUpserted,
+        linesChanged,
         unresolvedCount,
         bomId,
       })
     })
   }
+
+  private lineTotalOrReject(
+    unitCostCents: number,
+    quantity: string,
+    subject: string
+  ): number {
+    try {
+      return manualLineTotal(unitCostCents, quantity)
+    } catch (error) {
+      if (error instanceof RangeError) {
+        throw new UnprocessableEntityException(
+          `${subject} total exceeds the supported amount.`
+        )
+      }
+      throw error
+    }
+  }
+
+  /** The BOM header totals, by the formula the web BOM editor uses too. */
+  private async recalculateBomTotals(
+    transaction: DatabaseTransaction,
+    tenantId: string,
+    bomId: string,
+    now: Date
+  ): Promise<void> {
+    const lines = await transaction
+      .select({
+        line_total_cents: bomLineItems.line_total_cents,
+        unit_cost_cents: bomLineItems.unit_cost_cents,
+        quantity: bomLineItems.quantity_decimal,
+        parent_line_item_id: bomLineItems.parent_line_item_id,
+      })
+      .from(bomLineItems)
+      .where(and(eq(bomLineItems.bom_id, bomId), eq(bomLineItems.tenant_id, tenantId)))
+
+    let totals: ReturnType<typeof computeBomTotals>
+    try {
+      totals = computeBomTotals(lines)
+    } catch (error) {
+      if (error instanceof RangeError) {
+        throw new UnprocessableEntityException('The BOM total exceeds the supported amount.')
+      }
+      throw error
+    }
+
+    await transaction
+      .update(boms)
+      .set({ ...totals, updated_at: now })
+      .where(and(eq(boms.id, bomId), eq(boms.tenant_id, tenantId)))
+  }
+
 }

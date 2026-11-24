@@ -16,10 +16,13 @@ import {
   createBom,
   fetchProjectForecastTcv,
   setBomLineLocation,
+  updateBomLineItem,
   type ProjectLocationOption,
 } from '@/app/(dashboard)/projects/[id]/bom/actions'
 import { createPoFromBom } from '@/app/(dashboard)/procurement/actions'
 import { createInvoiceDraft } from '@/app/(dashboard)/projects/[id]/billing/actions'
+import { BomSendToClientPanel } from '@/components/bom/bom-send-to-client-panel'
+import type { BomLineEditInput } from '@/components/bom/bom-line-edit-row'
 import { SupplierSwitcherPanel } from '@/components/bom/supplier-switcher-panel'
 import { VarianceBanner } from '@/components/bom/variance-banner'
 import {
@@ -58,6 +61,8 @@ interface BomLineItem {
   item_no: string | null
   notes?: string | null
   dupa?: BomDupaDetail
+  ai_drafted?: boolean
+  updated_at?: Date | string
 }
 
 type LineSource =
@@ -205,6 +210,7 @@ interface BomLineItemsTableProps {
   onSelect: (lineId: string) => void
   selectedLineId: string | null
   onDelete: (lineId: string) => void
+  onSave: (lineId: string, input: BomLineEditInput) => Promise<string | null>
   onLocationChange: (lineId: string, locationId: string | null) => void
   onDupaEdit: (lineId: string) => void
   locationOptions: ProjectLocationOption[]
@@ -224,6 +230,7 @@ function BomLineItemsTable({
   onSelect,
   selectedLineId,
   onDelete,
+  onSave,
   onLocationChange,
   onDupaEdit,
   locationOptions,
@@ -264,6 +271,7 @@ function BomLineItemsTable({
           isPending={isPending}
           onSelect={() => onSelect(row.item.id)}
           onDelete={() => onDelete(row.item.id)}
+          onSave={(input) => onSave(row.item.id, input)}
           onLocationChange={(locationId) => onLocationChange(row.item.id, locationId)}
           onDupaEdit={() => onDupaEdit(row.item.id)}
           locationOptions={locationOptions}
@@ -312,10 +320,14 @@ function BomLineItemsTable({
         <caption className="sr-only">Bill of materials line items and commercial totals</caption>
         <thead>
           <tr>
-            <th scope="col">Code</th><th scope="col">Description</th><th scope="col">Vendor</th><th scope="col">Location</th>
+            <th scope="col">Code</th><th scope="col">Description</th>
+            <th scope="col" title="A note for the team. It does not change pricing, the RFQ or purchase orders.">
+              Preferred vendor <span style={{ fontWeight: 400, fontSize: 10 }}>(reference only)</span>
+            </th>
+            <th scope="col">Location</th>
             <th scope="col" className="numeric">Unit</th><th scope="col" className="numeric">Qty</th>
             <th scope="col" className="numeric">Unit Cost</th><th scope="col" className="numeric">Line Total</th>
-            {isEditable ? <th scope="col" aria-label="Line actions" style={{ width: '40px' }} /> : null}
+            {isEditable ? <th scope="col" aria-label="Line actions" style={{ width: '90px' }} /> : null}
           </tr>
         </thead>
         <tbody>
@@ -359,6 +371,10 @@ interface BomBuilderProps {
   locations?: ProjectLocationOption[]
   assemblyOptions?: DupaAssemblyOption[]
   readOnly?: boolean
+  // Holds bom.approve_internal: may approve a draft and send an approved BOM to the client.
+  canApprove?: boolean
+  // Account contact email, offered as the default recipient when sending to the client.
+  clientEmail?: string
 }
 
 function formatPHP(cents: number): string {
@@ -385,6 +401,8 @@ export function BomBuilder({
   locations = [],
   assemblyOptions = [],
   readOnly = false,
+  canApprove = false,
+  clientEmail = '',
 }: BomBuilderProps) {
   const [isPending, startTransition] = useTransition()
   const [showAddForm, setShowAddForm] = useState(false)
@@ -397,6 +415,9 @@ export function BomBuilder({
     location_id: '',
   })
   const [formError, setFormError] = useState('')
+  // Outcome of an action on an existing line or on the BOM (approve, delete, location).
+  const [actionError, setActionError] = useState('')
+  const [showSendForm, setShowSendForm] = useState(false)
   const router = useRouter()
   const [showPoForm, setShowPoForm] = useState(false)
   const [poForm, setPoForm] = useState({ vendorId: '', deliveryDate: '' })
@@ -497,27 +518,49 @@ export function BomBuilder({
 
   function handleApprove() {
     if (!bom) return
+    if (
+      !window.confirm(
+        'Approve this BOM? Editing locks, and the supplier RFQ is created for Procurement.',
+      )
+    ) {
+      return
+    }
+    setActionError('')
     startTransition(async () => {
-      await approveBom(bom.id, projectId)
+      const result = await approveBom(bom.id, projectId)
+      if (result.error) setActionError(result.error)
     })
   }
 
   function handleDelete(itemId: string) {
     if (!bom) return
+    setActionError('')
     startTransition(async () => {
-      await deleteBomLineItem(itemId, bom.id, projectId)
+      const result = await deleteBomLineItem(itemId, bom.id, projectId)
+      if (result.error) setActionError(result.error)
     })
+  }
+
+  async function handleSaveLine(
+    lineId: string,
+    input: BomLineEditInput,
+  ): Promise<string | null> {
+    if (!bom) return 'This BOM is no longer available.'
+    setActionError('')
+    const result = await updateBomLineItem(lineId, bom.id, projectId, input)
+    return result.error ?? null
   }
 
   function handleLocationChange(lineItemId: string, locationId: string | null) {
     if (!bom) return
+    setActionError('')
     startTransition(async () => {
       const result = await setBomLineLocation({
         lineItemId,
         projectId,
         locationId,
       })
-      if (result.error) setFormError(result.error)
+      if (result.error) setActionError(result.error)
     })
   }
 
@@ -725,43 +768,69 @@ export function BomBuilder({
                 >
                   + Add Line
                 </button>
-                <button
-                  type="button"
-                  onClick={handleApprove}
-                  disabled={isPending || bom.lineItems.length === 0 || hasFlaggedLines}
-                  title={
-                    hasFlaggedLines
-                      ? 'Resolve flagged lines (missing unit cost) before submitting for client approval'
-                      : undefined
-                  }
-                  style={{
-                    background: hasFlaggedLines
-                      ? 'var(--color-neutral-200)'
-                      : '#10b981',
-                    color: hasFlaggedLines
-                      ? 'var(--color-neutral-500)'
-                      : 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '6px 14px',
-                    fontSize: '0.8125rem',
-                    fontWeight: 600,
-                    cursor:
-                      isPending || bom.lineItems.length === 0 || hasFlaggedLines
-                        ? 'not-allowed'
-                        : 'pointer',
-                    opacity:
-                      isPending || bom.lineItems.length === 0 || hasFlaggedLines
-                        ? 0.6
-                        : 1,
-                  }}
-                >
-                  Submit for Client Approval
-                </button>
+                {canApprove ? (
+                  <button
+                    type="button"
+                    onClick={handleApprove}
+                    disabled={isPending || bom.lineItems.length === 0 || hasFlaggedLines}
+                    title={
+                      hasFlaggedLines
+                        ? 'Resolve flagged lines (missing unit cost) before approving'
+                        : undefined
+                    }
+                    style={{
+                      background: hasFlaggedLines
+                        ? 'var(--color-neutral-200)'
+                        : '#10b981',
+                      color: hasFlaggedLines
+                        ? 'var(--color-neutral-500)'
+                        : 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 14px',
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      cursor:
+                        isPending || bom.lineItems.length === 0 || hasFlaggedLines
+                          ? 'not-allowed'
+                          : 'pointer',
+                      opacity:
+                        isPending || bom.lineItems.length === 0 || hasFlaggedLines
+                          ? 0.6
+                          : 1,
+                    }}
+                  >
+                    Approve BOM
+                  </button>
+                ) : (
+                  <span style={{ alignSelf: 'center', fontSize: '0.75rem', color: 'var(--color-neutral-500)' }}>
+                    Approval is done by Commercial or an Admin.
+                  </span>
+                )}
               </>
             )}
             {!readOnly && !isEditable && bom.status !== 'archived' && (
               <>
+                {canApprove && bom.status === 'approved' ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowSendForm((v) => !v)}
+                    aria-expanded={showSendForm}
+                    aria-controls="bom-send-to-client"
+                    style={{
+                      background: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 14px',
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Send to client
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {
@@ -810,6 +879,26 @@ export function BomBuilder({
             )}
           </div>
         </div>
+
+        {actionError ? (
+          <p
+            role="alert"
+            style={{
+              margin: '0 0 16px',
+              padding: '10px 14px',
+              border: '1px solid var(--color-danger)',
+              borderRadius: 6,
+              color: 'var(--color-danger)',
+              fontSize: '0.8125rem',
+            }}
+          >
+            {actionError}
+          </p>
+        ) : null}
+
+        {showSendForm && canApprove && bom.status === 'approved' ? (
+          <BomSendToClientPanel bomId={bom.id} defaultEmail={clientEmail} />
+        ) : null}
 
         {/* Totals strip */}
         <div
@@ -1445,6 +1534,7 @@ export function BomBuilder({
             onSelect={setSelectedLineId}
             selectedLineId={selectedLineId}
             onDelete={handleDelete}
+            onSave={handleSaveLine}
             onLocationChange={handleLocationChange}
             onDupaEdit={setEditingDupaLineId}
             locationOptions={locations}

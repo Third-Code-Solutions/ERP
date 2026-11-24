@@ -138,10 +138,10 @@ export function SupplierSwitcherPanel({
   if (!selected) {
     return (
       <aside
-        aria-label="Supplier switcher"
+        aria-label="Preferred vendor (reference only)"
         style={panelShellStyle(isMobile, false)}
       >
-        <PanelHeader title="Supplier switcher" onClose={onClose} />
+        <PanelHeader title="Preferred vendor (reference only)" onClose={onClose} />
         <div
           style={{
             padding: 16,
@@ -158,10 +158,13 @@ export function SupplierSwitcherPanel({
 
   return (
     <aside
-      aria-label="Supplier switcher"
+      aria-label="Preferred vendor (reference only)"
       style={panelShellStyle(isMobile, true)}
     >
-      <PanelHeader title="Supplier switcher" onClose={onClose} />
+      <PanelHeader title="Preferred vendor (reference only)" onClose={onClose} />
+      <p style={{ margin: 0, padding: '8px 16px 0', fontSize: 11.5, color: 'var(--color-neutral-500)' }}>
+        A note for the team. It does not change the line price, the RFQ or purchase orders.
+      </p>
 
       {/* Current line summary */}
       <section style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}>
@@ -185,7 +188,7 @@ export function SupplierSwitcherPanel({
           {formatPHP(selected.unit_cost_cents)}
         </div>
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>Current vendor:</span>
+          <span style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>Preferred vendor:</span>
           {currentVendor ? (
             <span
               style={{

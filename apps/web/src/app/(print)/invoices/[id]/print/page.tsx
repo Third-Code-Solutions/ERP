@@ -1,12 +1,27 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
-import { invoices, projects, tenants } from '@third-code-erp/database/schema'
+import { accounts, invoices, projects, tenants } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
-import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
+import { formatBps } from '@third-code-erp/shared-types'
+import { tenantDisplayName } from '@/lib/tenant-branding'
+import { formatManilaLongDate } from '@/lib/manila-date'
+import {
+  invoiceDocumentState,
+  invoicePrintable,
+  invoiceStateMark,
+  invoiceStateNotice,
+} from '@/app/(print)/invoices/invoice-document-state'
+import {
+  invoiceClientAccountJoin,
+  vatRateLabel,
+  vatRegisteredWhenDrafted,
+  withholdingRateLabel,
+} from '@/app/(print)/invoices/invoice-print'
 import { PrintButton } from './print-button'
 
 export const metadata: Metadata = { title: 'Invoice' }
@@ -17,7 +32,7 @@ function formatPHP(cents: number): string {
 
 function formatDate(d: Date | string | null): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+  return formatManilaLongDate(d)
 }
 
 export default async function InvoicePrintPage({ params }: { params: Promise<{ id: string }> }) {
@@ -25,6 +40,8 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const profile = await getUserProfile()
   // Same finance.read gate as the dashboard invoice page.
   if (!profile || !can(profile.role, 'finance.read')) return notFound()
+  // Print pages sit outside the dashboard layout: repeat the role rule of the page they print.
+  requireRouteAccess(profile.role, '/invoices/[id]')
 
   const [inv] = await db
     .select({
@@ -42,6 +59,9 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
       paid_at: invoices.paid_at,
       notes: invoices.notes,
       created_at: invoices.created_at,
+      issued_at: invoices.issued_at,
+      reversed_at: invoices.reversed_at,
+      account_name: accounts.name,
       project_name: projects.name,
       project_client: projects.client,
       project_location: projects.location,
@@ -52,19 +72,28 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
       projects,
       and(eq(invoices.project_id, projects.id), eq(projects.tenant_id, profile.tenantId)),
     )
+    // Same account the invoice screen shows: the invoice's own, else its project's.
+    .leftJoin(accounts, invoiceClientAccountJoin(profile.tenantId))
     .where(and(eq(invoices.id, id), eq(invoices.tenant_id, profile.tenantId)))
 
   if (!inv) return notFound()
+  const documentState = invoiceDocumentState(inv)
+  if (!invoicePrintable(documentState)) return notFound()
 
   const [tenant] = await db
     .select({ name: tenants.name, bir_tin: tenants.bir_tin, pcab_license: tenants.pcab_license })
     .from(tenants)
     .where(eq(tenants.id, profile.tenantId))
 
-  const billingPct = (inv.billing_percent_bps / 100).toFixed(0)
+  const billingPct = formatBps(inv.billing_percent_bps)
+  const stateMark = invoiceStateMark(documentState)
+  const stateNotice = invoiceStateNotice(documentState)
+  const billedTo = inv.account_name ?? inv.project_client ?? '—'
   const retentionPct = formatBps(inv.retention_bps)
-  const vatPct = formatBps(TAX_DEFAULTS.vatBps)
-  const ewtPct = formatBps(TAX_DEFAULTS.ewtBps)
+  // Only a zero VAT needs the tax profile, to say why none was charged.
+  const vatRegistered = inv.vat_cents > 0 ? null : await vatRegisteredWhenDrafted(profile.tenantId, inv.created_at)
+  const vatLabel = vatRateLabel(inv, vatRegistered)
+  const ewtPct = withholdingRateLabel(inv)
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 16px', background: '#f3f4f6' }}>
@@ -108,13 +137,52 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           boxShadow: '0 4px 32px rgba(0,0,0,0.12)',
           fontSize: '13px',
           lineHeight: 1.5,
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
+        {stateMark && stateNotice && (
+          <>
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                fontSize: '120px',
+                fontWeight: 900,
+                letterSpacing: '0.08em',
+                color: 'rgba(185, 28, 28, 0.12)',
+                transform: 'rotate(-30deg)',
+              }}
+            >
+              {stateMark}
+            </div>
+            <div
+              role="note"
+              style={{
+                border: '2px solid #b91c1c',
+                background: '#fef2f2',
+                color: '#7f1d1d',
+                padding: '10px 14px',
+                marginBottom: '20px',
+                textAlign: 'center',
+                fontWeight: 700,
+              }}
+            >
+              {stateMark}: {stateNotice}
+            </div>
+          </>
+        )}
+
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', borderBottom: '2px solid #1F3864', paddingBottom: '20px' }}>
           <div>
             <div style={{ fontSize: '20px', fontWeight: 800, color: '#1F3864', letterSpacing: '-0.02em', marginBottom: '4px' }}>
-              {tenant?.name ?? 'ABI OPS'}
+              {tenantDisplayName(tenant?.name)}
             </div>
             {tenant?.bir_tin && (
               <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '2px' }}>
@@ -132,7 +200,8 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
               {inv.invoice_number}
             </div>
             <div style={{ fontSize: '12px', color: '#6b7280' }}>
-              Date: <strong style={{ color: '#374151' }}>{formatDate(inv.created_at)}</strong>
+              {inv.issued_at ? 'Date issued' : 'Date prepared'}:{' '}
+              <strong style={{ color: '#374151' }}>{formatDate(inv.issued_at ?? inv.created_at)}</strong>
             </div>
             {inv.due_date && (
               <div style={{ fontSize: '12px', color: '#6b7280' }}>
@@ -153,7 +222,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             Billed To
           </div>
           <div style={{ fontWeight: 700, fontSize: '15px', color: '#111827', marginBottom: '2px' }}>
-            {inv.project_client ?? '—'}
+            {billedTo}
           </div>
           <div style={{ color: '#6b7280', fontSize: '13px' }}>
             Re: {inv.project_name ?? '—'}
@@ -177,7 +246,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             Description
           </div>
           <div style={{ fontWeight: 600, color: '#111827' }}>
-            Progress Billing — {billingPct}% of Contract Value
+            Progress Billing — {billingPct} of Contract Value
           </div>
           <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
             Project: {inv.project_name ?? '—'}
@@ -195,7 +264,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           <tbody>
             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
               <td style={{ padding: '12px 16px', color: '#374151' }}>
-                Contract Progress Billing ({billingPct}% of TCV)
+                Contract Progress Billing ({billingPct} of TCV)
               </td>
               <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#111827' }}>
                 {formatPHP(inv.subtotal_cents)}
@@ -211,7 +280,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
             </tr>
             <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
               <td style={{ padding: '12px 16px', color: '#374151' }}>
-                Add: Value Added Tax ({vatPct} VAT)
+                Add: Value Added Tax ({vatLabel})
               </td>
               <td style={{ padding: '12px 16px', textAlign: 'right', fontFamily: 'monospace', color: '#111827' }}>
                 {formatPHP(inv.vat_cents)}
@@ -270,7 +339,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
           <div>
             <div style={{ borderTop: '1px solid #374151', paddingTop: '8px' }}>
               <div style={{ fontSize: '12px', color: '#6b7280' }}>Prepared and issued by</div>
-              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{tenant?.name ?? 'ABI OPS'}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{tenantDisplayName(tenant?.name)}</div>
             </div>
           </div>
           <div>
@@ -283,7 +352,7 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
 
         {/* Footer */}
         <div style={{ marginTop: '40px', paddingTop: '16px', borderTop: '1px solid #e5e7eb', textAlign: 'center', fontSize: '11px', color: '#9ca3af' }}>
-          This invoice is system-generated by ABI OPS. Invoice {inv.invoice_number} is issued pursuant to applicable BIR regulations.
+          This invoice is system-generated. Invoice {inv.invoice_number} is issued pursuant to applicable BIR regulations.
         </div>
       </div>
     </div>

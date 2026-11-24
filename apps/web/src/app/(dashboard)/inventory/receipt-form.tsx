@@ -22,6 +22,8 @@ interface PurchaseOrderLineOption {
   receivedMicros: number
   unitCostCents: number
   ready: boolean
+  /** Plain-language reason the line cannot be received; set when not ready. */
+  notReadyReason?: string | null
 }
 
 interface WarehouseOption {
@@ -268,7 +270,9 @@ export function StockReceiptForm({
                       <strong>{line.code ?? 'Uncoded item'}</strong>
                       <span className="finance-cell-detail">
                         {line.description}
-                        {!line.ready ? ' / configure tracked Item and UOM' : ''}
+                        {!line.ready
+                          ? ` / ${line.notReadyReason ?? 'configure tracked Item and UOM'}`
+                          : ''}
                       </span>
                     </td>
                     <td>{line.uom ?? '—'}</td>

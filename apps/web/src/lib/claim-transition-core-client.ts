@@ -9,6 +9,11 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { getCoreApiAccess } from '@/lib/erp-core-client'
 
+// Core states its business rules (stale status, invoice not linkable, unpaid
+// invoice) as 404/409 with a plain message; every other failure stays generic.
+const RULE_STATUSES = new Set([404, 409])
+const RULE_MESSAGE_SCHEMA = z.object({ message: z.string().trim().min(1).max(300) })
+
 type ClaimTransitionCoreResult =
   | { ok: true; data: ClaimTransitionResult }
   | { ok: false; status?: number; outcomeUnknown: boolean; error: string }
@@ -38,11 +43,14 @@ export async function transitionClaimThroughCoreApi(
       signal: AbortSignal.timeout(10_000),
     })
     if (!response.ok) {
+      const rule = RULE_STATUSES.has(response.status)
+        ? RULE_MESSAGE_SCHEMA.safeParse(await response.json().catch(() => null))
+        : null
       return {
         ok: false,
         status: response.status,
         outcomeUnknown: response.status === 408 || response.status >= 500,
-        error: 'The claim service did not confirm this transition.',
+        error: rule?.success ? rule.data.message : 'The claim service did not confirm this transition.',
       }
     }
     const body: unknown = await response.json()

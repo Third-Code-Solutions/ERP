@@ -24,6 +24,11 @@ vi.mock('@/app/(dashboard)/projects/[id]/bom/actions', () => ({
   deleteBomLineItem: vi.fn(),
   fetchProjectForecastTcv: vi.fn().mockResolvedValue({ tcvCents: null }),
   setBomLineLocation: vi.fn(),
+  updateBomLineItem: vi.fn(),
+}))
+
+vi.mock('@/app/(dashboard)/bom/[bomId]/portal-actions', () => ({
+  mintBomPortalToken: vi.fn(),
 }))
 
 vi.mock('@/app/(dashboard)/procurement/actions', () => ({
@@ -250,8 +255,86 @@ describe('project BOM mutation controls', () => {
 
       expect(markup).not.toContain('+ Add Line')
       expect(markup).not.toContain('Submit for Client Approval')
+      expect(markup).not.toContain('Approve BOM')
+      expect(markup).not.toContain('Send to client')
       expect(markup).not.toContain('Generate PO')
       expect(markup).not.toContain('Create Invoice')
     },
   )
+
+  function renderBuilder(status: 'draft' | 'approved', canApprove: boolean) {
+    return renderToStaticMarkup(
+      <BomBuilder
+        projectId="project-1"
+        canApprove={canApprove}
+        bom={{
+          id: 'bom-1',
+          version: 1,
+          label: null,
+          status,
+          total_cost_cents: 0,
+          tcv_cents: 0,
+          gp_cents: 0,
+          gp_margin_bps: 0,
+          lineItems: [],
+        }}
+      />,
+    )
+  }
+
+  it('offers Approve BOM only to a role that holds bom.approve_internal', () => {
+    expect(renderBuilder('draft', true)).toContain('Approve BOM')
+    expect(renderBuilder('draft', true)).not.toContain('Submit for Client Approval')
+
+    const withoutApproval = renderBuilder('draft', false)
+    expect(withoutApproval).not.toContain('Approve BOM')
+    expect(withoutApproval).toContain('Approval is done by Commercial or an Admin.')
+  })
+
+  it('offers Send to client only to an approver, and only once the BOM is approved', () => {
+    expect(renderBuilder('approved', true)).toContain('Send to client')
+    expect(renderBuilder('approved', false)).not.toContain('Send to client')
+    expect(renderBuilder('draft', true)).not.toContain('Send to client')
+  })
+
+  it('labels the per-line vendor as a reference note, not a purchasing instruction', () => {
+    const markup = renderToStaticMarkup(
+      <BomBuilder
+        projectId="project-1"
+        bom={{
+          id: 'bom-1',
+          version: 1,
+          label: null,
+          status: 'draft',
+          total_cost_cents: 100,
+          tcv_cents: 100,
+          gp_cents: 0,
+          gp_margin_bps: 0,
+          lineItems: [
+            {
+              id: 'line-1',
+              code: null,
+              description: 'Fan coil unit',
+              unit: 'lot',
+              quantity: '1',
+              unit_cost_cents: 100,
+              unit_rate_source: 'manual',
+              line_total_cents: 100,
+              location_id: null,
+              division_id: null,
+              division_label: null,
+              parent_line_item_id: null,
+              kind: 'work_item',
+              classification_status: 'classified',
+              item_no: null,
+            },
+          ],
+        }}
+      />,
+    )
+
+    expect(markup).toContain('Preferred vendor')
+    expect(markup).toContain('(reference only)')
+    expect(markup).toContain('aria-label="Edit Fan coil unit"')
+  })
 })

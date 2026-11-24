@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import { withSentryConfig } from '@sentry/nextjs/config'
 import path from 'node:path'
 
 const config: NextConfig = {
@@ -85,4 +86,25 @@ const config: NextConfig = {
   },
 }
 
-export default config
+// Error monitoring only (src/instrumentation*.ts). The build integration just
+// injects APP_REVISION as the release into browser and server bundles. There
+// is no auth token: nothing is uploaded and no release, commit or deploy is
+// written to Sentry; no tunnel route, telemetry or build-time instrumentation.
+export default withSentryConfig(config, {
+  silent: true,
+  telemetry: false,
+  sourcemaps: { disable: true },
+  release: {
+    name: process.env.APP_REVISION,
+    create: false,
+    finalize: false,
+    setCommits: false,
+    deploy: false,
+  },
+  buildTimeInstrumentation: false,
+  webpack: {
+    autoInstrumentServerFunctions: false,
+    autoInstrumentMiddleware: false,
+    autoInstrumentAppDirectory: false,
+  },
+})
