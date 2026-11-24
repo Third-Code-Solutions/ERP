@@ -50,14 +50,11 @@ describe('sentryErrorsOnlyOptions', () => {
     })
   })
 
-  it('keeps every default integration except browser session tracking', () => {
-    // @sentry/browser 11.12.0 getDefaultIntegrations, in order.
-    const defaults = ['EventFilters', 'FunctionToString', 'ConversationId', 'BrowserApiErrors', 'Breadcrumbs', 'Console', 'GlobalHandlers', 'LinkedErrors', 'Dedupe', 'HttpContext', 'CultureContext', 'BrowserSession']
-      .map((name) => ({ name }))
+  // The web and Core API tests run the SDKs' real default integrations.
+  it('drops the session integrations and keeps the rest in order', () => {
+    const defaults = ['Dedupe', 'BrowserSession', 'Http', 'ProcessSession', 'Console'].map((name) => ({ name }))
     const options = sentryErrorsOnlyOptions({ dsn: DSN })
-    const integrations = options?.integrations(defaults).map(({ name }) => name)
-    expect(integrations).not.toContain('BrowserSession')
-    expect(integrations).toEqual(defaults.slice(0, -1).map(({ name }) => name))
+    expect(options?.integrations(defaults).map(({ name }) => name)).toEqual(['Dedupe', 'Http', 'Console'])
     expect(options?.sendClientReports).toBe(false)
   })
 

@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import type { ErrorEvent } from '@sentry/nextjs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { sentryOptions } from './sentry-options'
@@ -26,10 +28,25 @@ describe('web sentryOptions', () => {
       tracesSampleRate: 0,
       sendClientReports: false,
     })
-    expect(sentryOptions()?.integrations([{ name: 'Dedupe' }, { name: 'BrowserSession' }]))
-      .toEqual([{ name: 'Dedupe' }])
     // The release is injected at build time by withSentryConfig.
     expect(sentryOptions()).not.toHaveProperty('release')
+  })
+
+  it('drops every session integration from the Next.js browser SDK defaults', () => {
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', DSN)
+    // Vitest resolves @sentry/nextjs to its server build; load the browser
+    // build instrumentation-client.ts gets, by file, past the exports map.
+    // CJS, because the ESM build imports `next/router`, which Node ESM cannot resolve.
+    const load = createRequire(import.meta.url)
+    const nextjs = dirname(load.resolve('@sentry/nextjs/package.json'))
+    const browserSdk = load(join(nextjs, 'build/cjs/index.client.js')) as {
+      getDefaultIntegrations: (options: object) => { name: string }[]
+    }
+    const defaults = browserSdk.getDefaultIntegrations({}).map(({ name }) => name)
+    const kept = sentryOptions()?.integrations(browserSdk.getDefaultIntegrations({})).map(({ name }) => name)
+
+    expect(defaults).toContain('BrowserSession')
+    expect(kept).toEqual(defaults.filter((name) => !/session/i.test(name)))
   })
 
   it('drops cookies, auth headers and query strings in beforeSend', () => {

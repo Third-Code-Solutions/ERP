@@ -166,15 +166,22 @@ export function dropConsoleBreadcrumb<T extends { category?: string }>(
   return isConsoleBreadcrumb(breadcrumb) ? null : breadcrumb
 }
 
+// Default integrations that send session envelopes, which are not errors:
+// the browser's on every page load and navigation, Node's for the process.
+const SESSION_INTEGRATIONS = ['BrowserSession', 'ProcessSession']
+
 /**
- * `integrations`: the browser SDK's default BrowserSession integration sends
- * a session envelope on every page load and navigation, which is not an
- * error. Node and Nest have no such default, so there it changes nothing.
+ * `integrations`: drops the session integrations from the SDK defaults.
+ * Node's Http integration also records a session per incoming request; it
+ * takes an option, so each server init replaces it with
+ * `httpIntegration({ sessions: false })`.
  */
 export function withoutSessionTracking<T extends { name: string }>(
   defaults: T[]
 ): T[] {
-  return defaults.filter((integration) => integration.name !== 'BrowserSession')
+  return defaults.filter(
+    (integration) => !SESSION_INTEGRATIONS.includes(integration.name)
+  )
 }
 
 export type SentryDeployment = {

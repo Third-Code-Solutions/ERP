@@ -1,14 +1,18 @@
 import type { ErrorEvent } from '@sentry/nestjs'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// The real SDK, with init captured and the two integration factories spied on.
 const sentry = vi.hoisted(() => ({
   init: vi.fn(),
-  onUnhandledRejectionIntegration: vi.fn((options: { mode: string }) => ({
-    name: 'OnUnhandledRejection',
-    options,
-  })),
+  httpIntegration: vi.fn(),
+  onUnhandledRejectionIntegration: vi.fn(),
 }))
-vi.mock('@sentry/nestjs', () => sentry)
+vi.mock('@sentry/nestjs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sentry/nestjs')>()
+  sentry.httpIntegration.mockImplementation(actual.httpIntegration)
+  sentry.onUnhandledRejectionIntegration.mockImplementation(actual.onUnhandledRejectionIntegration)
+  return { ...actual, ...sentry }
+})
 const init = sentry.init
 
 const DSN = 'https://key@o1.ingest.us.sentry.io/2'
@@ -19,6 +23,11 @@ async function loadInstrument(): Promise<void> {
 }
 
 describe('Core API Sentry instrument', () => {
+  // The first load of the real SDK takes seconds; keep it out of each test's timeout.
+  beforeAll(async () => {
+    await vi.importActual('@sentry/nestjs')
+  }, 60_000)
+
   beforeEach(() => {
     init.mockReset()
   })
@@ -46,12 +55,29 @@ describe('Core API Sentry instrument', () => {
         environment: 'production',
         release: 'abc123',
         tracesSampleRate: 0,
-        // Unhandled rejections still exit the process, as without Sentry.
-        integrations: [
-          { name: 'OnUnhandledRejection', options: { mode: 'strict' } },
-        ],
+        sendClientReports: false,
       })
     )
+  })
+
+  it('keeps the Nest SDK defaults minus every session, with strict rejections', async () => {
+    vi.stubEnv('SENTRY_DSN', DSN)
+    await loadInstrument()
+    const actual = await vi.importActual<typeof import('@sentry/nestjs')>('@sentry/nestjs')
+    const defaults = actual.getDefaultIntegrations({}) ?? []
+    const [{ integrations }] = init.mock.calls[0] as [
+      { integrations: (defaults: { name: string }[]) => { name: string }[] },
+    ]
+    const names = integrations(defaults).map(({ name }) => name)
+
+    expect(defaults.map(({ name }) => name)).toEqual(expect.arrayContaining(['Nest', 'Http', 'ProcessSession']))
+    expect(names.filter((name) => /session/i.test(name))).toEqual([])
+    expect(names.filter((name) => name === 'Http')).toHaveLength(1)
+    expect(names.filter((name) => name === 'OnUnhandledRejection')).toHaveLength(1)
+    expect(names).toContain('Nest')
+    // No session per incoming request; unhandled rejections still exit.
+    expect(sentry.httpIntegration).toHaveBeenCalledWith({ sessions: false })
+    expect(sentry.onUnhandledRejectionIntegration).toHaveBeenCalledWith({ mode: 'strict' })
   })
 
   it('scrubs auth and cookie headers and request bodies before sending', async () => {
