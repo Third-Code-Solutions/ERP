@@ -535,10 +535,15 @@ deployment, pagination, and rollback evidence are recorded.
 
 ## Error monitoring (Sentry, optional)
 
-Errors only: no tracing, no Session Replay, no user data, cookies, auth
-headers, request bodies, query strings or capability-link tokens (see
-`packages/shared-types/src/sentry-privacy.ts`). When a DSN is unset the
-SDK is never initialised, so local development, CI and tests send nothing.
+Errors only: no tracing, no Session Replay, no console breadcrumbs, no
+user data, cookies, request bodies or query strings. Request headers are
+allowlisted (`accept`, `accept-language`, `content-type`, `user-agent`,
+`x-request-id`), and every string in an event has capability-link tokens
+and Drizzle query parameters (`params: ...`) redacted (see
+`packages/shared-types/src/sentry-privacy.ts`). The web app reports from
+the browser and the Node.js runtime only; middleware (Edge runtime) errors
+are not reported. When a DSN is unset the SDK is never initialised, so
+local development, CI and tests send nothing.
 The environment is `production` when `VERCEL_ENV` (web) or `NODE_ENV` is
 `production`. The web release is `APP_REVISION`, injected into the browser
 and server bundles at build time (`withSentryConfig` in `next.config.ts`,

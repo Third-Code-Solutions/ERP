@@ -3,14 +3,18 @@
 // Structural types keep this package free of the Sentry SDK.
 
 type ScrubbableRequest = {
+  method?: string
   url?: string
   query_string?: unknown
   cookies?: unknown
   data?: unknown
+  env?: unknown
   headers?: Record<string, string>
 }
 
 type ScrubbableBreadcrumb = {
+  category?: string
+  message?: string
   data?: Record<string, unknown>
 }
 
@@ -18,70 +22,122 @@ export type ScrubbableSentryEvent = {
   request?: ScrubbableRequest
   breadcrumbs?: ScrubbableBreadcrumb[]
   transaction?: string
+  sdkProcessingMetadata?: unknown
 }
 
-// Drop headers that carry credentials or signatures, plus idempotency keys,
-// client IP addresses and the Referer (it can hold a capability link).
-const SENSITIVE_HEADER =
-  /auth|cookie|token|secret|key|signature|session|forwarded|-ip$|referer/i
+// Allowlist: every other request header is dropped. Routing headers such as
+// next-router-state-tree and next-url carry capability tokens, and Vercel adds
+// x-vercel-ip-* geolocation headers to every request.
+const SAFE_REQUEST_HEADERS = [
+  'accept',
+  'accept-language',
+  'content-type',
+  'user-agent',
+  'x-request-id',
+]
 
 // Public capability links carry their bearer token as the path segment after
 // the link kind: web /portal/<kind>/<token>, Core API /v1/public/<kind>/<token>.
-const CAPABILITY_TOKEN = /(\/(?:portal|public)\/[^/?#]+\/)[^/?#]+/g
+// Route patterns such as /portal/sign/[token] are kept.
+const CAPABILITY_TOKEN =
+  /(\/(?:portal|public)\/[^/?#\s"'<>]+\/)(?!\[)[^/?#\s"'<>]+/g
 
-const BREADCRUMB_URL_FIELDS = ['url', 'from', 'to'] as const
+// Drizzle reports a failed query as "Failed query: <sql>\nparams: <values>".
+// The SQL text holds placeholders only; the values are tenant data.
+const QUERY_PARAMS = /(^|\s)params: [\s\S]*/
+
+// Fields whose value is a URL: query string and fragment are dropped too.
+const URL_FIELDS = new Set(['url', 'from', 'to', 'request_path'])
 
 export function scrubSentryUrl(url: string): string {
   const [path = ''] = url.split(/[?#]/, 1)
-  return path.replace(CAPABILITY_TOKEN, '$1[redacted]')
+  return redactText(path)
+}
+
+function redactText(text: string): string {
+  return text
+    .replace(CAPABILITY_TOKEN, '$1[redacted]')
+    .replace(QUERY_PARAMS, '$1params: [redacted]')
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object') return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
+// Redacts every string in the (already normalised, JSON-shaped) event.
+// Stack frames hold source paths and code, never request data.
+function redactDeep(value: unknown, field?: string): unknown {
+  if (typeof value === 'string') {
+    return field !== undefined && URL_FIELDS.has(field)
+      ? scrubSentryUrl(value)
+      : redactText(value)
+  }
+  if (Array.isArray(value)) return value.map((item) => redactDeep(item))
+  if (!isPlainObject(value)) return value
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      key === 'stacktrace' ? item : redactDeep(item, key),
+    ])
+  )
 }
 
 function scrubHeaders(
   headers: Record<string, string>
 ): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(headers).filter(([name]) => !SENSITIVE_HEADER.test(name))
+    Object.entries(headers).filter(([name]) =>
+      SAFE_REQUEST_HEADERS.includes(name.toLowerCase())
+    )
   )
 }
 
+// Keeps only method, url and allowlisted headers: cookies, bodies, query
+// strings and server env are dropped.
 function scrubRequest(request: ScrubbableRequest): ScrubbableRequest {
-  // Drop cookies, bodies and the query string outright.
-  const { cookies: _cookies, data: _data, query_string: _query, ...kept } =
-    request
   return {
-    ...kept,
-    ...(kept.url === undefined ? {} : { url: scrubSentryUrl(kept.url) }),
-    ...(kept.headers === undefined
+    ...(request.method === undefined ? {} : { method: request.method }),
+    ...(request.url === undefined ? {} : { url: request.url }),
+    ...(request.headers === undefined
       ? {}
-      : { headers: scrubHeaders(kept.headers) }),
+      : { headers: scrubHeaders(request.headers) }),
   }
 }
 
-function scrubBreadcrumb(
-  breadcrumb: ScrubbableBreadcrumb
-): ScrubbableBreadcrumb {
-  const data = breadcrumb.data
-  if (!data) return breadcrumb
-  const scrubbed = { ...data }
-  for (const field of BREADCRUMB_URL_FIELDS) {
-    const value = scrubbed[field]
-    if (typeof value === 'string') scrubbed[field] = scrubSentryUrl(value)
-  }
-  return { ...breadcrumb, data: scrubbed }
+function isConsoleBreadcrumb(breadcrumb: { category?: string }): boolean {
+  return breadcrumb.category === 'console'
 }
 
 /** `beforeSend`: returns a scrubbed copy; the SDK's event is not mutated. */
 export function scrubSentryEvent<T extends ScrubbableSentryEvent>(event: T): T {
-  return {
-    ...event,
+  // SDK-internal state (scopes, raw request), never serialised: left as is.
+  const { sdkProcessingMetadata, ...data } = event
+  const scrubbed = redactDeep({
+    ...data,
     ...(event.request ? { request: scrubRequest(event.request) } : {}),
     ...(event.breadcrumbs
-      ? { breadcrumbs: event.breadcrumbs.map(scrubBreadcrumb) }
+      ? {
+          breadcrumbs: event.breadcrumbs.filter(
+            (breadcrumb) => !isConsoleBreadcrumb(breadcrumb)
+          ),
+        }
       : {}),
-    ...(event.transaction
-      ? { transaction: scrubSentryUrl(event.transaction) }
-      : {}),
-  }
+  }) as T
+  return sdkProcessingMetadata === undefined
+    ? scrubbed
+    : { ...scrubbed, sdkProcessingMetadata }
+}
+
+/**
+ * `beforeBreadcrumb`: console breadcrumbs are never recorded. The app logs
+ * caught errors with console.error, and those carry query parameters.
+ */
+export function dropConsoleBreadcrumb<T extends { category?: string }>(
+  breadcrumb: T
+): T | null {
+  return isConsoleBreadcrumb(breadcrumb) ? null : breadcrumb
 }
 
 export type SentryDeployment = {
@@ -118,9 +174,12 @@ export function sentryErrorsOnlyOptions(deployment: SentryDeployment) {
     dataCollection: {
       userInfo: false,
       cookies: false,
-      // Request headers stay (user agent, request id); beforeSend drops the
-      // sensitive ones. Response headers can carry Set-Cookie.
-      httpHeaders: { request: true, response: false },
+      // beforeSend applies the same allowlist exactly; the SDK matches
+      // substrings. Response headers can carry Set-Cookie.
+      httpHeaders: {
+        request: { allow: SAFE_REQUEST_HEADERS },
+        response: false,
+      },
       httpBodies: [],
       urlQueryParams: false,
       graphQL: { document: false, variables: false },
@@ -130,6 +189,7 @@ export function sentryErrorsOnlyOptions(deployment: SentryDeployment) {
       queues: false,
       stackFrameVariables: false,
     },
+    beforeBreadcrumb: dropConsoleBreadcrumb,
     beforeSend: scrubSentryEvent,
   }
 }
