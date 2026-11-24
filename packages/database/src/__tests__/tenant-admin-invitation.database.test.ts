@@ -139,12 +139,15 @@ runtimeDescribe('B1 tenant-admin invite provisioning (runtime)', () => {
         [failedId]
       )
 
-      const authUserId = await adminCreateAuthUser(tx, email)
-      const [placed] = await tx.unsafe<Array<{ tenant_id: string }>>(
-        'select tenant_id from public.users where id = $1',
-        [authUserId]
+      // With no open invitation the identity has no profile, so Auth's insert is refused.
+      await expect(
+        tx.savepoint((savepoint) => adminCreateAuthUser(savepoint, email))
+      ).rejects.toMatchObject({ code: 'P0001' })
+      const [placed] = await tx.unsafe<Array<{ n: number }>>(
+        'select count(*)::int as n from public.users where email = $1',
+        [email]
       )
-      expect(placed?.tenant_id).not.toBe(tenantA)
+      expect(placed?.n).toBe(0)
       const [failed] = await tx.unsafe<Array<{ status: string; auth_user_id: string | null }>>(
         'select status::text as status, auth_user_id from public.platform_user_invitations where id = $1',
         [failedId]
