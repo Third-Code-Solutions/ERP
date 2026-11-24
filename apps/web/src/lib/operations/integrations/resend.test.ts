@@ -46,6 +46,18 @@ describe('Resend integration', () => {
     expect(message.text).toContain('Download the purchase order: https://thirdcode-erp.example.test/purchase-orders/42?download=1&format=pdf')
   })
 
+  it('keeps a tenant name with line breaks from adding header lines to the subject', () => {
+    const message = templates['po-issued']({
+      po_number: 'PO-0042',
+      total_php: '1.00',
+      supplier_name: 'Concrete Co',
+      company_name: 'Northwind\r\nBcc: attacker@example.test',
+    })
+
+    expect(message.subject).not.toMatch(/[\r\n]/)
+    expect(message.subject).toBe('[Northwind Bcc: attacker@example.test] Purchase order PO-0042 issued')
+  })
+
   it('never falls back to another company when the tenant name is missing', () => {
     const message = templates['po-issued']({
       po_number: 'PO-0042',

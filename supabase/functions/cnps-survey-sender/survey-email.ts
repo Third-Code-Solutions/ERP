@@ -1,6 +1,27 @@
 import { escapeHtml } from '../_shared/html.ts'
 import { tenantDisplayName } from '../_shared/tenant-branding.ts'
 
+type Select = <T>(table: string, query: string) => Promise<T[]>
+
+/** Names of the tenants that closed these tickets, read in one query per run. */
+export async function tenantNamesById(
+  tenantIds: string[],
+  select: Select
+): Promise<Map<string, string | null>> {
+  const ids = [...new Set(tenantIds)]
+  if (ids.length === 0) return new Map()
+  const rows = await select<{ id: string; name: string | null }>(
+    'tenants',
+    `id=in.(${ids.join(',')})&select=id,name`
+  )
+  return new Map(rows.map((row) => [row.id, row.name]))
+}
+
+/** The web portal route that answers a survey: /portal/cnps/<token>. */
+export function surveyUrl(origin: string, token: string): string {
+  return `${origin.replace(/\/+$/, '')}/portal/cnps/${encodeURIComponent(token)}`
+}
+
 export function buildSurveyEmail(args: {
   ticketNumber: string
   recipientName: string | null

@@ -53,7 +53,7 @@ export async function notifyUser(d: DispatchToUser): Promise<void> {
   const [recipient] = await db
     .select({ email: users.email })
     .from(users)
-    .where(eq(users.id, d.recipientUserId))
+    .where(and(eq(users.id, d.recipientUserId), eq(users.tenant_id, d.tenantId)))
     .limit(1)
 
   await db.insert(notifications).values({
@@ -68,10 +68,16 @@ export async function notifyUser(d: DispatchToUser): Promise<void> {
   })
 
   if (d.alsoEmail && recipient?.email && d.templateId && d.templateVars) {
-    await attemptEmailDelivery(recipient.email, d.templateId, d.templateVars, {
-      tenant_id: d.tenantId,
-      recipient_user_id: d.recipientUserId,
-    })
+    await attemptEmailDelivery(
+      await issuingCompanyName(d.tenantId),
+      recipient.email,
+      d.templateId,
+      d.templateVars,
+      {
+        tenant_id: d.tenantId,
+        recipient_user_id: d.recipientUserId,
+      }
+    )
   }
 }
 
@@ -124,10 +130,11 @@ export async function notifyExternalEmail(
     })
     .returning({ id: notifications.id })
 
+  const companyName = await issuingCompanyName(d.tenantId)
   let delivery: { id: string; is_dev_stub: boolean }
   try {
     delivery = await sendEmailFromTemplate(
-      d.tenantId,
+      companyName,
       d.recipientEmail,
       d.templateId,
       d.templateVars
@@ -161,6 +168,7 @@ export async function notifyExternalEmail(
 }
 
 async function attemptEmailDelivery(
+  companyName: string,
   to: string,
   templateId: EmailTemplateId,
   vars: Record<string, string | number>,
@@ -168,7 +176,7 @@ async function attemptEmailDelivery(
 ): Promise<boolean> {
   try {
     const delivery = await sendEmailFromTemplate(
-      context.tenant_id,
+      companyName,
       to,
       templateId,
       vars
@@ -201,8 +209,11 @@ async function sendRoleEmails(
     return
   }
 
+  if (recipients.length === 0) return
+  const companyName = await issuingCompanyName(dispatch.tenantId)
   for (const recipient of recipients) {
     await attemptEmailDelivery(
+      companyName,
       recipient.email,
       dispatch.templateId,
       dispatch.templateVars,
@@ -231,12 +242,36 @@ function logEmailDeliveryFailure(
   )
 }
 
+/**
+ * Name of the tenant that issues the email, read server-side by tenant id once
+ * per dispatch. Branding must not drop an email: a failed read uses the neutral name.
+ */
+async function issuingCompanyName(tenantId: string): Promise<string> {
+  try {
+    const [tenant] = await db
+      .select({ name: tenants.name })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1)
+    return tenantDisplayName(tenant?.name)
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'notification_company_name_lookup_failed',
+        tenant_id: tenantId,
+        error: error instanceof Error ? error.message : 'unknown',
+      })
+    )
+    return tenantDisplayName(null)
+  }
+}
+
 /*
  * This function is intentionally kept as the one provider-facing template
  * boundary so user/role and external-recipient flows share the same result.
  */
 async function sendEmailFromTemplate(
-  tenantId: string,
+  companyName: string,
   to: string,
   templateId: EmailTemplateId,
   vars: Record<string, string | number>
@@ -249,16 +284,8 @@ async function sendEmailFromTemplate(
     html: string
     text: string
   }
-  // The email names the tenant that issues it, read server-side by tenant id.
-  const [tenant] = await db
-    .select({ name: tenants.name })
-    .from(tenants)
-    .where(eq(tenants.id, tenantId))
-    .limit(1)
-  const { subject, html, text } = builder({
-    ...vars,
-    company_name: tenantDisplayName(tenant?.name),
-  })
+  // Spread last: a caller's templateVars can never set the issuing company.
+  const { subject, html, text } = builder({ ...vars, company_name: companyName })
   return sendEmail({ to, subject, html, text })
 }
 

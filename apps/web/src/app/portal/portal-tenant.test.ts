@@ -16,6 +16,15 @@ vi.mock('drizzle-orm', async (importOriginal) => ({
   eq: mocks.eq,
 }))
 
+import {
+  bomPortalTokens,
+  cnpsSurveys,
+  customerPortalSessions,
+  signatureSessions,
+  tenants,
+  vendorConfirmationSessions,
+  warrantyPortalTokens,
+} from '@third-code-erp/database/schema'
 import { parsePortalPath, resolvePortalCompanyName } from './portal-tenant'
 
 describe('parsePortalPath', () => {
@@ -62,6 +71,27 @@ describe('resolvePortalCompanyName', () => {
     const values = mocks.eq.mock.calls.map((call) => call[1])
     expect(values).toContain(hash)
     expect(values).not.toContain('abc123')
+  })
+
+  it.each([
+    ['bom', bomPortalTokens, bomPortalTokens.tenant_id, bomPortalTokens.token_hash],
+    ['cnps', cnpsSurveys, cnpsSurveys.tenant_id, cnpsSurveys.response_token_hash],
+    ['project', customerPortalSessions, customerPortalSessions.tenant_id, customerPortalSessions.token_hash],
+    ['purchase-order', vendorConfirmationSessions, vendorConfirmationSessions.tenant_id, vendorConfirmationSessions.token_hash],
+    ['sign', signatureSessions, signatureSessions.tenant_id, signatureSessions.token_hash],
+    ['warranty', warrantyPortalTokens, warrantyPortalTokens.tenant_id, warrantyPortalTokens.token_hash],
+  ])('a %s link joins the tenant on its own token row and matches that table hash column', async (kind, table, tenantColumn, hashColumn) => {
+    mocks.limit.mockResolvedValue([])
+    await resolvePortalCompanyName(`/portal/${kind}/abc123`)
+
+    expect(mocks.from).toHaveBeenCalledWith(table)
+    expect(mocks.innerJoin).toHaveBeenCalledWith(tenants, expect.anything())
+    const [join, match] = mocks.eq.mock.calls
+    // Identity checks: Drizzle columns are circular, so deep equality would pass for any column.
+    expect(join?.[0]).toBe(tenants.id)
+    expect(join?.[1]).toBe(tenantColumn)
+    expect(match?.[0]).toBe(hashColumn)
+    expect(match?.[1]).toBe(createHash('sha256').update('abc123').digest('hex'))
   })
 
   it('returns null for an unknown link and for non-portal paths without querying', async () => {

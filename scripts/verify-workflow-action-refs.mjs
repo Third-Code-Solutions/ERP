@@ -9,6 +9,7 @@ export const REFS = [
   ["actions/setup-node", "refs/tags/v4.4.0"],
   ["actions/upload-artifact", "refs/tags/v4.6.2"],
   ["supabase/setup-cli", "refs/tags/v3.0.0"],
+  ["denoland/setup-deno", "refs/tags/v2.0.5"],
 ];
 
 export function getStatus(

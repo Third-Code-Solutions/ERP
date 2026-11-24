@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   updateSet: vi.fn(),
   updateWhere: vi.fn(),
   sendEmail: vi.fn(),
+  selectFrom: vi.fn(),
+  selectWhere: vi.fn(),
+  roleRecipients: vi.fn(),
+  eq: vi.fn((column: unknown, value: unknown) => ({ column, value })),
 }))
 
 vi.mock('@third-code-erp/database', () => ({
@@ -21,6 +25,11 @@ vi.mock('@third-code-erp/database', () => ({
   },
 }))
 
+vi.mock('drizzle-orm', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('drizzle-orm')>()),
+  eq: mocks.eq,
+}))
+
 vi.mock('./integrations/resend', () => ({
   sendEmail: mocks.sendEmail,
   templates: {
@@ -28,14 +37,17 @@ vi.mock('./integrations/resend', () => ({
   },
 }))
 
-import { notifyExternalEmail } from './notifications'
+import { tenants, users } from '@third-code-erp/database/schema'
+import { emailRoles, notifyExternalEmail } from './notifications'
 
 describe('external email delivery evidence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.select.mockReturnValue({
-      from: () => ({ where: () => ({ limit: mocks.selectLimit }) }),
-    })
+    mocks.select.mockReturnValue({ from: mocks.selectFrom })
+    mocks.selectFrom.mockImplementation((table: unknown) =>
+      table === users ? { where: mocks.roleRecipients } : { where: mocks.selectWhere }
+    )
+    mocks.selectWhere.mockReturnValue({ limit: mocks.selectLimit })
     mocks.selectLimit.mockResolvedValue([{ name: 'Northwind Builders' }])
     mocks.bomTemplate.mockReturnValue({
       subject: 'BOM ready',
@@ -113,5 +125,68 @@ describe('external email delivery evidence', () => {
       expect.objectContaining({ sent_at: null })
     )
     expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('reads the name of the dispatching tenant by its id', async () => {
+    mocks.sendEmail.mockResolvedValue({ id: 'provider-id', is_dev_stub: false })
+
+    await notifyExternalEmail(input)
+
+    expect(mocks.selectFrom).toHaveBeenCalledWith(tenants)
+    const [condition] = mocks.selectWhere.mock.calls[0] ?? []
+    expect(condition.column).toBe(tenants.id)
+    expect(condition.value).toBe('tenant-id')
+  })
+
+  it('never lets caller-supplied template vars set the issuing company', async () => {
+    mocks.sendEmail.mockResolvedValue({ id: 'provider-id', is_dev_stub: false })
+
+    await notifyExternalEmail({
+      ...input,
+      templateVars: { ...input.templateVars, company_name: 'Spoof Co' },
+    })
+
+    expect(mocks.bomTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ company_name: 'Northwind Builders' })
+    )
+  })
+
+  it('still sends with the neutral name when the tenant read fails', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.sendEmail.mockResolvedValue({ id: 'provider-id', is_dev_stub: false })
+    mocks.selectLimit.mockRejectedValue(new Error('db down'))
+
+    await expect(notifyExternalEmail(input)).resolves.toEqual({ delivered: true })
+
+    expect(mocks.bomTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ company_name: 'Your contractor' })
+    )
+    expect(mocks.sendEmail).toHaveBeenCalledOnce()
+    expect(error).toHaveBeenCalledOnce()
+    error.mockRestore()
+  })
+
+  it('reads the tenant name once per role dispatch, not once per recipient', async () => {
+    mocks.sendEmail.mockResolvedValue({ id: 'provider-id', is_dev_stub: false })
+    mocks.roleRecipients.mockResolvedValue([
+      { id: 'u1', email: 'a@example.test' },
+      { id: 'u2', email: 'b@example.test' },
+    ])
+
+    await emailRoles({
+      tenantId: 'tenant-id',
+      recipientRoles: ['finance'],
+      subject: 'BOM ready',
+      alsoEmail: true,
+      templateId: 'bom-portal-link',
+      templateVars: input.templateVars,
+    })
+
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(2)
+    expect(mocks.selectLimit).toHaveBeenCalledOnce()
+    expect(mocks.bomTemplate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ company_name: 'Northwind Builders' })
+    )
   })
 })

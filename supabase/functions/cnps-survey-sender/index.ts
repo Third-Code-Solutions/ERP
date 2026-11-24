@@ -8,7 +8,7 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
 import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import { pgInsert, pgSelect, sendEmail } from '../_shared/email.ts'
-import { buildSurveyEmail } from './survey-email.ts'
+import { buildSurveyEmail, surveyUrl, tenantNamesById } from './survey-email.ts'
 
 interface TicketRow {
   id: string
@@ -23,11 +23,6 @@ interface TicketRow {
 
 interface ExistingSurveyRow {
   ticket_id: string
-}
-
-interface TenantRow {
-  id: string
-  name: string | null
 }
 
 interface RunSummary {
@@ -81,9 +76,11 @@ Deno.serve(async (req) => {
     if (closedTickets.length === 0) return jsonResponse(summary)
 
     const ticketIds = closedTickets.map((t) => t.id)
+    // Any survey row, sent or pending: a pending row belongs to the web app's Inngest
+    // sender, which retries it, so this function must not send a second survey.
     const existing = await pgSelect<ExistingSurveyRow>(
       'cnps_surveys',
-      `ticket_id=in.(${ticketIds.join(',')})&sent_at=not.is.null&select=ticket_id`
+      `ticket_id=in.(${ticketIds.join(',')})&select=ticket_id`
     )
     const alreadySent = new Set(existing.map((r) => r.ticket_id))
 
@@ -99,13 +96,11 @@ Deno.serve(async (req) => {
       )
     }
 
-    // One read for every tenant in this run: each survey is signed by the tenant that closed the ticket.
-    const tenantIds = [...new Set(closedTickets.map((t) => t.tenant_id))]
-    const tenantRows = await pgSelect<TenantRow>(
-      'tenants',
-      `id=in.(${tenantIds.join(',')})&select=id,name`
+    // Each survey is signed by the tenant that closed the ticket.
+    const tenantNames = await tenantNamesById(
+      closedTickets.map((t) => t.tenant_id),
+      pgSelect
     )
-    const tenantNames = new Map(tenantRows.map((t) => [t.id, t.name]))
 
     for (const ticket of closedTickets) {
       summary.processed += 1
@@ -128,11 +123,10 @@ Deno.serve(async (req) => {
           response_token_hash: tokenHash,
         })
 
-        const surveyUrl = `${portalBase.replace(/\/$/, '')}/cnps/respond?t=${token}`
         const { subject, html, text } = buildSurveyEmail({
           ticketNumber: ticket.ticket_number,
           recipientName: ticket.submitted_by_name,
-          surveyUrl,
+          surveyUrl: surveyUrl(portalBase, token),
           companyName: tenantNames.get(ticket.tenant_id),
         })
 
