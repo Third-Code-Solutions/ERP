@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { readExportError } from './export-csv-link'
+import { isBrowserHandledClick, readExportError } from './export-csv-link'
+
+const PLAIN = { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false }
+
+describe('isBrowserHandledClick', () => {
+  it('takes over only a plain main-button click', () => {
+    expect(isBrowserHandledClick(PLAIN)).toBe(false)
+  })
+
+  it.each([
+    ['Cmd', { metaKey: true }],
+    ['Ctrl', { ctrlKey: true }],
+    ['Shift', { shiftKey: true }],
+    ['Alt', { altKey: true }],
+    ['middle button', { button: 1 }],
+  ])('leaves a %s click to the browser', (_name, change) => {
+    expect(isBrowserHandledClick({ ...PLAIN, ...change })).toBe(true)
+  })
+})
 
 describe('readExportError', () => {
   it('shows the row-limit refusal the export route answers with 413', async () => {

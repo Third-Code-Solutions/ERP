@@ -324,8 +324,9 @@ describe('takeoff import commit keeps estimator work', () => {
       ]
     )
 
-    await h.service.execute(commit(material), PRINCIPAL)
+    const result = await h.service.execute(commit(material), PRINCIPAL)
 
+    expect(result).toMatchObject({ linesChanged: 0 })
     const set = conflictSet(h)
     expect(rendered(set.kind).sql).toBe('"bom_line_items"."kind"')
     expect(rendered(set.parent_line_item_id).sql).toBe('"bom_line_items"."parent_line_item_id"')

@@ -235,7 +235,7 @@ export default async function ReceivablesPage() {
           <p className="kpi-card-label">Currently due</p>
           <p className="kpi-card-value finance-money">{formatPHP(totalDue)}</p>
           <p className="kpi-card-sub">
-            {openCount} posted invoice balances
+            {`${openCount} posted invoice ${openCount === 1 ? 'balance' : 'balances'}`}
           </p>
         </div>
         <div className="kpi-card">
@@ -243,7 +243,9 @@ export default async function ReceivablesPage() {
           <p className="kpi-card-value finance-money">
             {formatPHP(overdueTotal)}
           </p>
-          <p className="kpi-card-sub">{overdueCount} invoices past due</p>
+          <p className="kpi-card-sub">
+            {`${overdueCount} ${overdueCount === 1 ? 'invoice' : 'invoices'} past due`}
+          </p>
         </div>
         <div className="kpi-card">
           <p className="kpi-card-label">Retention receivable</p>

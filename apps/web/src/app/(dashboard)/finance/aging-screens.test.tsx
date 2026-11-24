@@ -127,7 +127,7 @@ describe('finance aging screens at 30 Nov 17:00Z on a UTC server', () => {
     const html = renderToStaticMarkup(await ReceivablesPage())
 
     expect(html).toMatch(
-      /Past due<\/p><p class="kpi-card-value finance-money">₱100\.00<\/p><p class="kpi-card-sub">1 invoices past due/
+      /Past due<\/p><p class="kpi-card-value finance-money">₱100\.00<\/p><p class="kpi-card-sub">1 invoice past due<\/p>/
     )
   })
 
