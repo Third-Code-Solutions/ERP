@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const uuid = z.string().guid()
 const nonNegativeCount = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
@@ -11,7 +12,7 @@ export const notificationItemSchema = z
     linkUrl: z.string().max(512).nullable(),
     channel: z.enum(['in_app', 'email', 'sms']),
     isRead: z.boolean(),
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

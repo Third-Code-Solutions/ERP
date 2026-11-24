@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const projectSubmittalStatusSchema = z.enum(['draft', 'submitted', 'under_review', 'approved', 'rejected'])
 const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD.').refine((value) => {
@@ -76,15 +77,15 @@ export const projectSubmittalRowSchema = z.object({
   rejectionReason: z.string().max(5000),
   requestedBy: z.string().guid(),
   assignedTo: z.string().guid().nullable(),
-  submittedAt: z.string().datetime({ offset: true }).nullable(),
+  submittedAt: isoDateTimeString({ offset: true }).nullable(),
   submittedBy: z.string().guid().nullable(),
-  reviewStartedAt: z.string().datetime({ offset: true }).nullable(),
+  reviewStartedAt: isoDateTimeString({ offset: true }).nullable(),
   reviewStartedBy: z.string().guid().nullable(),
-  reviewedAt: z.string().datetime({ offset: true }).nullable(),
+  reviewedAt: isoDateTimeString({ offset: true }).nullable(),
   reviewedBy: z.string().guid().nullable(),
   version: z.number().int().min(1),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
+  updatedAt: isoDateTimeString({ offset: true }),
 }).strict()
 
 export const projectSubmittalListResultSchema = z.object({

@@ -411,7 +411,7 @@ export async function rejectClaim(
     .max(2000)
     .safeParse(reason)
   if (!reasonResult.success) {
-    return { error: reasonResult.error.errors[0]?.message ?? 'Invalid reason' }
+    return { error: reasonResult.error.issues[0]?.message ?? 'Invalid reason' }
   }
 
   const claim = await loadClaim(claimId, profile.tenantId)
@@ -458,7 +458,7 @@ export async function cancelClaim(
     .max(2000)
     .safeParse(reason)
   if (!reasonResult.success) {
-    return { error: reasonResult.error.errors[0]?.message ?? 'Invalid reason' }
+    return { error: reasonResult.error.issues[0]?.message ?? 'Invalid reason' }
   }
 
   const claim = await loadClaim(claimId, profile.tenantId)
@@ -504,13 +504,13 @@ export async function attachClaimDocument(
     .safeParse(claimId)
   const parsedCommand = claimDocumentAttachCommandSchema.safeParse(command)
   if (!parsedClaimId.success) {
-    const first = parsedClaimId.error.errors[0]
+    const first = parsedClaimId.error.issues[0]
     return {
       error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
     }
   }
   if (!parsedCommand.success) {
-    const first = parsedCommand.error.errors[0]
+    const first = parsedCommand.error.issues[0]
     return {
       error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
     }

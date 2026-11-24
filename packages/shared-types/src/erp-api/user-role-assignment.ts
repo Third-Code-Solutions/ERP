@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const erpRoleValues = [
   'owner',
@@ -32,7 +33,7 @@ export const userRoleAssignmentResultSchema = z
     previousRole: erpRoleSchema,
     role: erpRoleSchema,
     status: z.enum(['updated', 'unchanged']),
-    updatedAt: z.string().datetime({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

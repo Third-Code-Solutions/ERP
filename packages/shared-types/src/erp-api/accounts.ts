@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import {
   accountIndustryValues,
   kycArtifactTypeValues,
@@ -36,8 +37,8 @@ export const accountReadResultSchema = z.object({
   primaryEmail: z.string().nullable(),
   primaryPhone: z.string().nullable(),
   kycStatus: z.enum(kycStatusValues),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
+  updatedAt: isoDateTimeString({ offset: true }),
   createdBy: z.string().guid().nullable(),
   opportunityCount: z.number().int().nonnegative(),
 })
@@ -60,7 +61,7 @@ export const accountKycQueueRowSchema = z
     tenantId: z.string().guid(),
     name: z.string(),
     industry: z.enum(accountIndustryValues),
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
     artifactCount: z.number().int().nonnegative(),
   })
   .strict()
@@ -82,7 +83,7 @@ export type AccountKycQueueResult = z.infer<
 
 export const accountDetailAccountSchema = accountReadResultSchema.extend({
   kycNotes: z.string().nullable(),
-  kycDecidedAt: z.string().datetime({ offset: true }).nullable(),
+  kycDecidedAt: isoDateTimeString({ offset: true }).nullable(),
   kycDecidedBy: z.string().guid().nullable(),
   cnpsScoreX10: z.string().nullable(),
 })
@@ -98,8 +99,8 @@ export const accountContactReadSchema = z.object({
   phone: z.string().nullable(),
   roleTitle: z.string().nullable(),
   isPrimary: z.boolean(),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
+  updatedAt: isoDateTimeString({ offset: true }),
 })
 
 export type AccountContactRead = z.infer<typeof accountContactReadSchema>
@@ -111,7 +112,7 @@ export const accountKycArtifactReadSchema = z.object({
   artifactType: z.enum(kycArtifactTypeValues),
   documentId: z.string().guid().nullable(),
   notes: z.string().nullable(),
-  uploadedAt: z.string().datetime({ offset: true }),
+  uploadedAt: isoDateTimeString({ offset: true }),
   fileName: z.string().nullable(),
 })
 
@@ -129,9 +130,9 @@ export const accountOpportunityReadSchema = z.object({
   weightedTcvCents: z.number().int(),
   areaSqm: z.number().int().nonnegative().nullable(),
   opportunityType: z.string().nullable(),
-  closingDate: z.string().datetime({ offset: true }).nullable(),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
+  closingDate: isoDateTimeString({ offset: true }).nullable(),
+  createdAt: isoDateTimeString({ offset: true }),
+  updatedAt: isoDateTimeString({ offset: true }),
 })
 
 export type AccountOpportunityRead = z.infer<typeof accountOpportunityReadSchema>
@@ -142,8 +143,8 @@ export const accountProjectReadSchema = z.object({
   accountId: z.string().guid().nullable(),
   name: z.string(),
   status: z.enum(projectStatusValues),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
+  updatedAt: isoDateTimeString({ offset: true }),
 })
 
 export type AccountProjectRead = z.infer<typeof accountProjectReadSchema>

@@ -51,6 +51,7 @@ import {
   type BomLineItemKind,
 } from '@third-code-erp/shared-types/bom'
 import { computeBomTotals, manualLineTotal } from '@third-code-erp/shared-types/bom'
+import { ISO_DATETIME_OFFSET } from '@third-code-erp/shared-types'
 
 const bomLineItemReferenceSchema = z
   .object({
@@ -142,8 +143,8 @@ const updateBomLineItemActionSchema = z
       .extend({
         // The line's updated_at when the edit row opened; a newer line is not overwritten.
         expected_updated_at: z
-          .string({ required_error: STALE_LINE_EDIT_ERROR, invalid_type_error: STALE_LINE_EDIT_ERROR })
-          .datetime({ offset: true, message: STALE_LINE_EDIT_ERROR }),
+          .string({ error: STALE_LINE_EDIT_ERROR })
+          .regex(ISO_DATETIME_OFFSET, STALE_LINE_EDIT_ERROR),
       })
       .strict()
       .superRefine(refineSafeManualLineTotal),
@@ -470,7 +471,7 @@ export async function upsertDupaForBomLine(
 
   const parsed = dupaUpsertInputSchema.safeParse(input)
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   const dupaInput = parsed.data

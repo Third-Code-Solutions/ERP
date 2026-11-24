@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const costCategoryValues = [
   'material',
@@ -17,7 +18,7 @@ export const createCostEntryCommandSchema = z
     amountCents: z.number().int().positive().max(100_000_000_000),
     quantity: z.number().int().min(1).max(1_000_000).default(1),
     unit: z.string().trim().max(20).nullable().default(null),
-    incurredAt: z.string().datetime({ offset: true }).nullable().default(null),
+    incurredAt: isoDateTimeString({ offset: true }).nullable().default(null),
     referenceNumber: z.string().trim().max(100).nullable().default(null),
     notes: z.string().trim().max(1_000).nullable().default(null),
   })
@@ -34,10 +35,10 @@ export const costEntryCreationResultSchema = z.object({
   amountCents: z.number().int().positive(),
   quantity: z.number().int().positive(),
   unit: z.string().nullable(),
-  incurredAt: z.string().datetime({ offset: true }),
+  incurredAt: isoDateTimeString({ offset: true }),
   referenceNumber: z.string().nullable(),
   notes: z.string().nullable(),
-  createdAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
 })
 
 export const deleteCostEntryBodySchema = z
@@ -61,7 +62,7 @@ export const costEntryDeletionResultSchema = z
     projectId: z.string().guid(),
     costSource: z.literal('manual'),
     status: z.literal('voided'),
-    voidedAt: z.string().datetime({ offset: true }),
+    voidedAt: isoDateTimeString({ offset: true }),
     restorable: z.literal(true),
   })
   .strict()
@@ -87,7 +88,7 @@ export const costEntryRestoreResultSchema = z
     projectId: z.string().guid(),
     costSource: z.literal('manual'),
     status: z.literal('restored'),
-    restoredAt: z.string().datetime({ offset: true }),
+    restoredAt: isoDateTimeString({ offset: true }),
     restorable: z.literal(false),
   })
   .strict()

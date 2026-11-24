@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 /** Server-authorized project discussion entry. */
 export const createProjectCommentCommandSchema = z
@@ -68,8 +69,8 @@ export const projectCommentListItemSchema = z
     authorEmail: z.string().email().nullable(),
     body: z.string().min(1).max(10_000),
     mentions: z.array(z.string().guid()),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

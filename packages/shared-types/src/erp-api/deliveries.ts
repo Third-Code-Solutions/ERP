@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 // An issued PO, or one whose first delivery already arrived, can take a delivery.
 export const DELIVERY_SCHEDULABLE_PO_STATUSES = ['issued', 'partial_delivered'] as const
@@ -18,7 +19,7 @@ export function isDeliverySchedulablePoStatus(
 export const createDeliveryScheduleCommandSchema = z
   .object({
     purchaseOrderId: z.string().guid(),
-    scheduledDate: z.string().datetime({ offset: true }),
+    scheduledDate: isoDateTimeString({ offset: true }),
     siteAddress: z.string().trim().min(3).max(5_000),
     siteContactName: z.string().trim().min(1).max(255),
     siteContactPhone: z.string().trim().min(1).max(64),
@@ -32,13 +33,13 @@ export const deliveryScheduleCreationResultSchema = z
     tenantId: z.string().guid(),
     purchaseOrderId: z.string().guid(),
     status: z.literal('scheduled'),
-    scheduledDate: z.string().datetime({ offset: true }),
+    scheduledDate: isoDateTimeString({ offset: true }),
     siteAddress: z.string(),
     siteContactName: z.string(),
     siteContactPhone: z.string(),
     sitePreparationNotes: z.string().nullable(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -149,7 +150,7 @@ export const deliveryCompleteSitePreparationResultSchema = z
     action: z.literal('complete_site_preparation'),
     fromStatus: z.literal('site_preparing'),
     status: z.literal('site_ready'),
-    sitePreparedAt: z.string().datetime({ offset: true }),
+    sitePreparedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -186,7 +187,7 @@ export const deliveryInspectionCompleteResultSchema = z
     fromStatus: z.literal('inspecting'),
     inspectionResult: z.enum(['pass', 'fail', 'partial_pass']),
     status: z.enum(['accepted', 'rejected']),
-    completedAt: z.string().datetime({ offset: true }),
+    completedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -222,7 +223,7 @@ export const deliveryCancelResultSchema = z
     ]),
     status: z.literal('cancelled'),
     cancellationReason: z.string().trim().min(1).max(4_000),
-    cancelledAt: z.string().datetime({ offset: true }),
+    cancelledAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

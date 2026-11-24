@@ -85,7 +85,7 @@ export async function createAccount(formData: FormData): Promise<{ error?: strin
     primary_phone: formData.get('primary_phone') || undefined,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     log('validation_error')
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
@@ -162,7 +162,7 @@ export async function reviewKyc(formData: FormData): Promise<{ error?: string }>
     notes: formData.get('notes') || undefined,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     log('validation_error')
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
@@ -267,11 +267,11 @@ export async function addKycArtifact(
     .safeParse(accountId)
   const parsedCommand = kycArtifactCreateCommandSchema.safeParse(command)
   if (!parsedAccountId.success) {
-    const first = parsedAccountId.error.errors[0]
+    const first = parsedAccountId.error.issues[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   if (!parsedCommand.success) {
-    const first = parsedCommand.error.errors[0]
+    const first = parsedCommand.error.issues[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
 

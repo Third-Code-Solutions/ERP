@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const qualityHoldPointStatusSchema = z.enum([
   'planned',
@@ -36,7 +37,7 @@ const qualityHoldPointPunchlistItemCommandSchema = z.object({
   location: z.string().trim().max(255).nullable().default(null),
   trade: z.string().trim().max(120).nullable().default(null),
   priority: punchlistPrioritySchema.default('medium'),
-  dueDate: z.string().datetime({ offset: true }).nullable().default(null),
+  dueDate: isoDateTimeString({ offset: true }).nullable().default(null),
   assignedToUserId: z.string().guid().nullable().default(null),
   assignedToText: z.string().trim().max(255).nullable().default(null),
 }).strict()
@@ -124,17 +125,17 @@ export const qualityHoldPointRowSchema = z.object({
   acceptanceNotes: z.string().max(10000),
   requestedBy: z.string().guid(),
   assignedTo: z.string().guid().nullable(),
-  submittedAt: z.string().datetime({ offset: true }).nullable(),
+  submittedAt: isoDateTimeString({ offset: true }).nullable(),
   submittedBy: z.string().guid().nullable(),
-  acceptedAt: z.string().datetime({ offset: true }).nullable(),
+  acceptedAt: isoDateTimeString({ offset: true }).nullable(),
   acceptedBy: z.string().guid().nullable(),
-  rejectedAt: z.string().datetime({ offset: true }).nullable(),
+  rejectedAt: isoDateTimeString({ offset: true }).nullable(),
   rejectedBy: z.string().guid().nullable(),
-  punchlistHandoffAt: z.string().datetime({ offset: true }).nullable(),
+  punchlistHandoffAt: isoDateTimeString({ offset: true }).nullable(),
   punchlistHandoffBy: z.string().guid().nullable(),
   version: z.number().int().min(1),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
+  updatedAt: isoDateTimeString({ offset: true }),
 }).strict()
 
 export const qualityHoldPointListResultSchema = z.object({
@@ -175,10 +176,10 @@ export const qualityHoldPointPunchlistItemRowSchema = z.object({
   trade: z.string().max(120).nullable(),
   priority: punchlistPrioritySchema,
   status: punchlistStatusSchema,
-  dueDate: z.string().datetime({ offset: true }).nullable(),
+  dueDate: isoDateTimeString({ offset: true }).nullable(),
   assignedToUserId: z.string().guid().nullable(),
   assignedToText: z.string().max(255).nullable(),
-  createdAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
   createdBy: z.string().guid().nullable(),
   sourceHandoffId: z.string().guid(),
 }).strict()

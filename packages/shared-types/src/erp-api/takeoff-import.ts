@@ -18,7 +18,7 @@ const takeoffRawValueSchema = z.union([
 ])
 
 const takeoffRawPayloadSchema = z
-  .record(takeoffRawValueSchema)
+  .record(z.string(), takeoffRawValueSchema)
   .superRefine((payload, context) => {
     if (Object.keys(payload).length > 64) {
       context.addIssue({
@@ -43,7 +43,7 @@ export const takeoffImportRowSchema = z
   .strict()
 
 export const takeoffImportMappingSchema = z
-  .record(z.string().trim().min(1).max(128))
+  .record(z.string(), z.string().trim().min(1).max(128))
   .superRefine((mapping, context) => {
     if (Object.keys(mapping).length > 32) {
       context.addIssue({

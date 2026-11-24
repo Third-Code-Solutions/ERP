@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { documentIntakeDocumentTypeSchema } from './document-intake'
 
 const text = (max: number) => z.string().trim().max(max).default('')
@@ -26,7 +27,7 @@ export const projectDocumentRowSchema = z
     mimeType: z.string().trim().min(1).max(127),
     sizeBytes: z.number().int().nonnegative(),
     description: z.string().max(2000).nullable(),
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -71,7 +72,7 @@ export const projectSubmittalDocumentLinkRowSchema = z
     sizeBytes: z.number().int().nonnegative(),
     description: z.string().max(2000).nullable(),
     linkedBy: z.string().guid(),
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

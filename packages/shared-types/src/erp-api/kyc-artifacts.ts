@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { kycArtifactTypeValues } from '../accounts'
 
 const uuid = z.string().guid().transform((value) => value.toLowerCase())
@@ -25,7 +26,7 @@ export const accountKycDocumentQuerySchema = z.object({
 export const accountKycDocumentRowSchema = z.object({
   documentId: uuid, tenantId: uuid, accountId: uuid,
   fileName: z.string(), documentType: z.string(), mimeType: z.string(),
-  createdAt: z.string().datetime(),
+  createdAt: isoDateTimeString(),
   projectId: uuid.nullable(), projectName: z.string().nullable(),
   opportunityId: uuid.nullable(), opportunityStage: z.string().nullable(),
   opportunityType: z.string().nullable(),

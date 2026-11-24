@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { opportunityStageValues } from '../opportunities'
 import {
   safeNonNegativeCentavosStringSchema,
@@ -12,7 +13,7 @@ export const opportunityStageTransitionCommandSchema = z
     reason: z.string().trim().max(1000).optional(),
     tcvCents: safeNonNegativeCentavosStringSchema.optional(),
     gpCents: safeSignedCentavosStringSchema.optional(),
-    closingDate: z.string().datetime({ offset: true }).optional(),
+    closingDate: isoDateTimeString({ offset: true }).optional(),
   })
   .strict()
 

@@ -52,7 +52,7 @@ export async function upsertRateCard(
     effective_to: formData.get('effective_to') || undefined,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   const input = parsed.data

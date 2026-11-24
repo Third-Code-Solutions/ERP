@@ -79,9 +79,9 @@ function optionalPositiveInteger(value: string): number | undefined | null {
 }
 
 function firstValidationError(error: {
-  errors: Array<{ path: Array<string | number>; message: string }>
+  issues: Array<{ path: PropertyKey[]; message: string }>
 }): string {
-  const first = error.errors[0]
+  const first = error.issues[0]
   return `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`
 }
 

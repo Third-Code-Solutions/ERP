@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const projectMaterialActualsStatusSchema = z.enum([
   'ready',
@@ -44,7 +45,7 @@ export const projectMaterialActualsTotalsSchema = z
 export const projectMaterialActualsResultSchema = z
   .object({
     projectId: z.string().guid(),
-    asOf: z.string().datetime({ offset: true }),
+    asOf: isoDateTimeString({ offset: true }),
     currency: z.string().regex(/^[A-Z]{3}$/),
     status: projectMaterialActualsStatusSchema,
     rows: z.array(projectMaterialActualsRowSchema),

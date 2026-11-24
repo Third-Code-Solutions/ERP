@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const projectHandoverReadinessStatusSchema = z.enum([
   'ready',
@@ -11,7 +12,7 @@ export const projectHandoverReadinessQuerySchema = z.object({}).strict()
 export const projectHandoverReadinessResultSchema = z
   .object({
     projectId: z.string().guid(),
-    asOf: z.string().datetime({ offset: true }),
+    asOf: isoDateTimeString({ offset: true }),
     status: projectHandoverReadinessStatusSchema,
     turnoverPackageExists: z.boolean(),
     turnoverCompiled: z.boolean(),

@@ -52,7 +52,7 @@ export async function mintBomPortalToken(
 
   const parsed = mintSchema.safeParse({ bom_id: bomId, client_email: clientEmail })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   const input = parsed.data

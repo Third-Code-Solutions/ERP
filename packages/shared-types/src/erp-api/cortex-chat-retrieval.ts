@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { cortexCitationSchema } from './cortex-entity'
 import {
   cortexGraphRefTableMatchesType,
@@ -59,7 +60,7 @@ export const cortexChatRetrievalItemSchema = z
     refId: z.string().guid(),
     projectId: z.string().guid().nullable(),
     freshness: z.enum(cortexSearchFreshnessValues),
-    recordedAt: z.string().datetime({ offset: true }),
+    recordedAt: isoDateTimeString({ offset: true }),
     source: z.literal('cortex'),
   })
   .strict()
@@ -105,7 +106,7 @@ export const cortexChatRetrievalSemanticStatusSchema = z.enum([
 
 export const cortexChatRetrievalResultSchema = z
   .object({
-    generatedAt: z.string().datetime({ offset: true }),
+    generatedAt: isoDateTimeString({ offset: true }),
     stats: cortexBriefStatsSchema,
     recent: z.array(cortexChatRetrievalItemSchema).max(40),
     matches: z.array(cortexChatRetrievalItemSchema).max(12),

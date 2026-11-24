@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const projectCloseoutReadinessStatusSchema = z.enum(['ready', 'partial', 'unavailable'])
 export const projectCloseoutBondTypeSchema = z.enum(['performance_bond', 'surety_bond', 'construction_bond'])
@@ -14,7 +15,7 @@ export const projectCloseoutBondStatusSchema = z.enum([
   'cancelled',
 ])
 
-const nullableDateTime = z.string().datetime({ offset: true }).nullable()
+const nullableDateTime = isoDateTimeString({ offset: true }).nullable()
 
 export const projectCloseoutBondRowSchema = z.object({
   permitId: z.string().guid(),
@@ -29,7 +30,7 @@ export const projectCloseoutReadinessQuerySchema = z.object({}).strict()
 
 export const projectCloseoutReadinessResultSchema = z.object({
   projectId: z.string().guid(),
-  asOf: z.string().datetime({ offset: true }),
+  asOf: isoDateTimeString({ offset: true }),
   status: projectCloseoutReadinessStatusSchema,
   bonds: z.object({
     total: z.number().int().nonnegative(),

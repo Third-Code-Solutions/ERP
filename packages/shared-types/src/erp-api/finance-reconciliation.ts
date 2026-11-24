@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const uuid = z.string().guid()
 
@@ -104,8 +105,8 @@ const financeReconciliationDetailStatementSchema = z
     cashAccountId: uuid,
     cashAccountName: z.string().trim().min(1).max(160),
     cashAccountKind: z.enum(['bank', 'e_wallet']),
-    reconciledAt: z.string().datetime({ offset: true }).nullable(),
-    voidedAt: z.string().datetime({ offset: true }).nullable(),
+    reconciledAt: isoDateTimeString({ offset: true }).nullable(),
+    voidedAt: isoDateTimeString({ offset: true }).nullable(),
     voidReason: z.string().trim().min(3).max(2_000).nullable(),
   })
   .strict()
@@ -119,7 +120,7 @@ const financeReconciliationDetailLineSchema = z
     description: z.string().trim().min(1).max(2_000),
     amountCents: signedCents,
     matchedCashTransactionId: uuid.nullable(),
-    matchedAt: z.string().datetime({ offset: true }).nullable(),
+    matchedAt: isoDateTimeString({ offset: true }).nullable(),
     matchedInternalNumber: z.string().trim().max(40).nullable(),
     matchedReferenceNumber: z.string().trim().max(100).nullable(),
     matchedTransactionDate: isoDate.nullable(),

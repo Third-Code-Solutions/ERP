@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 /** Project-scoped operational signals returned by the Core read authority. */
 export const projectCommandCenterResultSchema = z
@@ -12,7 +13,7 @@ export const projectCommandCenterResultSchema = z
     openPunchlist: z.number().int().nonnegative(),
     activeDeliveries: z.number().int().nonnegative(),
     progressPercent: z.number().min(0).max(100).nullable(),
-    progressWeekEnding: z.string().datetime({ offset: true }).nullable(),
+    progressWeekEnding: isoDateTimeString({ offset: true }).nullable(),
   })
   .strict()
 

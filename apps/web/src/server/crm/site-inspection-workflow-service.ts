@@ -17,10 +17,8 @@ import {
   tenants,
   users,
 } from '@third-code-erp/database/schema'
-import {
-  roleHasCapability,
-  type ErpRole,
-} from '@third-code-erp/shared-types'
+import { roleHasCapability,
+  type ErpRole, isoDateTimeString } from '@third-code-erp/shared-types'
 
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import { SLA_CONFIG } from '@/lib/operations/sla-clock'
@@ -114,7 +112,7 @@ export const siteInspectionReceiptSchema = z
     opportunity_id: z.string().guid(),
     inspection_id: z.string().guid(),
     status: z.literal('submitted'),
-    submitted_at: z.string().datetime(),
+    submitted_at: isoDateTimeString(),
     linked_photo_count: z.number().int().min(0).max(MAX_PHOTOS),
     notification_recipient_set_hash: z.string().regex(HASH),
     notification_recipient_count: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
@@ -134,7 +132,7 @@ export const siteInspectionRfiReceiptSchema = z
     inspection_id: z.string().guid(),
     rfi_id: z.string().guid(),
     priority: z.enum(['minor', 'major']),
-    created_at: z.string().datetime(),
+    created_at: isoDateTimeString(),
   })
   .strict()
 
@@ -147,7 +145,7 @@ const inspectionSuccessSchema = z
     opportunityId: z.string().guid(),
     inspectionId: z.string().guid(),
     status: z.literal('submitted'),
-    submittedAt: z.string().datetime(),
+    submittedAt: isoDateTimeString(),
     linkedPhotoCount: z.number().int().min(0).max(MAX_PHOTOS),
     replayed: z.boolean(),
   })
@@ -163,7 +161,7 @@ const rfiSuccessSchema = z
     inspectionId: z.string().guid(),
     rfiId: z.string().guid(),
     priority: z.enum(['minor', 'major']),
-    createdAt: z.string().datetime(),
+    createdAt: isoDateTimeString(),
     replayed: z.boolean(),
   })
   .strict()

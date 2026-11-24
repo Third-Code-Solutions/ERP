@@ -191,7 +191,7 @@ export async function submitPprf(opportunityId: string, formData: FormData) {
       },
     })
     if (!parsed.success) {
-      const first = parsed.error.errors[0]
+      const first = parsed.error.issues[0]
       logPprfOutcome({ traceId, tenantId, actorId, outcome: 'validation_error' })
       return { ok: false as const, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
     }
@@ -406,7 +406,7 @@ export async function submitInspection(opportunityId: string, formData: FormData
       photoDocumentIds,
     })
     if (!command.success) {
-      const first = command.error.errors[0]
+      const first = command.error.issues[0]
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
       return { ok: false as const, outcome: 'rejected', error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
     }
@@ -544,7 +544,7 @@ export async function addInspectionRfi(
       priority: fields.values.priority,
     })
     if (!command.success) {
-      const first = command.error.errors[0]
+      const first = command.error.issues[0]
       logSiteInspectionOutcome({ traceId, tenantId, actorId, action, outcome: 'validation_error' })
       return { ok: false, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`, code: 'VALIDATION_ERROR', outcome: 'rejected' }
     }
@@ -636,7 +636,7 @@ export async function uploadDesignFile(formData: FormData): Promise<{ error?: st
     design_file_id: formData.get('design_file_id') || undefined,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   const input = parsed.data
@@ -880,7 +880,7 @@ export async function logChangeRequest(formData: FormData): Promise<{ error?: st
     idempotency_key: formData.get('idempotency_key') ?? undefined,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   const input = parsed.data

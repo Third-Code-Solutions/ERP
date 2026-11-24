@@ -15,7 +15,7 @@ import {
   users,
   tenants,
 } from '@third-code-erp/database/schema'
-import { philippineBusinessDays } from '@third-code-erp/shared-types'
+import { philippineBusinessDays, isoDateTimeString } from '@third-code-erp/shared-types'
 import { ERP_ROLES } from '@third-code-erp/shared-types/authorization'
 import { z } from 'zod'
 import { stampActorInTransaction, writeAuditLogInTransaction, writeAuditLog, type DatabaseTransaction } from '@/lib/audit'
@@ -516,7 +516,7 @@ class MobilizationError extends Error {}
 
 const receiptDateSchema = z.union([
   z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  z.string().datetime({ offset: true }),
+  isoDateTimeString({ offset: true }),
 ]).refine((value) => {
   const day = new Date(`${value.slice(0, 10)}T00:00:00.000Z`)
   return !Number.isNaN(new Date(value).getTime()) && !Number.isNaN(day.getTime())

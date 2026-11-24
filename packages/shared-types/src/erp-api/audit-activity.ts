@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const auditActivityQuerySchema = z
   .object({
@@ -27,7 +28,7 @@ export const auditActivityRowSchema = z.object({
   action: z.string().min(1).max(50),
   prevHash: z.string().regex(/^[a-f0-9]{64}$|^genesis$/),
   hash: z.string().regex(/^[a-f0-9]{64}$/),
-  createdAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
 })
 
 export type AuditActivityRow = z.infer<typeof auditActivityRowSchema>

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { cadQuantitySchema } from './cad'
 
 export const DOCUMENT_PROCESSING_MAX_WARNINGS = 100
@@ -46,8 +47,8 @@ export const documentProcessingStatusSchema = z
       .min(1)
       .max(DOCUMENT_PROCESSING_MAX_FAILURE_CODE)
       .nullable(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -56,7 +57,7 @@ export const documentProcessingAcceptedSchema = z
     jobId: z.string().guid(),
     status: z.literal('queued'),
     documentId: z.string().guid(),
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

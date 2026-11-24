@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const siteDiaryStatusSchema = z.enum(['draft', 'submitted'])
 
@@ -71,11 +72,11 @@ export const siteDiaryRowSchema = z
     constraints: z.string().max(20000),
     safetyNotes: z.string().max(20000),
     createdBy: z.string().guid(),
-    submittedAt: z.string().datetime({ offset: true }).nullable(),
+    submittedAt: isoDateTimeString({ offset: true }).nullable(),
     submittedBy: z.string().guid().nullable(),
     version: z.number().int().min(1),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

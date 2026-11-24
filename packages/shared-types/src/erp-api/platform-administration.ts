@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 import { ERP_CAPABILITIES, ERP_ROLES, type ErpCapability, type ErpRole } from '../authorization'
 import { ORGANIZATION_TYPES } from '../organization-types'
@@ -255,7 +256,7 @@ export interface PlatformOverviewResult {
 
 // Validate HTTP output before it enters the privileged Web rendering boundary.
 const identifier = z.string().guid()
-const timestamp = z.string().datetime({ offset: true })
+const timestamp = isoDateTimeString({ offset: true })
 const countValue = z.number().int().nonnegative()
 
 export const platformTenantSummarySchema: z.ZodType<PlatformTenantSummary> = z.object({
@@ -302,7 +303,7 @@ export const platformAuditSummarySchema: z.ZodType<PlatformAuditSummary> = z.obj
   id: countValue, traceId: identifier, actorId: identifier, action: z.string(),
   outcome: z.enum(['succeeded', 'denied', 'failed']), targetType: z.string(),
   targetId: z.string().nullable(), targetTenantId: identifier.nullable(),
-  metadata: z.record(z.unknown()).nullable(), createdAt: timestamp,
+  metadata: z.record(z.string(), z.unknown()).nullable(), createdAt: timestamp,
 })
 export const platformDependencyStatusSchema: z.ZodType<PlatformDependencyStatus> = z.object({
   key: z.string(), label: z.string(), status: z.enum(['available', 'configured', 'unavailable']), detail: z.string(),

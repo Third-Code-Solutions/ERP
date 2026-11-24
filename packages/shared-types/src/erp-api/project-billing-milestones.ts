@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const claimStatusSchema = z.enum([
   'draft',
@@ -62,7 +63,7 @@ export const projectBillingMilestoneRowSchema = z.object({
 export const projectBillingMilestoneCocSchema = z.object({
   id: z.string().guid(),
   status: cocStatusSchema,
-  signedAt: z.string().datetime({ offset: true }).nullable(),
+  signedAt: isoDateTimeString({ offset: true }).nullable(),
 }).strict()
 
 export const projectBillingMilestoneListResultSchema = z.object({

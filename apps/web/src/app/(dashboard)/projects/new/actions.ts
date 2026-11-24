@@ -37,7 +37,7 @@ function describeIssue(issue: z.ZodIssue): string {
   if (issue.code === 'too_big') {
     return `${field} must be at most ${issue.maximum} characters.`
   }
-  if (issue.code === 'too_small' && issue.type === 'string') {
+  if (issue.code === 'too_small' && issue.origin === 'string') {
     return `${field} is required.`
   }
   if (issue.path[0] === 'total_sqm') {

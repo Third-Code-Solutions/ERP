@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const journalPostCommandSchema = z
   .object({
@@ -383,7 +384,7 @@ export const customerInvoiceDraftCreateResultSchema = z
     vatCents: z.number().int().nonnegative(),
     withholdingTaxCents: z.number().int().nonnegative(),
     netAmountCents: z.number().int().nonnegative(),
-    dueDate: z.string().datetime({ offset: true }).nullable(),
+    dueDate: isoDateTimeString({ offset: true }).nullable(),
     notes: z.string().nullable(),
   })
   .strict()

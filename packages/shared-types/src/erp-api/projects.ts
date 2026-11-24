@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { projectStatusValues, projectTypeValues } from '../projects'
 
 export const createProjectCommandSchema = z
@@ -23,8 +24,8 @@ export const projectCreationResultSchema = z.object({
   totalSqm: z.number().int().nullable(),
   location: z.string().nullable(),
   notes: z.string().nullable(),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
+  updatedAt: isoDateTimeString({ offset: true }),
 })
 
 export type CreateProjectCommand = z.infer<typeof createProjectCommandSchema>
@@ -79,7 +80,7 @@ export const updateProjectCommandSchema = z
     totalSqm: z.number().int().positive().nullable(),
     location: z.string().trim().max(1_000).nullable(),
     notes: z.string().trim().max(5_000).nullable(),
-    expectedUpdatedAt: z.string().datetime({ offset: true }),
+    expectedUpdatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -93,7 +94,7 @@ export const projectUpdateResultSchema = z.object({
   totalSqm: z.number().int().nullable(),
   location: z.string().nullable(),
   notes: z.string().nullable(),
-  updatedAt: z.string().datetime({ offset: true }),
+  updatedAt: isoDateTimeString({ offset: true }),
 })
 
 export type UpdateProjectCommand = z.infer<
@@ -109,7 +110,7 @@ export type ProjectUpdateResult = z.infer<typeof projectUpdateResultSchema>
 export const retireProjectCommandSchema = z
   .object({
     reason: z.string().trim().min(3).max(2_000),
-    expectedUpdatedAt: z.string().datetime({ offset: true }),
+    expectedUpdatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -119,7 +120,7 @@ export const projectRetirementResultSchema = z.object({
   projectId: z.string().guid(),
   tenantId: z.string().guid(),
   deleted: z.literal(true),
-  retiredAt: z.string().datetime({ offset: true }),
+  retiredAt: isoDateTimeString({ offset: true }),
 })
 
 export type ProjectRetirementResult = z.infer<

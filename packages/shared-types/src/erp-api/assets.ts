@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const assetKindValues = [
   'equipment',
@@ -53,8 +54,8 @@ export const assetReadResultSchema = z
     retiredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
     notes: z.string().nullable(),
     createdBy: z.string().guid(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -106,7 +107,7 @@ export const assetMaintenanceReadResultSchema = z
     costCents: z.number().int().nonnegative(),
     notes: z.string().nullable(),
     createdBy: z.string().guid(),
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

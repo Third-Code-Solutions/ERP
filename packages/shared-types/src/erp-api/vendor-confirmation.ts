@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const vendorConfirmationDecisionSchema = z.enum([
   'accepted',
@@ -58,7 +59,7 @@ export const vendorConfirmationResultSchema = z
     purchaseOrderId: z.string().guid(),
     vendorId: z.string().guid(),
     decision: vendorConfirmationDecisionSchema,
-    respondedAt: z.string().datetime({ offset: true }),
+    respondedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -74,14 +75,14 @@ export const vendorConfirmationViewSchema = z
     vendorName: z.string().min(1).max(255),
     projectName: z.string().min(1).max(255),
     projectLocation: z.string().max(4_000).nullable(),
-    deliveryDate: z.string().datetime({ offset: true }).nullable(),
+    deliveryDate: isoDateTimeString({ offset: true }).nullable(),
     notes: z.string().max(10_000).nullable(),
     subtotalCents: z.number().int().nonnegative(),
     vatCents: z.number().int().nonnegative(),
     withholdingTaxCents: z.number().int().nonnegative(),
     totalCents: z.number().int().nonnegative(),
     state: vendorConfirmationStateSchema,
-    expiresAt: z.string().datetime({ offset: true }),
+    expiresAt: isoDateTimeString({ offset: true }),
     lines: z
       .array(
         z

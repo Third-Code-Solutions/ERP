@@ -62,7 +62,7 @@ export async function mintCustomerPortalAccess(
     days: typeof daysRaw === 'string' ? Number(daysRaw) : Number.NaN,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
   }
   const input = parsed.data

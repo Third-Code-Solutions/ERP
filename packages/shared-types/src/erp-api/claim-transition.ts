@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { formatCents } from '../common'
 
 export const claimTransitionStatusSchema = z.enum([
@@ -62,7 +63,7 @@ export const claimTransitionCommandReceiptSchema = z.object({
   action: claimTransitionActionSchema,
   fromStatus: claimTransitionStatusSchema,
   toStatus: claimTransitionStatusSchema,
-  changedAt: z.string().datetime({ offset: true }),
+  changedAt: isoDateTimeString({ offset: true }),
 }).strict()
 
 export const claimTransitionResultSchema = z.object({

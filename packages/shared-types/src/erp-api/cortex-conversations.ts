@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { cortexCitationSchema } from './cortex-entity'
 import { cortexGraphRefTableSchema } from './cortex-graph'
 
@@ -18,8 +19,8 @@ export const cortexConversationSummarySchema = z
   .object({
     id: cortexConversationIdSchema,
     title: z.string().max(255).nullable(),
-    created_at: z.string().datetime({ offset: true }),
-    updated_at: z.string().datetime({ offset: true }),
+    created_at: isoDateTimeString({ offset: true }),
+    updated_at: isoDateTimeString({ offset: true }),
     context: cortexConversationContextSchema.nullable(),
   })
   .strict()
@@ -34,7 +35,7 @@ export const cortexConversationMessageSchema = z
   .object({
     role: z.enum(['user', 'assistant', 'system']),
     content: z.string().max(100_000),
-    created_at: z.string().datetime({ offset: true }),
+    created_at: isoDateTimeString({ offset: true }),
     citations: z.array(cortexCitationSchema).max(200),
   })
   .strict()
@@ -118,7 +119,7 @@ export const cortexConversationAssistantTurnClaimResultSchema = z.discriminatedU
         userMessageId: z.string().guid(),
         requestId: z.string().guid(),
         claimToken: z.string().guid(),
-        leaseExpiresAt: z.string().datetime({ offset: true }),
+        leaseExpiresAt: isoDateTimeString({ offset: true }),
       })
       .strict(),
     z

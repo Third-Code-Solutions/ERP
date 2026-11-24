@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { roleHasCapability, type ErpRole } from '../authorization'
 
 const purchaseOrderLineSchema = z
@@ -16,7 +17,7 @@ export const createPurchaseOrderCommandSchema = z
   .object({
     projectId: z.string().guid(),
     vendorId: z.string().guid().nullable().optional(),
-    deliveryDate: z.string().datetime({ offset: true }).nullable().optional(),
+    deliveryDate: isoDateTimeString({ offset: true }).nullable().optional(),
     notes: z.string().trim().max(2_000).nullable().optional(),
     lines: z.array(purchaseOrderLineSchema).min(1).max(500),
   })
@@ -36,7 +37,7 @@ export const createPurchaseOrderFromBomCommandSchema = z
     bomId: z.string().guid(),
     projectId: z.string().guid(),
     vendorId: z.string().guid().nullable().optional(),
-    deliveryDate: z.string().datetime({ offset: true }).nullable().optional(),
+    deliveryDate: isoDateTimeString({ offset: true }).nullable().optional(),
     notes: z.string().trim().max(2_000).nullable().optional(),
   })
   .strict()

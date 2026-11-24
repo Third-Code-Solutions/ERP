@@ -24,7 +24,7 @@ export async function updateOpportunityKycTrack(
     notes: formData.get('notes') || undefined,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return { error: `${first?.path.join('.') || 'command'}: ${first?.message || 'invalid input'}` }
   }
 

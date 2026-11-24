@@ -12,6 +12,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { isoDateTimeString } from '@third-code-erp/shared-types'
 import { requireUserProfile, can } from '@third-code-erp/auth'
 import {
   createRfqFromBomRecord,
@@ -50,7 +51,7 @@ const logQuoteSchema = z.object({
   submission_id: z.string().guid(),
   // A quote is price evidence: blank or zero is refused, never logged as 0.00.
   unit_price_cents: z
-    .number({ invalid_type_error: UNIT_PRICE_REQUIRED_ERROR })
+    .number({ error: UNIT_PRICE_REQUIRED_ERROR })
     .int(UNIT_PRICE_FORMAT_ERROR)
     .safe(UNIT_PRICE_FORMAT_ERROR)
     .positive(UNIT_PRICE_REQUIRED_ERROR),
@@ -60,7 +61,7 @@ const logQuoteSchema = z.object({
     .nonnegative()
     .max(3650)
     .optional(),
-  valid_until: z.string().datetime({ offset: true }).optional(),
+  valid_until: isoDateTimeString({ offset: true }).optional(),
   notes: z.string().trim().max(2000).optional(),
 })
 
@@ -154,7 +155,7 @@ export async function logQuote(
     notes: (formData.get('notes') as string) || undefined,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     if (first?.path[0] === 'unit_price_cents') return { error: first.message }
     return {
       error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,

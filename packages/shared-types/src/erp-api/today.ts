@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const todaySummarySchema = z
   .object({
@@ -14,7 +15,7 @@ const todayTaskSchema = z
     title: z.string().trim().min(1).max(255),
     projectId: z.string().guid(),
     projectName: z.string().trim().min(1).max(255),
-    dueDate: z.string().datetime({ offset: true }),
+    dueDate: isoDateTimeString({ offset: true }),
     dueState: z.enum(['overdue', 'today', 'upcoming']),
   })
   .strict()
@@ -25,7 +26,7 @@ const todayProjectSchema = z
     name: z.string().trim().min(1).max(255),
     client: z.string().trim().min(1).max(255),
     status: z.string().trim().min(1).max(64),
-    updatedAt: z.string().datetime({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

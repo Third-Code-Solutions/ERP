@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import {
   purchaseOrderWorkflowActionSchema,
   purchaseOrderWorkflowStatusSchema,
@@ -42,11 +43,11 @@ export const rfqDispatchDeadLetterSchema = z
     schemaVersion: z.literal(1),
     sourceJobId: z.string().min(1).max(200),
     sourceJobName: z.string().min(1).max(100),
-    jobData: z.unknown(),
+    jobData: z.unknown().optional(),
     attemptsMade: z.number().int().safe().positive(),
     errorName: z.string().min(1).max(100),
     errorMessage: z.string().min(1).max(1_000),
-    failedAt: z.string().datetime({ offset: true }),
+    failedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -104,7 +105,7 @@ export const logRfqQuoteCommandSchema = z
     // A quote is price evidence: zero is refused here as in the web action.
     unitPriceCents: z.number().int().safe().positive(),
     leadTimeDays: z.number().int().nonnegative().max(3_650).optional(),
-    validUntil: z.string().datetime({ offset: true }).optional(),
+    validUntil: isoDateTimeString({ offset: true }).optional(),
     notes: z.string().trim().max(2_000).optional(),
   })
   .strict()

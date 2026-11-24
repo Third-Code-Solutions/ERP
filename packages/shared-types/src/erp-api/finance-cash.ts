@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const uuid = z.string().guid()
 
@@ -71,7 +72,7 @@ export const financeCashRowSchema = z
     currency: z.string().regex(/^[A-Z]{3}$/),
     amountCents: cents,
     postingJournalEntryId: uuid.nullable(),
-    postedAt: z.string().datetime({ offset: true }).nullable(),
+    postedAt: isoDateTimeString({ offset: true }).nullable(),
     cashAccountId: uuid,
     cashAccountName: z.string().trim().min(1).max(160),
     businessAccountId: uuid.nullable(),

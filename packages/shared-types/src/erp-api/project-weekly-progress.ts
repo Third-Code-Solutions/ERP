@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const calendarDateSchema = z
   .string()
@@ -53,7 +54,7 @@ export const projectWeeklyProgressWarSnapshotSchema = z
     overallPct: percentSchema,
     percentByCategory: projectWeeklyProgressPercentSchema,
     notes: z.string().max(5000),
-    capturedAt: z.string().datetime({ offset: true }),
+    capturedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -64,18 +65,18 @@ export const projectWeeklyProgressRowSchema = z
     progressUpdateId: z.string().guid(),
     clientRequestId: z.string().guid(),
     weekEnding: calendarDateSchema,
-    cutoffAt: z.string().datetime({ offset: true }),
+    cutoffAt: isoDateTimeString({ offset: true }),
     status: projectWeeklyProgressStatusSchema,
     percentByCategory: projectWeeklyProgressPercentSchema,
     notes: z.string().max(5000),
     warSnapshot: projectWeeklyProgressWarSnapshotSchema.nullable(),
-    lockedAt: z.string().datetime({ offset: true }).nullable(),
+    lockedAt: isoDateTimeString({ offset: true }).nullable(),
     lockedBy: z.string().guid().nullable(),
     lockReason: z.string().max(5000),
     version: z.number().int().min(1),
     createdBy: z.string().guid(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

@@ -1,6 +1,7 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
-const isoDateTime = z.string().datetime({ offset: true })
+const isoDateTime = isoDateTimeString({ offset: true })
 const nonEmptyText = (max: number) => z.string().trim().min(1).max(max)
 const boundedText = (max: number) => z.string().trim().max(max).default('')
 

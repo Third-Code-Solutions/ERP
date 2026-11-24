@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from './iso-datetime'
 
 // Stage values include legacy + ABI OPS canonical. Legacy values map to
 // their current equivalents via STAGE_LEGACY_MAP below.
@@ -123,7 +124,7 @@ export const createOpportunitySchema = z
     tcv_cents: z.number().int().min(0).default(0),
     gp_cents: z.number().int().min(0).default(0),
     probability: z.number().int().min(0).max(100).default(0),
-    closing_date: z.string().datetime({ offset: true }).optional(),
+    closing_date: isoDateTimeString({ offset: true }).optional(),
     area_sqm: z.number().int().positive().optional(),
     opportunity_type: z.string().max(100).optional(),
     remarks: z.string().max(5000).optional(),
@@ -140,7 +141,7 @@ export const updateOpportunitySchema = z
     tcv_cents: z.number().int().min(0).optional(),
     gp_cents: z.number().int().min(0).optional(),
     probability: z.number().int().min(0).max(100).optional(),
-    closing_date: z.string().datetime({ offset: true }).optional(),
+    closing_date: isoDateTimeString({ offset: true }).optional(),
     area_sqm: z.number().int().positive().optional(),
     opportunity_type: z.string().max(100).optional(),
     remarks: z.string().max(5000).optional(),
@@ -152,7 +153,7 @@ export const stageTransitionSchema = z.object({
   reason: z.string().max(1000).optional(),
   tcv_cents: z.number().int().min(0).optional(),
   gp_cents: z.number().int().min(0).optional(),
-  closing_date: z.string().datetime({ offset: true }).optional(),
+  closing_date: isoDateTimeString({ offset: true }).optional(),
 })
 
 export type CreateOpportunityInput = z.infer<typeof createOpportunitySchema>

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { opportunityStageValues } from '../opportunities'
 
 const MAX_SAFE_CENTAVOS = BigInt(Number.MAX_SAFE_INTEGER)
@@ -27,7 +28,7 @@ export const opportunityCreationCommandSchema = z
     stage: z.literal('opportunity_creation').default('opportunity_creation'),
     tcvCents: safeNonNegativeCentavosStringSchema.default('0'),
     gpCents: safeSignedCentavosStringSchema.default('0'),
-    closingDate: z.string().datetime({ offset: true }).optional(),
+    closingDate: isoDateTimeString({ offset: true }).optional(),
     areaSqm: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
     opportunityType: z.string().trim().min(1).max(100).optional(),
     remarks: z.string().trim().min(1).max(5000).optional(),
@@ -47,11 +48,11 @@ export const opportunityCreationResultSchema = z
     tcvCents: safeNonNegativeCentavosStringSchema,
     gpCents: safeSignedCentavosStringSchema,
     weightedTcvCents: safeNonNegativeCentavosStringSchema,
-    closingDate: z.string().datetime({ offset: true }).nullable(),
+    closingDate: isoDateTimeString({ offset: true }).nullable(),
     areaSqm: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable(),
     opportunityType: z.string().max(100).nullable(),
     remarks: z.string().max(5000).nullable(),
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -79,7 +80,7 @@ export const opportunityDetailOpportunitySchema = z
     weightedTcvCents: z.number().int(),
     areaSqm: z.number().int().nonnegative().nullable(),
     opportunityType: z.string().nullable(),
-    closingDate: z.string().datetime({ offset: true }).nullable(),
+    closingDate: isoDateTimeString({ offset: true }).nullable(),
     accountId: z.string().guid().nullable(),
     projectId: z.string().guid().nullable(),
     accountName: z.string().nullable(),

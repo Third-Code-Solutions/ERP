@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 // The 409 code Core sends when a draft would exceed the contract sum; the web
 // shows Core's message for this code as is.
@@ -33,7 +34,7 @@ export const claimDraftCommandReceiptSchema = z.object({
     description,
     status: z.literal('draft'),
     createdBy: uuid,
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
   }).strict(),
 }).strict()
 

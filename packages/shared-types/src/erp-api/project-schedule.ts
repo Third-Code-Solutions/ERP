@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD.').refine((value) => {
   const [year, month, day] = value.split('-').map(Number)
@@ -141,8 +142,8 @@ export const projectScheduleTaskRowSchema = z.object({
   source: projectScheduleSourceSchema,
   version: z.number().int().min(1),
   createdBy: z.string().guid(),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
+  createdAt: isoDateTimeString({ offset: true }),
+  updatedAt: isoDateTimeString({ offset: true }),
 }).strict()
 
 export const projectScheduleSummarySchema = z.object({

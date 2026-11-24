@@ -1,8 +1,9 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const projectRfiStatusSchema = z.enum(['open', 'answered', 'closed'])
 const projectRfiPrioritySchema = z.enum(['low', 'normal', 'high', 'critical'])
-const isoDateTime = z.string().datetime({ offset: true })
+const isoDateTime = isoDateTimeString({ offset: true })
 
 export const projectRfiListQuerySchema = z
   .object({

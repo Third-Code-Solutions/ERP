@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const inventoryQuantityPattern = /^\d+(?:\.\d{1,6})?$/
 const inventorySignedQuantityPattern = /^-?\d+(?:\.\d{1,6})?$/
@@ -97,8 +98,8 @@ export const inventoryUomCreationResultSchema = z
     name: z.string().trim().min(1).max(120),
     decimalPlaces: z.number().int().nonnegative().max(6),
     isActive: z.boolean(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -124,8 +125,8 @@ export const inventoryUomUpdateResultSchema = z
     name: z.string().trim().min(1).max(120),
     decimalPlaces: z.number().int().nonnegative().max(6),
     isActive: z.boolean(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -152,8 +153,8 @@ export const inventoryWarehouseCreationResultSchema = z
     name: z.string().trim().min(1).max(160),
     projectId: z.string().guid().nullable(),
     isActive: z.boolean(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -179,8 +180,8 @@ export const inventoryWarehouseUpdateResultSchema = z
     name: z.string().trim().min(1).max(160),
     projectId: z.string().guid().nullable(),
     isActive: z.boolean(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -316,8 +317,8 @@ const inventoryStockMovementDetailHeaderSchema = z
     postingJournalNumber: z.string().trim().max(40).nullable(),
     reversalJournalEntryId: z.string().guid().nullable(),
     reversalJournalNumber: z.string().trim().max(40).nullable(),
-    postedAt: z.string().datetime({ offset: true }).nullable(),
-    reversedAt: z.string().datetime({ offset: true }).nullable(),
+    postedAt: isoDateTimeString({ offset: true }).nullable(),
+    reversedAt: isoDateTimeString({ offset: true }).nullable(),
     reversalReason: z.string().trim().min(3).max(1_000).nullable(),
   })
   .strict()
@@ -358,7 +359,7 @@ export const inventoryItemConfigurationResultSchema = z
     baseUomId: z.string().guid(),
     inventoryTracked: z.boolean(),
     unit: z.string().trim().min(1).max(32),
-    updatedAt: z.string().datetime({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

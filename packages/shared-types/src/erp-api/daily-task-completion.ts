@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const normalizedOptionalNotesSchema = z.preprocess(
   (value) =>
@@ -25,7 +26,7 @@ export const dailyTaskCompletionResultSchema = z
     assigneeId: z.string().guid().nullable(),
     status: z.literal('done'),
     completionNotes: z.string().max(2000).nullable(),
-    completedAt: z.string().datetime({ offset: true }),
+    completedAt: isoDateTimeString({ offset: true }),
     completedBy: z.string().guid(),
   })
   .strict()

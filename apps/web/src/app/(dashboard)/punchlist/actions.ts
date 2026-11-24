@@ -88,7 +88,7 @@ export async function createPunchlistItem(
     assigned_to_text: formData.get('assigned_to_text') || undefined,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return {
       error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
     }
@@ -364,7 +364,7 @@ export async function addPunchlistPhoto(
     is_before: formData.get('is_before') || 'true',
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return {
       error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
     }

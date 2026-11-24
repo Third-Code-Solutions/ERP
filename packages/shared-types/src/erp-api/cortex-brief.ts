@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { cortexSearchFreshnessValues } from './cortex-search'
 
 /** Bounded read input for the permission-scoped Cortex operating brief. */
@@ -46,7 +47,7 @@ export const cortexBriefItemSchema = z
     refId: z.string().guid(),
     projectId: z.string().guid().nullable(),
     freshness: z.enum(cortexSearchFreshnessValues),
-    recordedAt: z.string().datetime({ offset: true }),
+    recordedAt: isoDateTimeString({ offset: true }),
     source: z.literal('cortex'),
   })
   .strict()
@@ -55,7 +56,7 @@ export type CortexBriefItem = z.infer<typeof cortexBriefItemSchema>
 
 export const cortexBriefResultSchema = z
   .object({
-    generatedAt: z.string().datetime({ offset: true }),
+    generatedAt: isoDateTimeString({ offset: true }),
     stats: cortexBriefStatsSchema,
     freshness: cortexBriefFreshnessSchema,
     items: z.array(cortexBriefItemSchema).max(24),

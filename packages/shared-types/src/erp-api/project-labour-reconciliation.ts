@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const projectLabourReconciliationEvidenceSchema = z.enum([
   'reported',
@@ -44,7 +45,7 @@ export const projectLabourReconciliationTotalsSchema = z
 export const projectLabourReconciliationResultSchema = z
   .object({
     projectId: z.string().guid(),
-    asOf: z.string().datetime({ offset: true }),
+    asOf: isoDateTimeString({ offset: true }),
     status: projectLabourReconciliationStatusSchema,
     rows: z.array(projectLabourReconciliationRowSchema),
     totals: projectLabourReconciliationTotalsSchema,

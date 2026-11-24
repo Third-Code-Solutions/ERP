@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const vendorPerformanceRiskSchema = z.enum([
   'new',
@@ -48,7 +49,7 @@ export const vendorPerformanceTotalsSchema = z
 
 export const vendorPerformanceResultSchema = z
   .object({
-    asOf: z.string().datetime({ offset: true }),
+    asOf: isoDateTimeString({ offset: true }),
     projectId: z.string().guid().nullable(),
     rows: z.array(vendorPerformanceRowSchema),
     totals: vendorPerformanceTotalsSchema,

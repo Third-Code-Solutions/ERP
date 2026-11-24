@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '@third-code-erp/shared-types'
 
 export const RECOVERY_MARKER_COOKIE = 'abi-ops-password-recovery'
 export const RECOVERY_MARKER_MAX_AGE_SECONDS = 10 * 60
@@ -8,7 +9,7 @@ const recoveryBindingSchema = z.object({
   userId: z.string().guid(),
   sessionId: z.string().guid(),
   accessToken: z.string().min(1),
-  recoverySentAt: z.string().datetime({ offset: true }),
+  recoverySentAt: isoDateTimeString({ offset: true }),
 })
 
 const recoveryMarkerSchema = z.string().regex(/^[a-f0-9]{64}$/)

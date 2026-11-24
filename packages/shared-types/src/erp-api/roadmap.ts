@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const uuid = z.string().guid()
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -87,7 +88,7 @@ export const reserveInventoryCommandSchema = z
     quantityMicros: nonNegativeIntegerString,
     sourceType: z.string().trim().min(1).max(32),
     sourceId: uuid.nullable().optional(),
-    expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
+    expiresAt: isoDateTimeString({ offset: true }).nullable().optional(),
   })
   .strict()
   .superRefine((value, context) => {

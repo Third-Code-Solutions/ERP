@@ -193,7 +193,7 @@ export async function createUser(
       role: String(formData.get('role') ?? 'viewer'),
     })
     if (!parsed.success) {
-      const first = parsed.error.errors[0]
+      const first = parsed.error.issues[0]
       return {
         error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}`,
       }
@@ -341,7 +341,7 @@ export async function updateUserRole(
       client_request_id: formData.get('client_request_id'),
     })
     if (!parsed.success) {
-      const first = parsed.error.errors[0]
+      const first = parsed.error.issues[0]
       return { ok: false, error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid'}`, outcome: 'rejected' }
     }
     const { user_id, role, expected_role, client_request_id } = parsed.data
@@ -430,7 +430,7 @@ export async function resetUserPassword(
       password: formData.get('password'),
     })
     if (!parsed.success) {
-      const first = parsed.error.errors[0]
+      const first = parsed.error.issues[0]
       return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid'}` }
     }
     const { user_id, password } = parsed.data
@@ -543,7 +543,7 @@ export async function suspendUser(
       reason: formData.get('reason') ?? undefined,
     })
     if (!parsed.success) {
-      const first = parsed.error.errors[0]
+      const first = parsed.error.issues[0]
       return { error: `${first?.path.join('.') || 'form'}: ${first?.message || 'invalid input'}` }
     }
     const { user_id: userId, reason } = parsed.data

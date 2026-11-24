@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const uuid = z.string().guid()
 
@@ -74,7 +75,7 @@ export const financePayablesRowSchema = z
     totalPayableCents: cents,
     paidCents: cents,
     openCents: cents,
-    postedAt: z.string().datetime({ offset: true }).nullable(),
+    postedAt: isoDateTimeString({ offset: true }).nullable(),
     postingJournalEntryId: uuid.nullable(),
     vendorId: uuid,
     vendorName: z.string().trim().min(1).max(255),

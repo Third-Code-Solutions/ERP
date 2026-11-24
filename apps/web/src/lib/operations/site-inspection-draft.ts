@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '@third-code-erp/shared-types'
 
 const uuid = z.string().guid().transform((value) => value.toLowerCase())
 const revisionSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
@@ -31,7 +32,7 @@ const draftInputSchema = z.object({
   uploadedPhotoIds: z.array(uuid).max(10), clientSubmissionId: uuid,
   submissionPending: z.boolean().optional(),
 }).strict()
-const draftSchema = draftInputSchema.extend({ updatedAt: z.string().datetime() })
+const draftSchema = draftInputSchema.extend({ updatedAt: isoDateTimeString() })
 const recordSchema = z.object({ scope: scopeSchema, revision: revisionSchema, draft: draftSchema.nullable() }).strict()
 
 export type SiteInspectionDraftScope = z.infer<typeof scopeSchema>

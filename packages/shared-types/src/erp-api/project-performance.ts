@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const projectPerformanceStatusSchema = z.enum([
   'ready',
@@ -34,7 +35,7 @@ export const projectPerformanceQuerySchema = z.object({}).strict()
 export const projectPerformanceResultSchema = z
   .object({
     projectId: z.string().guid(),
-    asOf: z.string().datetime({ offset: true }),
+    asOf: isoDateTimeString({ offset: true }),
     currency: z.string().regex(/^[A-Z]{3}$/),
     status: projectPerformanceStatusSchema,
     baselineCents: z.number().int().nonnegative().nullable(),
@@ -50,7 +51,7 @@ export const projectPerformanceResultSchema = z
     schedulePerformanceIndexBps: z.number().int().nonnegative().nullable(),
     plannedPercentComplete: z.number().min(0).max(100).nullable(),
     actualPercentComplete: z.number().min(0).max(100).nullable(),
-    latestProgressWeekEnding: z.string().datetime({ offset: true }).nullable(),
+    latestProgressWeekEnding: isoDateTimeString({ offset: true }).nullable(),
     progressSource: projectPerformanceProgressSourceSchema,
     plannedValueSource: projectPerformancePlannedValueSourceSchema,
     actualCostSource: projectPerformanceActualCostSourceSchema,

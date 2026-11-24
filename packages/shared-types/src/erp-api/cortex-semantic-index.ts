@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const CORTEX_SEMANTIC_INDEX_MAX_NODES = 64
 export const CORTEX_SEMANTIC_INDEX_MAX_ATTEMPTS = 3
@@ -40,8 +41,8 @@ export const cortexSemanticIndexStatusSchema = z
       .max(CORTEX_SEMANTIC_INDEX_MAX_ATTEMPTS),
     providerCalls: z.number().int().min(0).max(1),
     failureCode: z.string().trim().min(1).max(100).nullable(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
@@ -51,7 +52,7 @@ export const cortexSemanticIndexAcceptedSchema = z
     status: z.literal('queued'),
     maxNodes: z.literal(CORTEX_SEMANTIC_INDEX_MAX_NODES),
     backlogAtRequest: z.number().int().positive(),
-    createdAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

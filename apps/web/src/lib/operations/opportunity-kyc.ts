@@ -160,7 +160,7 @@ export async function applyOpportunityKycTrackAction(
 ): Promise<ApplyTrackActionResult> {
   const parsed = opportunityKycTrackCommandSchema.safeParse(args.input)
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return {
       ok: false,
       error: `${first?.path.join('.') || 'command'}: ${first?.message || 'invalid input'}`,

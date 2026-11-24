@@ -6,10 +6,11 @@ import {
 import { ConfigService } from '@nestjs/config'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { isoDateTimeString } from '@third-code-erp/shared-types'
 
 const lifecycleAcknowledgementSchema = z.object({
   id: z.string().guid(),
-  banned_until: z.string().datetime({ offset: true }).nullish(),
+  banned_until: isoDateTimeString({ offset: true }).nullish(),
 })
 
 @Injectable()

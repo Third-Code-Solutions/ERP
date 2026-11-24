@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import {
   cortexGraphRefTableMatchesType,
   cortexGraphRefTableSchema,
@@ -64,7 +65,7 @@ export const cortexEvidenceEventSchema = z
     kind: z.enum(cortexEvidenceKindValues),
     label: z.string().trim().min(1).max(100),
     detail: z.string().trim().min(1).max(500),
-    recordedAt: z.string().datetime({ offset: true }),
+    recordedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

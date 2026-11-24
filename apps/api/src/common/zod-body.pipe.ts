@@ -10,11 +10,7 @@ export class ZodBodyPipe<TOutput>
   implements PipeTransform<unknown, TOutput>
 {
   constructor(
-    private readonly schema: z.ZodType<
-      TOutput,
-      z.ZodTypeDef,
-      unknown
-    >
+    private readonly schema: z.ZodType<TOutput, unknown>
   ) {}
 
   transform(value: unknown): TOutput {

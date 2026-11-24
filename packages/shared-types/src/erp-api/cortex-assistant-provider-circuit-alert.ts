@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import {
   cortexAssistantProviderHashSchema,
   cortexAssistantProviderKeySchema,
@@ -20,8 +21,8 @@ export const cortexAssistantProviderCircuitAlertEventSchema = z
     provider: cortexAssistantProviderKeySchema,
     model: cortexAssistantProviderModelKeySchema,
     failureCount: z.number().int().min(0).max(20),
-    retryAt: z.string().datetime({ offset: true }).nullable(),
-    asOf: z.string().datetime({ offset: true }),
+    retryAt: isoDateTimeString({ offset: true }).nullable(),
+    asOf: isoDateTimeString({ offset: true }),
     runbook: z.literal('cortex-provider-circuit'),
   })
   .strict()

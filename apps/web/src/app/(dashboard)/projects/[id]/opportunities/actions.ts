@@ -3,8 +3,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { can, requireUserProfile } from '@third-code-erp/auth'
-import {
-  opportunityCreationCommandSchema,
+import { opportunityCreationCommandSchema,
   opportunityCreationResultSchema,
   opportunityStageTransitionCommandSchema,
   opportunityStageValues,
@@ -13,8 +12,7 @@ import {
   STAGE_TRANSITIONS,
   type OpportunityCreationCommand,
   type OpportunityCreationResult,
-  type OpportunityStageTransitionCommand,
-} from '@third-code-erp/shared-types'
+  type OpportunityStageTransitionCommand, isoDateTimeString } from '@third-code-erp/shared-types'
 import { z } from 'zod'
 import {
   createOpportunityThroughCoreApi,
@@ -32,7 +30,7 @@ const transitionSchema = z.object({
   reason: z.string().trim().max(1000).optional(),
   tcv_cents: safeNonNegativeCentavosStringSchema.optional(),
   gp_cents: safeSignedCentavosStringSchema.optional(),
-  closing_date: z.string().datetime({ offset: true }).optional(),
+  closing_date: isoDateTimeString({ offset: true }).optional(),
 })
 
 export async function createOpportunity(

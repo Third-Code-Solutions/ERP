@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const signableEntityTypeSchema = z.enum([
   'bom',
@@ -32,7 +33,7 @@ export const publicSigningResultSchema = z
     entityType: signableEntityTypeSchema,
     entityId: z.string().guid(),
     signatureDocumentId: z.string().guid(),
-    signedAt: z.string().datetime({ offset: true }),
+    signedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 

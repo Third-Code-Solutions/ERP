@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 export const inspectionRfiQuerySchema = z.object({
   status: z.enum(['open', 'resolved']).optional(),
@@ -8,7 +9,7 @@ export const inspectionRfiQuerySchema = z.object({
 }).strict()
 
 export const inspectionRfiTransitionCommandSchema = z.object({
-  expectedResolvedAt: z.string().datetime({ offset: true }).nullable(),
+  expectedResolvedAt: isoDateTimeString({ offset: true }).nullable(),
   reason: z.string().trim().min(1).max(2000),
 }).strict()
 
@@ -18,8 +19,8 @@ export const inspectionRfiRowSchema = z.object({
   inspectionStatus: z.enum(['draft', 'submitted', 'archived']),
   description: z.string(),
   priority: z.enum(['minor', 'major']),
-  createdAt: z.string().datetime(),
-  resolvedAt: z.string().datetime().nullable(),
+  createdAt: isoDateTimeString(),
+  resolvedAt: isoDateTimeString().nullable(),
   resolvedBy: z.string().guid().nullable(),
 }).strict()
 

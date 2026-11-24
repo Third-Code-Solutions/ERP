@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 const optionalUuid = z.string().guid().nullable()
 
@@ -23,8 +24,8 @@ export const rfqBidLevelingQuoteSchema = z
     vendorName: z.string().trim().min(1).max(255),
     unitPriceCents: z.number().int().nonnegative(),
     leadTimeDays: z.number().int().nonnegative().nullable(),
-    validUntil: z.string().datetime({ offset: true }).nullable(),
-    createdAt: z.string().datetime({ offset: true }),
+    validUntil: isoDateTimeString({ offset: true }).nullable(),
+    createdAt: isoDateTimeString({ offset: true }),
     ageDays: z.number().int().nonnegative(),
     isStale: z.boolean(),
     isLowestPrice: z.boolean(),
@@ -37,7 +38,7 @@ export const rfqBidLevelingResultSchema = z
     rfqId: z.string().guid(),
     projectId: z.string().guid(),
     status: z.enum(['pending', 'quotes_received', 'completed', 'cancelled']),
-    asOf: z.string().datetime({ offset: true }),
+    asOf: isoDateTimeString({ offset: true }),
     staleAfterDays: z.literal(90),
     lines: z.array(rfqBidLevelingLineSchema),
     vendorCount: z.number().int().nonnegative(),

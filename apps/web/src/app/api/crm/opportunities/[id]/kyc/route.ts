@@ -54,7 +54,7 @@ export async function POST(request: Request, context: RouteContext) {
     opportunity_id: id,
   })
   if (!parsed.success) {
-    const first = parsed.error.errors[0]
+    const first = parsed.error.issues[0]
     return NextResponse.json(
       { error: `${first?.path.join('.') || 'command'}: ${first?.message || 'invalid input'}` },
       { status: 400 }

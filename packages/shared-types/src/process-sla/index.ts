@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 
 import {
   type BusinessDayService,
@@ -26,7 +27,7 @@ export const slaClockDefinitionSchema = z.object({
 })
 
 const apiUuidSchema = z.string().guid()
-const apiDateTimeSchema = z.string().datetime({ offset: true })
+const apiDateTimeSchema = isoDateTimeString({ offset: true })
 
 export const createProcessStepCommandSchema = z
   .object({

@@ -11,12 +11,10 @@ import {
   slaLogs,
   users,
 } from '@third-code-erp/database/schema'
-import {
-  accountIndustryValues,
+import { accountIndustryValues,
   roleHasCapability,
   STAGE_PROBABILITY,
-  type ErpRole,
-} from '@third-code-erp/shared-types'
+  type ErpRole, isoDateTimeString } from '@third-code-erp/shared-types'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 
 import { writeAuditLogInTransaction } from '@/lib/audit'
@@ -317,7 +315,7 @@ const receiptSchema = z
     pprf_submission_id: z.string().guid(),
     pprf_version: z.number().int().positive(),
     kyc_tracks_reset: z.literal(true).optional(),
-    kyc_due_at: z.string().datetime(),
+    kyc_due_at: isoDateTimeString(),
   })
   .strict()
 

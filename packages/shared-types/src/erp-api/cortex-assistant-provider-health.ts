@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import {
   cortexAssistantProviderKeySchema,
   cortexAssistantProviderModelKeySchema,
@@ -37,7 +38,7 @@ export const cortexAssistantProviderCircuitStateSchema = z.enum([
 
 export const cortexAssistantProviderHealthResultSchema = z
   .object({
-    asOf: z.string().datetime({ offset: true }),
+    asOf: isoDateTimeString({ offset: true }),
     budgetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     provider: cortexAssistantProviderKeySchema,
     model: cortexAssistantProviderModelKeySchema,
@@ -90,7 +91,7 @@ export const cortexAssistantProviderHealthResultSchema = z
           .int()
           .min(0)
           .max(CORTEX_ASSISTANT_PROVIDER_CIRCUIT_FAILURE_THRESHOLD_MAX),
-        retryAt: z.string().datetime({ offset: true }).nullable(),
+        retryAt: isoDateTimeString({ offset: true }).nullable(),
         probeInFlight: z.boolean(),
       })
       .strict(),

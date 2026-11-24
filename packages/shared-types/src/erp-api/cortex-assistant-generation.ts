@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDateTimeString } from '../iso-datetime'
 import { cortexConversationAssistantTurnSucceededSchema } from './cortex-conversations'
 
 export const CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS = 3
@@ -45,8 +46,8 @@ export const cortexAssistantGenerationStatusSchema = z
       .max(CORTEX_ASSISTANT_GENERATION_MAX_ATTEMPTS),
     failureCode: z.string().trim().min(1).max(100).nullable(),
     retryable: z.boolean(),
-    createdAt: z.string().datetime({ offset: true }),
-    updatedAt: z.string().datetime({ offset: true }),
+    createdAt: isoDateTimeString({ offset: true }),
+    updatedAt: isoDateTimeString({ offset: true }),
   })
   .strict()
 
