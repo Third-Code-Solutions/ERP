@@ -183,6 +183,35 @@ describe('client billing portal', () => {
     expect(markup).toContain('grid-template-columns:repeat(auto-fit, minmax(160px, 1fr))')
   })
 
+  it('shows a paid claim as paid only when its invoice is paid in full', async () => {
+    const claim = (id: string, invoiceStatus: string) => ({
+      id,
+      claim_number: id,
+      status: 'paid',
+      milestone_pct: 25,
+      amount_cents: 100_000,
+      created_at: new Date('2026-11-10T12:00:00.000Z'),
+      submitted_at: new Date('2026-11-11T12:00:00.000Z'),
+      certified_at: new Date('2026-11-12T12:00:00.000Z'),
+      paid_at: new Date('2026-11-20T12:00:00.000Z'),
+      invoice_status: invoiceStatus,
+      invoice_reversed_at: null,
+    })
+    mockDatabase({
+      invoices: [],
+      claims: [claim('PC-00001', 'partial_payment'), claim('PC-00002', 'paid')],
+      received: [],
+    })
+
+    const markup = await renderPage()
+    const row = (number: string) => markup.slice(markup.indexOf(number), markup.indexOf('</tr>', markup.indexOf(number)))
+
+    expect(row('PC-00001')).toContain('Partially paid')
+    expect(row('PC-00001')).not.toContain('Nov 20, 2026')
+    expect(row('PC-00002')).toContain('Paid in full')
+    expect(row('PC-00002')).toContain('Nov 20, 2026')
+  })
+
   it('answers an expired link without reading any billing data', async () => {
     mocks.findActiveCustomerSession.mockResolvedValue(null)
     mockDatabase({ invoices: [], claims: [], received: [] })
