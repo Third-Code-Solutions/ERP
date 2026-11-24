@@ -8,6 +8,7 @@ import {
   ledgerAccounts,
 } from '@third-code-erp/database/schema'
 import { and, asc, eq, sql } from 'drizzle-orm'
+import { manilaToday } from '@/lib/manila-date'
 import { CashForm, type CashTargetOption } from '../cash-form'
 
 export const metadata: Metadata = { title: 'New cash transaction' }
@@ -221,7 +222,7 @@ export default async function NewCashTransactionPage() {
           }))}
           receiptTargets={receiptTargets}
           disbursementTargets={disbursementTargets}
-          defaultDate={new Date().toISOString().slice(0, 10)}
+          defaultDate={manilaToday()}
         />
       )}
     </div>

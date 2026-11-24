@@ -3,7 +3,14 @@ import 'reflect-metadata'
 import { createHash } from 'node:crypto'
 import { ConflictException, ServiceUnavailableException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
-import { publicSigningRequests, signatureSessions } from '@third-code-erp/database/schema'
+import {
+  boms,
+  certificatesOfCompletion,
+  contracts,
+  publicSigningRequests,
+  signatureSessions,
+  variationOrders,
+} from '@third-code-erp/database/schema'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuditService } from '../audit/audit.service'
@@ -135,6 +142,7 @@ describe('PublicSigningService migration boundary', () => {
   it.each([
     ['variation_order', 'variation_orders', 'pending_client_signature'],
     ['coc', 'certificates_of_completion', 'pending_signature'],
+    ['contract', 'contracts', 'pending_signature'],
   ] as const)(
     'refuses with 409 to stamp a %s that no longer waits for a signature',
     async (entityType, table, pendingStatus) => {
@@ -166,6 +174,78 @@ describe('PublicSigningService migration boundary', () => {
       ])
     }
   )
+
+  it.each([
+    ['bom', boms],
+    ['contract', contracts],
+    ['variation_order', variationOrders],
+    ['coc', certificatesOfCompletion],
+  ] as const)('locks the %s row by tenant and id', async (entityType, table) => {
+    const probe = service()
+    const chain = { from: vi.fn(), where: vi.fn(), limit: vi.fn(), for: vi.fn().mockResolvedValue([]) }
+    chain.from.mockReturnValue(chain)
+    chain.where.mockReturnValue(chain)
+    chain.limit.mockReturnValue(chain)
+    const lock = probe.service['lockSigningSource']
+    const transaction = { select: vi.fn().mockReturnValue(chain) } as unknown as Parameters<typeof lock>[0]
+
+    await lock.call(probe.service, transaction, {
+      entity_type: entityType,
+      entity_id: '33333333-3333-4333-8333-333333333333',
+      tenant_id: '22222222-2222-4222-8222-222222222222',
+    })
+
+    expect(chain.from).toHaveBeenCalledWith(table)
+    const compiled = new PgDialect().sqlToQuery(chain.where.mock.calls[0]?.[0])
+    expect(compiled.sql).toContain('"tenant_id" = $')
+    expect(compiled.params).toEqual([
+      '33333333-3333-4333-8333-333333333333',
+      '22222222-2222-4222-8222-222222222222',
+    ])
+    expect(chain.for).toHaveBeenCalledWith('update')
+  })
+
+  it('locks the signed entity before the signing link, in the same transaction', async () => {
+    const tenantId = '22222222-2222-4222-8222-222222222222'
+    const probe = service(true, [tenantId])
+    const session = {
+      id: '11111111-1111-4111-8111-111111111111',
+      tenant_id: tenantId,
+      entity_type: 'variation_order',
+      entity_id: '33333333-3333-4333-8333-333333333333',
+      signed_at: null,
+      revoked_at: null,
+      expires_at: new Date('2030-01-01T00:00:00.000Z'),
+    }
+    const rows = [[session], []]
+    probe.select.mockImplementation(() => {
+      const chain = { from: vi.fn(), where: vi.fn(), limit: vi.fn().mockImplementation(() => Promise.resolve(rows.shift())) }
+      chain.from.mockReturnValue(chain)
+      chain.where.mockReturnValue(chain)
+      return chain
+    })
+    const tx = {}
+    ;(probe.service['database'].client as unknown as { transaction: unknown }).transaction = vi.fn(
+      async (callback: (transaction: unknown) => unknown) => callback(tx)
+    )
+    probe.service['resolveProjectId'] = vi.fn().mockResolvedValue('66666666-6666-4666-8666-666666666666')
+    const lock = vi.fn().mockResolvedValue(undefined)
+    const commit = vi.fn().mockResolvedValue({ ok: true })
+    probe.service['lockSigningSource'] = lock
+    probe.service['commit'] = commit
+    const png = Buffer.alloc(300)
+    Buffer.from('89504e470d0a1a0a', 'hex').copy(png)
+
+    await probe.service.sign(
+      'a'.repeat(64),
+      { ...BODY, signatureDataUrl: `data:image/png;base64,${png.toString('base64')}` },
+      'public-sign-1'
+    )
+
+    expect(lock).toHaveBeenCalledWith(tx, session)
+    expect(commit.mock.calls[0]?.[0]).toBe(tx)
+    expect(lock.mock.invocationCallOrder[0]).toBeLessThan(commit.mock.invocationCallOrder[0]!)
+  })
 
   it('does not acknowledge a BOM signature when atomic award creation fails', async () => {
     awardMock.runSignedBomAward.mockReset()

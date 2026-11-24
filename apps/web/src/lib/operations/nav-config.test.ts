@@ -33,7 +33,6 @@ const UNRESTRICTED_NAV_HREFS = [
   '/crm/accounts',
   '/projects',
   '/scope',
-  '/process',
   '/documents',
   '/settings',
 ] as const
@@ -168,7 +167,6 @@ const VISIBLE_NAV_ORDER = [
   '/projects',
   '/bom',
   '/scope',
-  '/process',
   '/permits',
   '/punchlist',
   '/documents',
@@ -306,6 +304,9 @@ describe('RBAC: visibleNavSections', () => {
       expect(visibleHrefs(role), role).not.toContain('/assets')
       expect(canViewPath(role, '/assets'), role).toBe(true)
       expect(canViewPath(role, '/assets/item-id'), role).toBe(true)
+      // Planning & Controls is out of the sidebar but still a registered page.
+      expect(visibleHrefs(role), role).not.toContain('/process')
+      expect(canViewPath(role, '/process'), role).toBe(true)
     }
     expect(canViewPath('viewer', '/finance/cash')).toBe(true)
     expect(canViewPath('viewer', '/finance/reconciliation')).toBe(true)

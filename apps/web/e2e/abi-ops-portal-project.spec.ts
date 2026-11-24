@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './base-test'
 
 // Portal routes are public — no auth helper required.
 test.describe('M-Portal project (public)', () => {

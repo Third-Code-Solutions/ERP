@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './base-test'
 
 test.describe('M-Portal Warranty (public)', () => {
   test('dummy warranty token renders a known status without auth', async ({

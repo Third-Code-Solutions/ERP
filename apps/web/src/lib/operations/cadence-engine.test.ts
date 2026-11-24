@@ -49,7 +49,9 @@ const dbMock = vi.hoisted(() => {
   }
 })
 vi.mock('@third-code-erp/database', () => ({ db: dbMock.db }))
+import { roleHasCapability } from '@third-code-erp/shared-types'
 import {
+  DEFAULT_CADENCE_TEMPLATES,
   generateTasksForDate,
   manilaBoundaries,
   manilaCalendarDate,
@@ -218,6 +220,28 @@ describe('generateTasksForDate', () => {
 
     expect(result).toEqual({ created: 0, skipped: 2, projectsConsidered: 1 })
     expect(dbMock.inserted).toHaveLength(0)
+  })
+
+  it('only generates default tasks for roles that may complete them', async () => {
+    for (const template of DEFAULT_CADENCE_TEMPLATES) {
+      expect(roleHasCapability(template.role, 'sd.daily_tasks'), template.role).toBe(true)
+    }
+
+    dbMock.selectResults.push(
+      [{ id: 'p1' }],
+      [
+        { id: 'u-commercial', role: 'commercial' },
+        { id: 'u-procurement', role: 'procurement' },
+        { id: 'u-safety', role: 'safety' },
+      ],
+      []
+    )
+
+    const result = await generateTasksForDate('t1', day)
+
+    expect(result).toEqual({ created: 2, skipped: 0, projectsConsidered: 1 })
+    const rows = dbMock.inserted[0] as Array<Record<string, unknown>>
+    expect(rows.map((r) => r.assignee_id)).toEqual(['u-safety', 'u-safety'])
   })
 
   it('skips the lock and transaction when the tenant has no active projects', async () => {

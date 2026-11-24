@@ -3,6 +3,7 @@ import {
   lineTotal,
   manualLineTotal,
   bomTotalCost,
+  computeBomTotals,
   topLevelBomLines,
   purchasableBomLines,
   purchaseLineCostCode,
@@ -49,6 +50,30 @@ describe('lineTotal', () => {
 describe('manualLineTotal', () => {
   it('never applies a line-level markup', () => {
     expect(manualLineTotal(12500, '4')).toBe(50000)
+  })
+})
+
+describe('computeBomTotals', () => {
+  it('totals top-level lines only: raw cost from unit cost x quantity, TCV from line totals', () => {
+    const totals = computeBomTotals([
+      // DUPA-priced work item: its line total carries the rate source, not unit cost x quantity.
+      { line_total_cents: 150_000, unit_cost_cents: 10_000, quantity: '10.0000', parent_line_item_id: null },
+      { line_total_cents: 2_500, unit_cost_cents: 1_000, quantity: '2.5000', parent_line_item_id: null },
+      // An attached material is inside its work item and never counted twice.
+      { line_total_cents: 99_999, unit_cost_cents: 99_999, quantity: '1.0000', parent_line_item_id: 'parent' },
+    ])
+    expect(totals).toEqual({
+      total_cost_cents: 102_500,
+      tcv_cents: 152_500,
+      gp_cents: 50_000,
+      gp_margin_bps: 3279,
+    })
+  })
+
+  it('returns zeros for an empty BOM and refuses totals beyond the exact range', () => {
+    expect(computeBomTotals([])).toEqual({ total_cost_cents: 0, tcv_cents: 0, gp_cents: 0, gp_margin_bps: 0 })
+    const huge = { line_total_cents: Number.MAX_SAFE_INTEGER, unit_cost_cents: 1, quantity: '1.0000', parent_line_item_id: null }
+    expect(() => computeBomTotals([huge, huge])).toThrow(RangeError)
   })
 })
 

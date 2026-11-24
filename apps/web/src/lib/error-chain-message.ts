@@ -6,11 +6,13 @@
  * closed") is on `.cause`. Matching only `error.message` hides every database
  * rule from the user behind a generic failure.
  *
- * Match known messages against the result; never return it to a user, because
- * the chain carries the SQL text and its parameters.
+ * The wrapper itself is left out: its "params:" line holds values the user typed,
+ * which must not choose the message. Match known messages against the result;
+ * never return it to a user.
  */
 export function errorChainMessage(error: unknown): string {
   return errorChain(error)
+    .filter((link) => !link.message.trimStart().startsWith('Failed query:'))
     .map((link) => link.message)
     .join('\n')
 }

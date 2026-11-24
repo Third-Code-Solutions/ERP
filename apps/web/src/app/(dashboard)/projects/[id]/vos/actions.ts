@@ -258,12 +258,16 @@ async function issueVoSigningLink(
 
     let session: Awaited<ReturnType<typeof createSigningSession>>
     try {
-      session = await createSigningSession({
-        tenantId: ctx.tenantId,
-        entityType: 'variation_order',
-        entityId: vo.id,
-        signerEmail,
-      })
+      // The new link is written in this transaction, so a rolled-back send leaves no live link.
+      session = await createSigningSession(
+        {
+          tenantId: ctx.tenantId,
+          entityType: 'variation_order',
+          entityId: vo.id,
+          signerEmail,
+        },
+        tx,
+      )
     } catch {
       console.error('[vo] signing session creation failed')
       return { error: 'The signing link could not be created. Try again.' }

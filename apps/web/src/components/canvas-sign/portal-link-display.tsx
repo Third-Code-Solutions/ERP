@@ -14,6 +14,8 @@ import { useState } from 'react'
 
 interface PortalLinkDisplayProps {
   url: string
+  /** Heading above the link; defaults to "Signing link". */
+  label?: string
   /** Optional ISO timestamp for the link expiry. */
   expiresAt?: string
   /** Signing mechanism — shown as a small label. */
@@ -24,6 +26,7 @@ interface PortalLinkDisplayProps {
 
 export function PortalLinkDisplay({
   url,
+  label = 'Signing link',
   expiresAt,
   mechanism,
   isDevStub,
@@ -52,7 +55,7 @@ export function PortalLinkDisplay({
   return (
     <div style={containerStyle}>
       <div style={headerRowStyle}>
-        <span style={labelStyle}>Signing link</span>
+        <span style={labelStyle}>{label}</span>
         {mechanism ? (
           <span style={badgeStyle}>
             {mechanism === 'canvas' ? 'In-app signature' : 'DocuSeal'}

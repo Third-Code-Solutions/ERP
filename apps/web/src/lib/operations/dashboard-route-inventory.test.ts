@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -280,13 +280,157 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/warranty/cnps': WARRANTY_READ,
 }
 
-function pageRouteTemplates(directory: string): string[] {
+const PRINT_ROOT = fileURLToPath(new URL('../../app/(print)', import.meta.url))
+
+/** Print pages sit outside the dashboard layout; each gates on the dashboard page it prints. */
+const PRINT_COUNTERPARTS: Record<string, string> = {
+  '/inspection/[id]': '/crm/opportunities/[id]/proposal/inspection',
+  '/invoices/[id]/bir2307': '/invoices/[id]',
+  '/invoices/[id]/print': '/invoices/[id]',
+  '/purchase-orders/[id]/print': '/purchase-orders/[id]',
+  '/weekly-report/[id]': '/projects/[id]/reports',
+}
+
+const API_ROOT = fileURLToPath(new URL('../../app/api', import.meta.url))
+
+/** API routes that serve the same documents as a print page gate on the same dashboard page. */
+const REPORT_API_COUNTERPARTS: Record<string, string> = {
+  '/inspection/[id]/report': '/crm/opportunities/[id]/proposal/inspection',
+  '/weekly-report/[id]': '/projects/[id]/reports',
+}
+
+interface GateKind {
+  handler: string
+  gate: RegExp
+}
+
+const PAGE_GATE: GateKind = {
+  handler: 'export default async function',
+  gate: /requireRouteAccess\(\s*profile\.role,\s*(['`])(.+?)\1\s*\)/,
+}
+const ROUTE_GATE: GateKind = {
+  handler: 'export async function GET',
+  gate: /if \(!canViewPath\(\s*profile\.role,\s*(['`])(.+?)\1\s*\)\)/,
+}
+
+// Only reads of the request itself may run before the route gate, never a data load.
+const PRE_GATE_AWAIT = /^await (?:requireUuidRouteParams\(|requireUserProfile\(|getUserProfile\(|(?:\w+\.)?params\b|searchParams\b)/
+
+/**
+ * The only calls a handler may make before its route gate: reading the request
+ * and the session, pure role and flag checks, and leaving early. Any other
+ * call, awaited or not, counts as a data load.
+ */
+const PRE_GATE_CALLS: ReadonlySet<string> = new Set([
+  'requireUuidRouteParams',
+  'requireUserProfile',
+  'getUserProfile',
+  'requireCapability',
+  'can',
+  'getProjectDetailAccess',
+  'parseAuditActivityViewParams',
+  'taxSettingsEnabled',
+  'z.string',
+  'notFound',
+  'redirect',
+  'NextResponse.json',
+])
+const CALL_LIKE_KEYWORDS: ReadonlySet<string> = new Set([
+  'if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'await',
+  'throw', 'case', 'else', 'do', 'in', 'of', 'void', 'delete', 'yield',
+])
+
+function readRouteFile(root: string, routeTemplate: string, file = 'page.tsx'): string {
+  return readFileSync(join(root, ...routeTemplate.split('/').filter(Boolean), file), 'utf8')
+}
+
+function wildcard(path: string): string {
+  return path.replace(/\$\{\w+\}|\[[^\]]+\]/g, '*')
+}
+
+function gatedRoutes(source: string, kind: GateKind = PAGE_GATE): string[] {
+  return [...source.matchAll(new RegExp(kind.gate.source, 'g'))].map((match) => wildcard(match[2] ?? ''))
+}
+
+/**
+ * Code only: comments dropped and string contents blanked, read left to right
+ * in one pass, so a quote inside a comment cannot open a string that hides
+ * code. A template stays a backtick pair, so a tagged template still reads as a call.
+ * shortcut: a call inside a template literal's ${} is blanked too; move to a TypeScript parse if one ever hides a loader.
+ */
+function codeOnly(text: string): string {
+  return text.replace(
+    /\/\*[\s\S]*?\*\/|\/\/[^\n]*|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g,
+    (token) => (token.startsWith('/') ? '' : token.startsWith('`') ? '``' : "''"),
+  )
+}
+
+/** Index just past the `{` that opens the body of the function whose signature starts at `start`. */
+function bodyStart(source: string, start: number): number {
+  let depth = 0
+  for (let index = source.indexOf('(', start); index >= 0 && index < source.length; index += 1) {
+    if (source[index] === '(') depth += 1
+    else if (source[index] === ')' && --depth === 0) return source.indexOf('{', index) + 1
+  }
+  return start
+}
+
+/**
+ * Everything wrong before the handler's first gate: a call that is not a
+ * request read or role check (awaited or not, including any `db.` use and any
+ * Core client call), an await of anything but the request, and a gate that is
+ * not a statement of its own at the top of the handler body.
+ */
+function preGateProblems(source: string, kind: GateKind = PAGE_GATE): string[] {
+  const start = Math.max(0, source.indexOf(kind.handler))
+  const found = kind.gate.exec(source.slice(start))
+  const gateAt = found ? start + found.index : source.length
+  const body = codeOnly(source.slice(bodyStart(source, start), gateAt))
+
+  const problems = [...body.matchAll(/await\s+[\w.]+\(?/g)]
+    .map((match) => match[0])
+    .filter((expression) => !PRE_GATE_AWAIT.test(expression))
+  if (/\bdb\s*\??\./.test(body)) problems.push('db query')
+  // A call is a name chain (`.` or `?.`) followed by `(`, `?.(` or a tagged template.
+  for (const match of body.matchAll(/(?<![\w$.?])((?:[A-Za-z_$][\w$]*\s*\??\.\s*)*[A-Za-z_$][\w$]*)\s*(?:\?\.\s*)?[(`]/g)) {
+    const name = (match[1] ?? '').replace(/\s+/g, '').replace(/\?\./g, '.')
+    if (!CALL_LIKE_KEYWORDS.has(name) && !PRE_GATE_CALLS.has(name)) problems.push(`${name}()`)
+  }
+  if (/\]\s*(?:\?\.\s*)?[(`]/.test(body)) problems.push('computed call')
+  if (!found) return [...problems, 'no gate']
+
+  const before = codeOnly(source.slice(start, gateAt))
+  const lines = before.split('\n')
+  const gateLinePrefix = lines.pop() ?? ''
+  const previous = lines.map((line) => line.trim()).filter((line) => line !== '').pop() ?? ''
+  if (gateLinePrefix.trim() !== '') problems.push('gate does not start its own statement')
+  const depth = (before.match(/\{/g)?.length ?? 0) - (before.match(/\}/g)?.length ?? 0)
+  // A previous line ending in an operator makes the gate part of its expression (`flag &&`, `x ?`, `=>`, `obj.`).
+  const continues = /(?:[=?:,([+\-*/!<>|&.]|=>)$/.test(previous)
+  if (depth !== 1 || continues || isBareConditionHeader(previous)) problems.push('gate inside a condition or block')
+  return problems
+}
+
+/** `if (x)` or `else` with its body on the next line; `if (x) return y()` has its own body. */
+function isBareConditionHeader(line: string): boolean {
+  if (/^(?:\}\s*)?else$/.test(line)) return true
+  const head = /^(?:\}?\s*else\s+)?(?:if|for|while)\s*\(/.exec(line)
+  if (!head) return false
+  let open = 0
+  for (let index = head[0].length - 1; index < line.length; index += 1) {
+    if (line[index] === '(') open += 1
+    else if (line[index] === ')' && --open === 0) return index === line.length - 1
+  }
+  return true
+}
+
+function pageRouteTemplates(directory: string, root = DASHBOARD_ROOT, files = ['page.tsx']): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name)
-    if (entry.isDirectory()) return pageRouteTemplates(path)
-    if (entry.name !== 'page.tsx') return []
+    if (entry.isDirectory()) return pageRouteTemplates(path, root, files)
+    if (!files.includes(entry.name)) return []
 
-    const routeDirectory = relative(DASHBOARD_ROOT, dirname(path))
+    const routeDirectory = relative(root, dirname(path))
       .split(sep)
       .join('/')
     return [routeDirectory === '' ? '/' : `/${routeDirectory}`]
@@ -327,27 +471,110 @@ describe('dashboard route authorization inventory', () => {
   })
 
   // The layout gate does not re-run on client navigation, so each restricted page repeats it.
-  it('repeats the route check inside every role-restricted page', () => {
+  it('repeats the route check inside every role-restricted page, before any data load', () => {
     const missing: string[] = []
+    const loadsFirst: string[] = []
     for (const routeTemplate of pageRouteTemplates(DASHBOARD_ROOT)) {
       const expectedRoles = EXPECTED_ROLES_BY_TEMPLATE[routeTemplate] ?? []
       if (expectedRoles.length === PERSISTED_ROLES.length) continue
 
-      const source = readFileSync(
-        join(DASHBOARD_ROOT, ...routeTemplate.split('/').filter(Boolean), 'page.tsx'),
-        'utf8'
-      )
-      // Project feature entries check canViewPath in the shared entry component.
-      if (source.includes('<ProjectFeatureEntry')) continue
-
-      const gatedPaths = [
-        ...source.matchAll(/requireRouteAccess\(\s*profile\.role,\s*(['`])(.+?)\1\s*\)/g),
-      ].map((match) => (match[2] ?? '').replace(/\$\{\w+\}|\[[^\]]+\]/g, '*'))
-      if (!gatedPaths.includes(routeTemplate.replace(/\[[^\]]+\]/g, '*'))) {
-        missing.push(routeTemplate)
+      const source = readRouteFile(DASHBOARD_ROOT, routeTemplate)
+      // A project feature entry checks its own '/<feature>' rule in the shared component.
+      const entryFeature = /<ProjectFeatureEntry\s+feature="([^"]+)"/.exec(source)?.[1]
+      if (entryFeature !== undefined) {
+        if (`/${entryFeature}` !== routeTemplate) missing.push(routeTemplate)
+        continue
       }
+
+      if (!gatedRoutes(source).includes(wildcard(routeTemplate))) missing.push(routeTemplate)
+      const loads = preGateProblems(source)
+      if (loads.length > 0) loadsFirst.push(`${routeTemplate}: ${loads.join(', ')}`)
     }
     expect(missing).toEqual([])
+    expect(loadsFirst).toEqual([])
+  })
+
+  it('has the project feature entry check the route of the page that renders it', () => {
+    const source = readFileSync(join(DASHBOARD_ROOT, '_project-entry.tsx'), 'utf8')
+    const body = source.slice(source.indexOf('export async function ProjectFeatureEntry'))
+
+    expect(body).toContain('canViewPath(profile.role, `/${feature}`)')
+    // The check comes before the entry reads the query or loads projects.
+    expect(body.indexOf('canViewPath(')).toBeLessThan(body.indexOf('await searchParams'))
+    expect(body.indexOf('canViewPath(')).toBeLessThan(body.indexOf('getProjectsThroughCoreApi('))
+  })
+
+  it('gates every print page and route on the dashboard page it prints, before any data load', () => {
+    expect(pageRouteTemplates(PRINT_ROOT, PRINT_ROOT, ['page.tsx', 'route.ts']).sort()).toEqual(
+      Object.keys(PRINT_COUNTERPARTS).sort()
+    )
+    const registered = new Set(DASHBOARD_ROUTE_POLICIES.map((policy) => policy.template))
+    for (const [printTemplate, counterpart] of Object.entries(PRINT_COUNTERPARTS)) {
+      const isPage = existsSync(join(PRINT_ROOT, ...printTemplate.split('/').filter(Boolean), 'page.tsx'))
+      const kind = isPage ? PAGE_GATE : ROUTE_GATE
+      const source = readRouteFile(PRINT_ROOT, printTemplate, isPage ? 'page.tsx' : 'route.ts')
+
+      expect(registered.has(counterpart), counterpart).toBe(true)
+      expect(gatedRoutes(source, kind), printTemplate).toContain(wildcard(counterpart))
+      expect(preGateProblems(source, kind), printTemplate).toEqual([])
+    }
+  })
+
+  it('gates the report API routes on the same dashboard pages, before any query', () => {
+    const registered = new Set(DASHBOARD_ROUTE_POLICIES.map((policy) => policy.template))
+    for (const [apiTemplate, counterpart] of Object.entries(REPORT_API_COUNTERPARTS)) {
+      const source = readRouteFile(API_ROOT, apiTemplate, 'route.ts')
+
+      expect(registered.has(counterpart), counterpart).toBe(true)
+      expect(gatedRoutes(source, ROUTE_GATE), apiTemplate).toContain(wildcard(counterpart))
+      expect(preGateProblems(source, ROUTE_GATE), apiTemplate).toEqual([])
+    }
+  })
+
+  it('rejects a data load before the gate, or a gate that is not its own top-level statement', () => {
+    const page = (body: string, imports = "import { getThing } from '@/lib/erp-core-client'") =>
+      `${imports}\nexport default async function Page({ params }: { params: Promise<{ id: string }> }) {\n  const profile = await requireUserProfile()\n${body}\n}\n`
+    const gate = "requireRouteAccess(profile.role, '/x')"
+
+    // Loads before the gate, awaited or not.
+    expect(preGateProblems(page(`  const rows = db.select().from(t)\n  ${gate}\n  await rows`))).toContain('db query')
+    expect(preGateProblems(page(`  const thing = getThing()\n  ${gate}`))).toContain('getThing()')
+    expect(preGateProblems(page(`  const rows = await load()\n  ${gate}`))).toContain('await load(')
+    expect(preGateProblems(page(`  const rows = loadRows(profile.tenantId)\n  ${gate}\n  await rows`))).toContain('loadRows()')
+    expect(
+      preGateProblems(page(`  const thing = core.getThing()\n  ${gate}`, 'import * as core from "@/lib/erp-core-client"'))
+    ).toContain('core.getThing()')
+    expect(
+      preGateProblems(page(`  const thing = getThing()\n  ${gate}`, 'import { getThing } from "@/lib/erp-core-client"'))
+    ).toContain('getThing()')
+
+    // The gate inside a block, a condition or an expression.
+    expect(preGateProblems(page(`  if (flag) {\n    ${gate}\n  }`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  if (flag)\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  flag && ${gate}`))).toContain('gate does not start its own statement')
+    expect(preGateProblems(page(`  const ok = flag ? ${gate} : null`))).toContain('gate does not start its own statement')
+    expect(preGateProblems(page(`  flag &&\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  const check = () =>\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  if (a) {\n    note = 1\n  }\n  else if (flag)\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  profile.\n    ${gate}`))).toContain('gate inside a condition or block')
+
+    // Call forms that read past a plain `name(`.
+    expect(preGateProblems(page(`  const thing = core?.getThing()\n  ${gate}`))).toContain('core.getThing()')
+    expect(preGateProblems(page(`  const thing = getThing?.()\n  ${gate}`))).toContain('getThing()')
+    expect(preGateProblems(page(`  const rows = db?.select()\n  ${gate}`))).toContain('db query')
+    expect(preGateProblems(page(`  const thing = core['getThing']()\n  ${gate}`))).toContain('computed call')
+    expect(preGateProblems(page(`  const rows = loadRows\`select\`\n  ${gate}`))).toContain('loadRows()')
+    // A lone backtick in a comment does not open a template that hides the next lines.
+    expect(
+      preGateProblems(page(`  // never wrap ids in \` here\n  const rows = loadRows()\n  const note = \`done\`\n  ${gate}`))
+    ).toContain('loadRows()')
+
+    // Allowed: request reads and role checks first, loads after; words in comments and strings are not calls.
+    expect(preGateProblems(page(`  ${gate}\n  const rows = await db.select()`))).toEqual([])
+    expect(preGateProblems(page(`  if (!can(profile.role, 'finance.read')) return notFound()\n  ${gate}`))).toEqual([])
+    expect(
+      preGateProblems(page(`  const { id } = await params\n  // Load the rows (later), after the gate.\n  const label = 'Back (to list)'\n  ${gate}`))
+    ).toEqual([])
   })
 
   it('does not let a dynamic or nested registration restore unknown fallback', () => {

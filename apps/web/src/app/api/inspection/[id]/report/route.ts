@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, eq } from 'drizzle-orm'
 import { getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
+import { canViewPath } from '@/lib/operations/nav-config'
 import {
   accounts,
   opportunities,
@@ -51,6 +52,10 @@ export async function GET(
       { error: 'No tenant associated with account' },
       { status: 403 }
     )
+  }
+  // Same role rule as the dashboard inspection page; checked before any query.
+  if (!canViewPath(profile.role, '/crm/opportunities/[id]/proposal/inspection')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const [inspection] = await db

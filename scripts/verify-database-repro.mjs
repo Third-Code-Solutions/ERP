@@ -128,6 +128,7 @@ const requiredServerOnlyTables = [
   'document_intake_requests',
   'project_comment_create_requests',
   'project_comment_delete_requests',
+  'unit_aliases',
 ]
 
 const requiredPolicies = [
@@ -481,6 +482,8 @@ const requiredTriggers = [
   ['public.material_items', 'guard_inventory_item'],
   ['public.po_line_items', 'guard_po_line_stock_fields'],
   ['public.po_line_items', 'reset_stock_receipt_projection'],
+  ['public.po_line_items', 'link_po_line_item_and_unit'],
+  ['public.unit_aliases', 'audit_unit_aliases'],
   ['public.stock_receipts', 'guard_stock_receipt'],
   ['public.stock_receipt_lines', 'guard_stock_receipt_line'],
   ['public.stock_ledger_entries', 'guard_stock_ledger_entry'],
@@ -584,6 +587,8 @@ const requiredAccountingSecurityDefinerFunctions = [
   'guard_inventory_master',
   'guard_inventory_item',
   'guard_po_line_stock_fields',
+  'resolve_unit_of_measure',
+  'link_po_line_item_and_unit',
   'guard_stock_receipt',
   'guard_stock_receipt_line',
   'guard_stock_ledger_entry',

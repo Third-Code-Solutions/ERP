@@ -7,6 +7,7 @@ import {
   postCashTransaction,
   reverseCashTransaction,
 } from '../actions'
+import { IRREVERSIBLE_CONFIRMATIONS } from '../../irreversible-confirmations'
 
 export function CashActions({
   transactionId,
@@ -79,6 +80,11 @@ export function CashActions({
             className="finance-primary-button"
             disabled={pending}
             onClick={() => {
+              if (
+                !window.confirm(IRREVERSIBLE_CONFIRMATIONS.postCashTransaction)
+              ) {
+                return
+              }
               setError(null)
               startTransition(async () => {
                 const result = await postCashTransaction({
@@ -118,7 +124,7 @@ export function CashActions({
             onClick={() => {
               if (
                 !window.confirm(
-                  'Reverse this cash transaction with an equal-and-opposite journal?'
+                  IRREVERSIBLE_CONFIRMATIONS.reverseCashTransaction
                 )
               ) {
                 return

@@ -116,6 +116,10 @@ jobs:
       - run: pnpm test:production-auth-proof
       - run: pnpm test:production-ci
       - run: node --test scripts/deploy-railway-service.test.mjs
+      - run: pnpm test:material-items-import
+      - run: pnpm test:bootstrap-trial-tenant
+      - run: pnpm test:trial-flags
+      - run: pnpm test:demo-tenant
       - run: pnpm test:workflow-action-refs
       - name: Test dated Supabase parity manifest
         run: pnpm test:managed-supabase-parity-plan
@@ -434,6 +438,7 @@ jobs:
             e2e/claim-document-attach.spec.ts \
             e2e/kyc-artifact-workflow.spec.ts \
             e2e/authenticated-smoke-readiness.spec.ts \
+            e2e/vercel-preview-headers.spec.ts \
             e2e/user-role-workflow.spec.ts \
             e2e/inspection-rfi-offline.spec.ts \
             e2e/inspection-draft-durability.spec.ts \

@@ -19,7 +19,7 @@
  * DO NOTHING); existing rows are never updated or deleted, so re-running is safe.
  * The run refuses if the tenant does not exist, or if an existing account blocks
  * a required system key (exit code 3, nothing written). Unit aliases are skipped
- * (and reported) until migration 20261118100000 has created the unit_aliases table.
+ * (and reported) until migration 20261124140000 has created the unit_aliases table.
  */
 import { createRequire } from 'node:module'
 import {

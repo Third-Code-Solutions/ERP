@@ -12,6 +12,7 @@ import {
   projects,
 } from '@third-code-erp/database/schema'
 import { and, eq } from 'drizzle-orm'
+import { formatManilaDateTime, manilaToday } from '@/lib/manila-date'
 import { JournalActions } from './journal-actions'
 
 export const metadata: Metadata = { title: 'Journal review' }
@@ -106,7 +107,7 @@ export default async function JournalPage({
 
   const totalDebit = lines.reduce((sum, line) => sum + line.debit_cents, 0)
   const totalCredit = lines.reduce((sum, line) => sum + line.credit_cents, 0)
-  const defaultDate = new Date().toISOString().slice(0, 10)
+  const defaultDate = manilaToday()
 
   return (
     <div>
@@ -140,10 +141,7 @@ export default async function JournalPage({
           <span>Posted at</span>
           <strong>
             {entry.posted_at
-              ? new Intl.DateTimeFormat('en-PH', {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                }).format(entry.posted_at)
+              ? formatManilaDateTime(entry.posted_at)
               : 'Not posted'}
           </strong>
         </div>
@@ -221,6 +219,8 @@ export default async function JournalPage({
           entryId={entry.id}
           status={entry.status}
           sourceType={entry.source_type}
+          referenceType={entry.reference_type}
+          referenceId={entry.reference_id}
           hasReversal={Boolean(reversal[0])}
           defaultDate={defaultDate}
         />

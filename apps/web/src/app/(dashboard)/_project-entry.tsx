@@ -29,7 +29,8 @@ export async function ProjectFeatureEntry({ feature, searchParams }: {
 }) {
   const profile = await requireUserProfile()
   const config = PROJECT_FEATURES[feature]
-  if (!canViewPath(profile.role, `/projects/selected/${feature}`)) {
+  // The entry page's own route rule; each /projects/<id>/<feature> page checks its own.
+  if (!canViewPath(profile.role, `/${feature}`)) {
     return <section className="card" role="alert"><h1 className="page-title">Access unavailable</h1><p>Your tenant role cannot open this project workspace.</p><Link href="/projects">Return to projects</Link></section>
   }
   const raw = await searchParams

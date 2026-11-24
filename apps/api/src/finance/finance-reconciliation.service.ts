@@ -310,6 +310,7 @@ export class FinanceReconciliationService {
                 from public.bank_statement_lines used_line
                 where used_line.tenant_id = cash_tx.tenant_id
                   and used_line.matched_cash_transaction_id = cash_tx.id
+                  and used_line.released_at is null
               )
               and exists (
                 select 1
