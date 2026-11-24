@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   notifyExternalEmail: vi.fn(),
   notifyRoles: vi.fn(),
   revokeOpenSigningSessions: vi.fn(),
+  newestOpenSigningSessionAt: vi.fn(),
   findDefaultCocSigner: vi.fn(),
   writeAuditLog: vi.fn(),
   writeAuditLogInTransaction: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock('@/lib/operations/integrations/docuseal', () => ({
 
 vi.mock('@/lib/operations/signing-sessions', () => ({
   revokeOpenSigningSessions: mocks.revokeOpenSigningSessions,
+  newestOpenSigningSessionAt: mocks.newestOpenSigningSessionAt,
 }))
 
 vi.mock('./queries', () => ({ findDefaultCocSigner: mocks.findDefaultCocSigner }))
@@ -125,6 +127,7 @@ describe('COC signing link lifecycle', () => {
     mocks.notifyExternalEmail.mockResolvedValue({ delivered: true })
     mocks.notifyRoles.mockResolvedValue(undefined)
     mocks.revokeOpenSigningSessions.mockResolvedValue(undefined)
+    mocks.newestOpenSigningSessionAt.mockResolvedValue(null)
     mocks.writeAuditLog.mockResolvedValue(undefined)
     mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
   })
@@ -415,6 +418,69 @@ describe('COC signing link lifecycle', () => {
       expect(mocks.revokeOpenSigningSessions).not.toHaveBeenCalled()
       expect(mocks.archiveDocuSealSubmission).not.toHaveBeenCalled()
       expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
+    })
+
+    it('lets one resend through, refuses an immediate second, and leaves another tenant alone', async () => {
+      const OTHER_TENANT_ID = '99999999-9999-4999-8999-999999999999'
+      // Newest open canvas link per tenant and certificate, as createSigningSession writes it.
+      const issuedAt = new Map<string, Date>()
+      const key = (tenantId: string, cocId: string) => `${tenantId}:${cocId}`
+      mocks.createSigningSession.mockImplementation(
+        async (input: { tenantId: string; entityId: string }) => {
+          issuedAt.set(key(input.tenantId, input.entityId), new Date())
+          return { mechanism: 'canvas', token: 'secret-token', url: SIGN_URL, is_dev_stub: false }
+        }
+      )
+      mocks.newestOpenSigningSessionAt.mockImplementation(
+        async (_tx: unknown, tenantId: string, _type: string, cocId: string) =>
+          issuedAt.get(key(tenantId, cocId)) ?? null
+      )
+      const asTenant = (tenantId: string) =>
+        mocks.requireUserProfile.mockResolvedValue({
+          role: 'sd_pm_pe',
+          tenantId,
+          user: { id: '55555555-5555-4555-8555-555555555555' },
+        })
+      const resend = () => {
+        selectRows(cocRow('pending_signature'), PROJECT_ROW)
+        return resendCocSigningLink(PROJECT_ID, { name: 'Ana Client', email: 'ana@client.test' })
+      }
+
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        vi.setSystemTime(new Date('2026-11-24T09:00:00.000Z'))
+        await expect(resend()).resolves.toMatchObject({ url: SIGN_URL, emailed: true })
+
+        vi.setSystemTime(new Date('2026-11-24T09:00:05.000Z'))
+        await expect(resend()).resolves.toEqual({
+          error: 'A signing link was sent for this certificate a few minutes ago. Try again in 10 minutes.',
+        })
+        // Read under the lock, for this tenant's certificate only.
+        expect(mocks.newestOpenSigningSessionAt).toHaveBeenLastCalledWith(tx, TENANT_ID, 'coc', COC_ID)
+        // The refusal minted, revoked, emailed and audited nothing.
+        expect(mocks.createSigningSession).toHaveBeenCalledOnce()
+        expect(mocks.revokeOpenSigningSessions).toHaveBeenCalledOnce()
+        expect(mocks.set).toHaveBeenCalledOnce()
+        expect(mocks.notifyExternalEmail).toHaveBeenCalledOnce()
+        expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledOnce()
+        expect(mocks.archiveDocuSealSubmission).toHaveBeenCalledOnce()
+
+        // Another tenant's certificate with the same id keeps its own clock.
+        asTenant(OTHER_TENANT_ID)
+        await expect(resend()).resolves.toMatchObject({ url: SIGN_URL })
+        expect(mocks.createSigningSession).toHaveBeenLastCalledWith(
+          expect.objectContaining({ tenantId: OTHER_TENANT_ID, entityId: COC_ID }),
+          tx
+        )
+
+        // Ten minutes after the first link the first tenant may resend again.
+        asTenant(TENANT_ID)
+        vi.setSystemTime(new Date('2026-11-24T09:10:00.000Z'))
+        await expect(resend()).resolves.toMatchObject({ url: SIGN_URL })
+        expect(mocks.createSigningSession).toHaveBeenCalledTimes(3)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('refuses to resend a draft or signed certificate', async () => {

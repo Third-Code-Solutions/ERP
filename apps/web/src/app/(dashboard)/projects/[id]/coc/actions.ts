@@ -34,7 +34,10 @@ import {
   archiveDocuSealSubmission,
   createSigningSession,
 } from '@/lib/operations/integrations/docuseal'
-import { revokeOpenSigningSessions } from '@/lib/operations/signing-sessions'
+import {
+  newestOpenSigningSessionAt,
+  revokeOpenSigningSessions,
+} from '@/lib/operations/signing-sessions'
 import { findDefaultCocSigner } from './queries'
 
 const DEFAULT_WARRANTY_DAYS = 365
@@ -204,6 +207,22 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 const COC_CHANGED_ERROR =
   'The certificate changed while the link was being created. Refresh the page and check its status.'
 
+/** Least time between two signing links for one certificate, so resends cannot flood the signer. */
+const COC_RESEND_COOLDOWN_MS = 10 * 60_000
+
+/** Whole minutes until another link may be sent; 0 when it may go now. */
+async function cocResendWaitMinutes(tx: Tx, tenantId: string, cocId: string): Promise<number> {
+  const issuedAt = await newestOpenSigningSessionAt(tx, tenantId, 'coc', cocId)
+  if (!issuedAt) return 0
+  const remainingMs = issuedAt.getTime() + COC_RESEND_COOLDOWN_MS - Date.now()
+  return remainingMs > 0 ? Math.ceil(remainingMs / 60_000) : 0
+}
+
+function cocResendThrottledMessage(waitMinutes: number): string {
+  const wait = waitMinutes === 1 ? '1 minute' : `${waitMinutes} minutes`
+  return `A signing link was sent for this certificate a few minutes ago. Try again in ${wait}.`
+}
+
 /**
  * Lock the certificate row while it is still in `status`. Sends, resends,
  * cancels and signatures of one certificate then run one after another, and in
@@ -294,6 +313,12 @@ async function issueCocSigningLink(
     // that finds the certificate moved mints no link at all.
     const locked = await lockCocInStatus(tx, profile.tenantId, coc.id, from)
     if (!locked) return { error: COC_CHANGED_ERROR }
+    // Read under the certificate lock, so a resend racing this one waits and then
+    // sees the link this one issued. A refusal mints, revokes, emails and audits nothing.
+    if (from === 'pending_signature') {
+      const waitMinutes = await cocResendWaitMinutes(tx, profile.tenantId, coc.id)
+      if (waitMinutes > 0) return { error: cocResendThrottledMessage(waitMinutes) }
+    }
 
     let session: Awaited<ReturnType<typeof createSigningSession>>
     try {
