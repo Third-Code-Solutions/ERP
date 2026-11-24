@@ -57,6 +57,10 @@ jobs:
           pnpm test:controlled-release-plan
           pnpm test:release-identity-plan
           pnpm test:web-db-boundary
+          pnpm test:material-items-import
+          pnpm test:bootstrap-trial-tenant
+          pnpm test:trial-flags
+          pnpm test:demo-tenant
       - name: Rebuild and verify PostgreSQL 17 database
         shell: powershell
         run: scripts/ci/run-wsl1-database-lane.ps1

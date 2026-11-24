@@ -160,6 +160,7 @@ function harness({
   let transactionWrites: WriteBoundary[] = []
   const committedWrites: WriteBoundary[] = []
   const rolledBackAttempts: WriteBoundary[][] = []
+  const projectInsertValues: Record<string, unknown>[] = []
   const recordWrite = (boundary: WriteBoundary) => {
     transactionWrites.push(boundary)
     if (activeFailure === boundary) {
@@ -267,7 +268,12 @@ function harness({
     transactionClient.insert.mockReset()
     transactionClient.insert
       .mockReturnValueOnce({ values: insertLedger })
-      .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertProject) })
+      .mockReturnValueOnce({
+        values: vi.fn().mockImplementation((values: Record<string, unknown>) => {
+          projectInsertValues.push(values)
+          return insertProject
+        }),
+      })
       .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertChecklist) })
       .mockReturnValueOnce({ values: vi.fn().mockReturnValue(insertItems) })
       .mockReturnValueOnce({
@@ -320,6 +326,7 @@ function harness({
     request,
     committedWrites,
     rolledBackAttempts,
+    projectInsertValues,
     clearFailure: () => {
       activeFailure = undefined
     },
@@ -441,6 +448,38 @@ describe('Opportunity project conversion authority', () => {
     expect(transactionClient.insert).toHaveBeenCalledOnce()
     expect(audit.writeSemantic).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['Warehouse fit-out', 'Conversion Client — Warehouse fit-out'],
+    ['fit_out', 'Conversion Client — Fit-out'],
+    ['mep', 'Conversion Client — MEP'],
+    ['structural_civil', 'Conversion Client — Structural and Civil'],
+    ['mixed', 'Conversion Client — Structural and Civil'],
+    // 20-point prefix + 179 + one emoji = 200 code points; a UTF-16 slice would split the 200th.
+    ['x'.repeat(179) + '😀'.repeat(5), 'Conversion Client — ' + 'x'.repeat(179) + '😀'],
+    [null, 'Conversion Client'],
+  ])(
+    'names the project after the client and a readable type (%s)',
+    async (opportunityType, expectedName) => {
+      const probe = harness({
+        opportunity: [
+          {
+            id: OPPORTUNITY_ID,
+            tenantId: PRINCIPAL.tenantId,
+            stage: 'won',
+            accountId: ACCOUNT_ID,
+            projectId: null,
+            opportunityType,
+          },
+        ],
+      })
+
+      await probe.candidate.convert(OPPORTUNITY_ID, {}, PRINCIPAL, 'conversion-name')
+
+      expect(probe.projectInsertValues).toHaveLength(1)
+      expect(probe.projectInsertValues[0]).toMatchObject({ name: expectedName })
+    }
+  )
 
   it('revalidates an authorized cross-actor replay and commits every effect once', async () => {
     const salesMembership = [
