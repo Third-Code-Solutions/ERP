@@ -280,13 +280,49 @@ const EXPECTED_ROLES_BY_TEMPLATE: Readonly<
   '/warranty/cnps': WARRANTY_READ,
 }
 
-function pageRouteTemplates(directory: string): string[] {
+const PRINT_ROOT = fileURLToPath(new URL('../../app/(print)', import.meta.url))
+
+/** Print pages sit outside the dashboard layout; each gates on the dashboard page it prints. */
+const PRINT_COUNTERPARTS: Record<string, string> = {
+  '/inspection/[id]': '/crm/opportunities/[id]/proposal/inspection',
+  '/invoices/[id]/bir2307': '/invoices/[id]',
+  '/invoices/[id]/print': '/invoices/[id]',
+  '/purchase-orders/[id]/print': '/purchase-orders/[id]',
+  '/weekly-report/[id]': '/projects/[id]/reports',
+}
+
+// Only reads of the request itself may run before the route gate, never a data load.
+const PRE_GATE_AWAIT = /^await (?:requireUuidRouteParams\(|requireUserProfile\(|getUserProfile\(|params\b|searchParams\b)/
+
+function readPage(root: string, routeTemplate: string): string {
+  return readFileSync(join(root, ...routeTemplate.split('/').filter(Boolean), 'page.tsx'), 'utf8')
+}
+
+function wildcard(path: string): string {
+  return path.replace(/\$\{\w+\}|\[[^\]]+\]/g, '*')
+}
+
+function gatedRoutes(source: string): string[] {
+  return [...source.matchAll(/requireRouteAccess\(\s*profile\.role,\s*(['`])(.+?)\1\s*\)/g)]
+    .map((match) => wildcard(match[2] ?? ''))
+}
+
+/** Awaits in the page component that run before its first route gate and are not request reads. */
+function dataLoadsBeforeGate(source: string): string[] {
+  const start = Math.max(0, source.indexOf('export default async function'))
+  const gate = source.indexOf('requireRouteAccess(', start)
+  return [...source.slice(start, gate < 0 ? undefined : gate).matchAll(/await\s+[\w.]+\(?/g)]
+    .map((match) => match[0])
+    .filter((expression) => !PRE_GATE_AWAIT.test(expression))
+}
+
+function pageRouteTemplates(directory: string, root = DASHBOARD_ROOT): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name)
-    if (entry.isDirectory()) return pageRouteTemplates(path)
+    if (entry.isDirectory()) return pageRouteTemplates(path, root)
     if (entry.name !== 'page.tsx') return []
 
-    const routeDirectory = relative(DASHBOARD_ROOT, dirname(path))
+    const routeDirectory = relative(root, dirname(path))
       .split(sep)
       .join('/')
     return [routeDirectory === '' ? '/' : `/${routeDirectory}`]
@@ -327,27 +363,51 @@ describe('dashboard route authorization inventory', () => {
   })
 
   // The layout gate does not re-run on client navigation, so each restricted page repeats it.
-  it('repeats the route check inside every role-restricted page', () => {
+  it('repeats the route check inside every role-restricted page, before any data load', () => {
     const missing: string[] = []
+    const loadsFirst: string[] = []
     for (const routeTemplate of pageRouteTemplates(DASHBOARD_ROOT)) {
       const expectedRoles = EXPECTED_ROLES_BY_TEMPLATE[routeTemplate] ?? []
       if (expectedRoles.length === PERSISTED_ROLES.length) continue
 
-      const source = readFileSync(
-        join(DASHBOARD_ROOT, ...routeTemplate.split('/').filter(Boolean), 'page.tsx'),
-        'utf8'
-      )
-      // Project feature entries check canViewPath in the shared entry component.
-      if (source.includes('<ProjectFeatureEntry')) continue
-
-      const gatedPaths = [
-        ...source.matchAll(/requireRouteAccess\(\s*profile\.role,\s*(['`])(.+?)\1\s*\)/g),
-      ].map((match) => (match[2] ?? '').replace(/\$\{\w+\}|\[[^\]]+\]/g, '*'))
-      if (!gatedPaths.includes(routeTemplate.replace(/\[[^\]]+\]/g, '*'))) {
-        missing.push(routeTemplate)
+      const source = readPage(DASHBOARD_ROOT, routeTemplate)
+      // A project feature entry checks its own '/<feature>' rule in the shared component.
+      const entryFeature = /<ProjectFeatureEntry\s+feature="([^"]+)"/.exec(source)?.[1]
+      if (entryFeature !== undefined) {
+        if (`/${entryFeature}` !== routeTemplate) missing.push(routeTemplate)
+        continue
       }
+
+      if (!gatedRoutes(source).includes(wildcard(routeTemplate))) missing.push(routeTemplate)
+      const loads = dataLoadsBeforeGate(source)
+      if (loads.length > 0) loadsFirst.push(`${routeTemplate}: ${loads.join(', ')}`)
     }
     expect(missing).toEqual([])
+    expect(loadsFirst).toEqual([])
+  })
+
+  it('has the project feature entry check the route of the page that renders it', () => {
+    const source = readFileSync(join(DASHBOARD_ROOT, '_project-entry.tsx'), 'utf8')
+    const body = source.slice(source.indexOf('export async function ProjectFeatureEntry'))
+
+    expect(body).toContain('canViewPath(profile.role, `/${feature}`)')
+    // The check comes before the entry reads the query or loads projects.
+    expect(body.indexOf('canViewPath(')).toBeLessThan(body.indexOf('await searchParams'))
+    expect(body.indexOf('canViewPath(')).toBeLessThan(body.indexOf('getProjectsThroughCoreApi('))
+  })
+
+  it('gates every print page on the dashboard page it prints, before any data load', () => {
+    expect(pageRouteTemplates(PRINT_ROOT, PRINT_ROOT).sort()).toEqual(
+      Object.keys(PRINT_COUNTERPARTS).sort()
+    )
+    const registered = new Set(DASHBOARD_ROUTE_POLICIES.map((policy) => policy.template))
+    for (const [printTemplate, counterpart] of Object.entries(PRINT_COUNTERPARTS)) {
+      const source = readPage(PRINT_ROOT, printTemplate)
+
+      expect(registered.has(counterpart), counterpart).toBe(true)
+      expect(gatedRoutes(source), printTemplate).toContain(wildcard(counterpart))
+      expect(dataLoadsBeforeGate(source), printTemplate).toEqual([])
+    }
   })
 
   it('does not let a dynamic or nested registration restore unknown fallback', () => {

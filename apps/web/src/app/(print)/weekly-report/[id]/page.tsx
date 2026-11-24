@@ -1,4 +1,5 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -38,6 +39,8 @@ export default async function WeeklyReportPrintPage({
   const { id } = await requireUuidRouteParams(params)
 
   const profile = await requireUserProfile()
+  // Print pages sit outside the dashboard layout: repeat the role rule of the page they print.
+  requireRouteAccess(profile.role, '/projects/[id]/reports')
 
   const [report] = await db
     .select({

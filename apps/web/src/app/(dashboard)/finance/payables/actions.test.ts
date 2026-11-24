@@ -415,4 +415,41 @@ describe('supplier bill actions', () => {
       expect(result).toEqual({ ok: false, error: expected })
     }
   )
+
+  it('ignores a constraint name the user typed into a query parameter', async () => {
+    mocks.transaction.mockRejectedValue(
+      new Error(
+        'Failed query: insert into "supplier_bills"\nparams: ux_supplier_bills_vendor_number',
+        {
+          cause: new Error(
+            'duplicate key value violates unique constraint "ux_supplier_bills_internal_number"'
+          ),
+        }
+      )
+    )
+
+    const result = await saveSupplierBillDraft({
+      purchaseOrderId: PO_ID,
+      vendorBillNumber: 'ux_supplier_bills_vendor_number',
+      billDate: '2026-07-27',
+      dueDate: null,
+      currency: 'PHP',
+      subtotalCents: 100_000,
+      inputVatCents: 12_000,
+      withholdingTaxCents: 2_000,
+      lines: [
+        {
+          poLineItemId: PO_LINE_ID,
+          ledgerAccountId: '77777777-7777-4777-8777-777777777777',
+          description: 'Materials',
+          amountCents: 100_000,
+        },
+      ],
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Supplier bill action failed. No partial financial posting was saved.',
+    })
+  })
 })

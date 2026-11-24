@@ -1,4 +1,5 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
+import { requireRouteAccess } from '@/lib/require-route-access'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -25,6 +26,8 @@ export default async function InvoicePrintPage({ params }: { params: Promise<{ i
   const profile = await getUserProfile()
   // Same finance.read gate as the dashboard invoice page.
   if (!profile || !can(profile.role, 'finance.read')) return notFound()
+  // Print pages sit outside the dashboard layout: repeat the role rule of the page they print.
+  requireRouteAccess(profile.role, '/invoices/[id]')
 
   const [inv] = await db
     .select({
