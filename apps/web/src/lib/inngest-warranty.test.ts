@@ -37,7 +37,7 @@ vi.mock('@/lib/operations/notifications', () => ({
   notifyExternalEmail: mocks.notifyExternalEmail,
 }))
 
-import { dispatchOneSurvey } from './inngest-warranty'
+import { dispatchCnpsSurveys, dispatchOneSurvey, onCnpsSurveyScheduled } from './inngest-warranty'
 
 const ticket = {
   id: 'ticket-id',
@@ -65,7 +65,7 @@ describe('CNPS survey delivery evidence', () => {
     mocks.notifyExternalEmail.mockResolvedValue({ delivered: true })
   })
 
-  it('stamps sent_at only after real provider delivery', async () => {
+  it('hands a delivered survey to its own stamp step instead of stamping it', async () => {
     mocks.selectLimit
       .mockResolvedValueOnce([ticket])
       .mockResolvedValueOnce([])
@@ -73,12 +73,14 @@ describe('CNPS survey delivery evidence', () => {
 
     await expect(dispatchOneSurvey('ticket-id', 'tenant-id')).resolves.toEqual({
       sent: true,
+      surveyId: 'survey-id',
+      sentAt: expect.any(String),
     })
 
     expect(mocks.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({ sent_at: null })
     )
-    expect(mocks.updateSet).toHaveBeenCalledWith({ sent_at: expect.any(Date) })
+    expect(mocks.updateSet).not.toHaveBeenCalled()
   })
 
   it('inserts on conflict with the ticket survey and sends nothing when another sender won', async () => {
@@ -145,13 +147,111 @@ describe('CNPS survey delivery evidence', () => {
 
     await expect(dispatchOneSurvey('ticket-id', 'tenant-id')).resolves.toEqual({
       sent: true,
+      surveyId: 'survey-id',
+      sentAt: expect.any(String),
     })
 
-    expect(mocks.updateSet).toHaveBeenNthCalledWith(1, {
-      response_token_hash: expect.any(String),
+    expect(mocks.updateSet).toHaveBeenCalledTimes(1)
+    const [claim] = mocks.updateSet.mock.calls[0] as [{ response_token_hash: unknown; created_at: SQL }]
+    expect(claim.response_token_hash).toEqual(expect.any(String))
+    // The claim renews the lease: a run that reads the row after it sees a
+    // fresh created_at, fails the 15-minute test and sends nothing.
+    expect(new PgDialect().sqlToQuery(claim.created_at).sql).toBe('now()')
+  })
+})
+
+type Step = {
+  run: <T>(name: string, fn: () => Promise<T>) => Promise<T>
+  sleep: () => Promise<void>
+}
+type Handler = (context: { step: Step; event?: unknown }) => Promise<unknown>
+
+/** Like Inngest: a finished step replays its JSON result instead of running again. */
+function memoizingStep() {
+  const finished = new Map<string, unknown>()
+  const ran: string[] = []
+  const step: Step = {
+    run: async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
+      if (finished.has(name)) return finished.get(name) as T
+      ran.push(name)
+      const value = await fn()
+      finished.set(name, JSON.parse(JSON.stringify(value ?? null)))
+      return value
+    },
+    sleep: () => Promise.resolve(),
+  }
+  return { ran, step }
+}
+
+const handlerOf = (fn: unknown) => (fn as { handler: Handler }).handler
+const scheduledEvent = { data: { ticketId: 'ticket-id', tenantId: 'tenant-id' } }
+
+describe('CNPS survey Inngest steps', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.select.mockReturnValue({ from: mocks.selectFrom })
+    mocks.selectFrom.mockReturnValue({ where: mocks.selectWhere })
+    mocks.selectWhere.mockReturnValue({ limit: mocks.selectLimit })
+    mocks.selectLimit.mockResolvedValueOnce([ticket]).mockResolvedValueOnce([])
+    mocks.insert.mockReturnValue({ values: mocks.insertValues })
+    mocks.insertValues.mockReturnValue({ onConflictDoNothing: mocks.insertOnConflictDoNothing })
+    mocks.insertOnConflictDoNothing.mockReturnValue({ returning: mocks.insertReturning })
+    mocks.insertReturning.mockResolvedValue([{ id: 'survey-id' }])
+    mocks.update.mockReturnValue({ set: mocks.updateSet })
+    mocks.updateSet.mockReturnValue({ where: mocks.updateWhere })
+    mocks.updateWhere.mockResolvedValue(undefined)
+    mocks.notifyExternalEmail.mockResolvedValue({ delivered: true })
+  })
+
+  it('stamps sent_at in a step of its own after the send step', async () => {
+    const { ran, step } = memoizingStep()
+
+    await handlerOf(onCnpsSurveyScheduled)({ step, event: scheduledEvent })
+
+    expect(ran).toEqual(['send', 'send-mark-sent'])
+    expect(mocks.updateSet).toHaveBeenCalledWith({ sent_at: expect.any(Date) })
+    const stamp = new PgDialect().sqlToQuery(mocks.updateWhere.mock.calls[0]![0] as SQL)
+    expect(stamp.sql).toContain('"cnps_surveys"."id" = $')
+    expect(stamp.sql).toContain('"cnps_surveys"."tenant_id" = $')
+    expect(stamp.params).toEqual(['survey-id', 'tenant-id'])
+  })
+
+  it('retries a failed stamp without emailing the client again', async () => {
+    const { ran, step } = memoizingStep()
+    mocks.updateWhere.mockRejectedValueOnce(new Error('connection reset'))
+
+    // Inngest runs the handler again after the failed step; the send replays.
+    await expect(handlerOf(onCnpsSurveyScheduled)({ step, event: scheduledEvent })).rejects.toThrow('connection reset')
+    await handlerOf(onCnpsSurveyScheduled)({ step, event: scheduledEvent })
+
+    expect(ran).toEqual(['send', 'send-mark-sent', 'send-mark-sent'])
+    expect(mocks.notifyExternalEmail).toHaveBeenCalledTimes(1)
+    expect(mocks.updateWhere).toHaveBeenCalledTimes(2)
+  })
+
+  it('has no stamp step when the email did not go out', async () => {
+    const { ran, step } = memoizingStep()
+    mocks.notifyExternalEmail.mockResolvedValue({ delivered: false })
+
+    await handlerOf(onCnpsSurveyScheduled)({ step, event: scheduledEvent })
+
+    expect(ran).toEqual(['send'])
+    expect(mocks.updateSet).not.toHaveBeenCalled()
+  })
+
+  it('the hourly sweep sends and stamps each due ticket in separate steps', async () => {
+    const { ran, step } = memoizingStep()
+    // find-due-tickets: one closed ticket with no sent survey.
+    mocks.selectFrom.mockReturnValueOnce({
+      leftJoin: () => ({
+        where: () => ({ limit: () => Promise.resolve([{ id: 'ticket-id', tenant_id: 'tenant-id', existing_sent_at: null }]) }),
+      }),
     })
-    expect(mocks.updateSet).toHaveBeenNthCalledWith(2, {
-      sent_at: expect.any(Date),
-    })
+
+    await expect(handlerOf(dispatchCnpsSurveys)({ step })).resolves.toEqual({ swept: 1, sent: 1 })
+
+    expect(ran).toEqual(['find-due-tickets', 'send-ticket-id', 'send-ticket-id-mark-sent'])
+    expect(mocks.notifyExternalEmail).toHaveBeenCalledTimes(1)
+    expect(mocks.updateSet).toHaveBeenCalledWith({ sent_at: expect.any(Date) })
   })
 })

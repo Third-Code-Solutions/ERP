@@ -36,15 +36,24 @@ interface InngestStep {
   sleepUntil?: (name: string, until: Date | string) => Promise<void>
 }
 
+export type SurveyDispatch = {
+  sent: boolean
+  reason?: string
+  /** Set once the provider accepted the email: the row stampSurveySent must stamp. */
+  surveyId?: string
+  sentAt?: string
+}
+
 /**
  * Mint a per-survey token, persist the pending survey row, then send the
- * email. `sent_at` is written only after a real provider delivery; failed or
- * development-stub sends remain retryable.
+ * email. It does not stamp `sent_at`: the caller does that in its own
+ * Inngest step (sendSurveyInSteps), so a failed stamp is retried without
+ * sending again. Failed or development-stub sends remain retryable.
  */
 export async function dispatchOneSurvey(
   ticketId: string,
   tenantId: string
-): Promise<{ sent: boolean; reason?: string }> {
+): Promise<SurveyDispatch> {
   const [t] = await db
     .select({
       id: warrantyTickets.id,
@@ -92,11 +101,13 @@ export async function dispatchOneSurvey(
   let surveyId: string
   if (existing) {
     // Compare-and-swap claim of a pending survey: only one sender re-mints its
-    // token. A row created within the last 15 minutes may still be mid-send by
-    // the sender that inserted it, so it is left alone.
+    // token. A row created or claimed within the last 15 minutes may still be
+    // mid-send by that sender, so it is left alone. created_at doubles as the
+    // claim time: a run that reads the row after this claim sees a fresh lease
+    // and sends nothing.
     const [claimed] = await db
       .update(cnpsSurveys)
-      .set({ response_token_hash: tokenHash })
+      .set({ response_token_hash: tokenHash, created_at: sql`now()` })
       .where(
         and(
           eq(cnpsSurveys.id, existing.id),
@@ -141,17 +152,44 @@ export async function dispatchOneSurvey(
     return { sent: false, reason: 'email-not-delivered' }
   }
 
+  return { sent: true, surveyId, sentAt: now.toISOString() }
+}
+
+/** Stamp sent_at on the tenant's survey once its email went out. */
+export async function stampSurveySent(
+  surveyId: string,
+  tenantId: string,
+  sentAt: string
+): Promise<void> {
   await db
     .update(cnpsSurveys)
-    .set({ sent_at: now })
+    .set({ sent_at: new Date(sentAt) })
     .where(
       and(
         eq(cnpsSurveys.id, surveyId),
         eq(cnpsSurveys.tenant_id, tenantId)
       )
     )
+}
 
-  return { sent: true }
+/**
+ * Send, then stamp, as two Inngest steps. Inngest retries a failed step on
+ * its own and replays a finished one from memory, so a stamp that fails is
+ * retried without emailing the client again. If it stayed unstamped, the cron
+ * would re-claim the row 15 minutes later and send a second link.
+ */
+async function sendSurveyInSteps(
+  step: InngestStep,
+  name: string,
+  ticketId: string,
+  tenantId: string
+): Promise<SurveyDispatch> {
+  const result = await step.run(name, async () => dispatchOneSurvey(ticketId, tenantId))
+  const { surveyId, sentAt } = result
+  if (surveyId && sentAt) {
+    await step.run(`${name}-mark-sent`, async () => stampSurveySent(surveyId, tenantId, sentAt))
+  }
+  return result
 }
 
 /**
@@ -203,9 +241,7 @@ export const dispatchCnpsSurveys = inngest.createFunction(
 
     let sentCount = 0
     for (const c of candidates) {
-      const r = await step.run(`send-${c.id}`, async () =>
-        dispatchOneSurvey(c.id, c.tenant_id)
-      )
+      const r = await sendSurveyInSteps(step, `send-${c.id}`, c.id, c.tenant_id)
       if (r.sent) sentCount += 1
     }
 
@@ -237,7 +273,7 @@ export const onCnpsSurveyScheduled = inngest.createFunction(
       const until = new Date(Date.now() + 48 * 60 * 60 * 1000)
       await step.sleepUntil('wait-48h', until)
     }
-    return step.run('send', async () => dispatchOneSurvey(ticketId, tenantId))
+    return sendSurveyInSteps(step, 'send', ticketId, tenantId)
   }
 )
 

@@ -10,7 +10,7 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
 import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import { pgInsert, pgSelect, sendEmail } from '../_shared/email.ts'
-import { insertSurveyOnce, markSurveySent, sendTicketSurvey } from './claim-survey.ts'
+import { insertSurveyOnce, markSurveySent, sendTicketSurvey, ticketsWithSurvey } from './claim-survey.ts'
 import { buildSurveyEmail, surveyUrl, tenantNamesById } from './survey-email.ts'
 
 interface TicketRow {
@@ -22,10 +22,6 @@ interface TicketRow {
   submitted_by_name: string | null
   submitted_by_email: string | null
   closed_at: string
-}
-
-interface ExistingSurveyRow {
-  ticket_id: string
 }
 
 interface RunSummary {
@@ -80,14 +76,9 @@ Deno.serve(async (req) => {
 
     if (closedTickets.length === 0) return jsonResponse(summary)
 
-    const ticketIds = closedTickets.map((t) => t.id)
     // Any survey row, sent or pending: a pending row belongs to the web app's Inngest
     // sender, which retries it, so this function must not send a second survey.
-    const existing = await pgSelect<ExistingSurveyRow>(
-      'cnps_surveys',
-      `ticket_id=in.(${ticketIds.join(',')})&select=ticket_id`
-    )
-    const alreadySent = new Set(existing.map((r) => r.ticket_id))
+    const alreadySent = await ticketsWithSurvey(closedTickets.map((t) => t.id))
 
     const portalBase =
       Deno.env.get('PUBLIC_CNPS_BASE_URL') ?? Deno.env.get('PUBLIC_APP_URL')
