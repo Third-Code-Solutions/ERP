@@ -198,6 +198,8 @@ runtimeSuite('WO-08 takeoff importer runtime controls', () => {
            'generic', 'other', 'other.csv', 'other-digest', '${fixture.userB}')`,
       )
 
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.takeoff_imports to authenticated')
       await becomeAuthenticated(tx, fixture.userA)
       const rows = (await tx.unsafe(
         `select count(*)::int as count from takeoff_imports where tenant_id = '${fixture.tenantB}'`,

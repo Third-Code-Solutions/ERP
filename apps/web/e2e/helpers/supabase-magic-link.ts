@@ -13,6 +13,7 @@ type UserProfile = {
 
 type AuthenticatedRole = {
   role: MagicLinkRole
+  userId: string
   tenantId: string
   accessToken: string
   supabaseUrl: string
@@ -166,6 +167,7 @@ export async function authenticateRole(
 
   return {
     role,
+    userId: profile.id,
     tenantId: profile.tenant_id,
     accessToken,
     supabaseUrl,

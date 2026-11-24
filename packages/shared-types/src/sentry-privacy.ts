@@ -166,6 +166,24 @@ export function dropConsoleBreadcrumb<T extends { category?: string }>(
   return isConsoleBreadcrumb(breadcrumb) ? null : breadcrumb
 }
 
+// Default integrations that send session envelopes, which are not errors:
+// the browser's on every page load and navigation, Node's for the process.
+const SESSION_INTEGRATIONS = ['BrowserSession', 'ProcessSession']
+
+/**
+ * `integrations`: drops the session integrations from the SDK defaults.
+ * Node's Http integration also records a session per incoming request; it
+ * takes an option, so each server init replaces it with
+ * `httpIntegration({ sessions: false })`.
+ */
+export function withoutSessionTracking<T extends { name: string }>(
+  defaults: T[]
+): T[] {
+  return defaults.filter(
+    (integration) => !SESSION_INTEGRATIONS.includes(integration.name)
+  )
+}
+
 export type SentryDeployment = {
   dsn?: string
   environment?: string
@@ -193,6 +211,13 @@ export function sentryErrorsOnlyOptions(deployment: SentryDeployment) {
     ...(environment ? { environment } : {}),
     ...(release ? { release } : {}),
     tracesSampleRate: 0,
+    // A rate of 0 still follows an incoming sentry-trace header that says
+    // 'sampled', so any caller could make the SDK send spans. A sampler
+    // result overrides that parent decision.
+    tracesSampler: () => 0,
+    integrations: withoutSessionTracking,
+    // Client reports count dropped events: SDK telemetry, not errors.
+    sendClientReports: false,
     // Never add sentry-trace/baggage headers to outbound requests (Supabase,
     // Core API, AI and e-sign providers): they would change those requests
     // and disclose the release and DSN key to third parties.

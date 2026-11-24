@@ -1,5 +1,5 @@
 import { expect, test } from '../base-test'
-import { RUN_ID, gateTrialLive, needsData, openRole, tapServerActions, trialTarget } from '../helpers/trial-live'
+import { RUN_ID, gateTrialLive, openRole, tapServerActions, trialTarget } from '../helpers/trial-live'
 
 gateTrialLive()
 
@@ -10,7 +10,8 @@ test('opportunity TCV and GP are entered in pesos and sent as centavos', { tag: 
     const { page } = admin
     await page.goto(`/projects/${target.projectId}`)
     const add = page.getByRole('button', { name: '+ Add Opportunity' })
-    if ((await add.count()) === 0) needsData('the E2E project overview offering "+ Add Opportunity" to admin')
+    // Shown to every role with opportunity.create, whatever the project holds: absent is a failure, not missing data.
+    await expect(add).toBeVisible()
     await add.click()
 
     const form = page.getByRole('form', { name: 'Create opportunity' })

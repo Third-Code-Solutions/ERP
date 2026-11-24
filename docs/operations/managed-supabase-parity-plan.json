@@ -11,8 +11,8 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 194,
-    "pendingCount": 37,
+    "sourceCount": 197,
+    "pendingCount": 40,
     "appliedHead": "20260901141949",
     "sourceHead": "20261124210000",
     "ledgerStatus": "current_remote_ledger_matches_source",
@@ -254,6 +254,36 @@
       "hostedApplyApproved": false,
       "risk": "Adds the unique btree index ux_cnps_surveys_tenant_ticket on public.cnps_surveys (tenant_id, ticket_id) so a warranty ticket has at most one CNPS survey; the cnps-survey-sender edge function and the Inngest sender insert with ON CONFLICT (tenant_id, ticket_id) DO NOTHING and email only when their insert created the row; the edge function inserts it with sent_at null and stamps sent_at only after delivery, and the Inngest sender re-sends a still-unsent row only after claiming it by compare-and-swap on response_token_hash once it is 15 minutes old. No column, constraint, function, trigger, policy or grant changes and no data UPDATE. A preflight raises 23505 and aborts, changing nothing, if a ticket already has two surveys. Plain CREATE UNIQUE INDEX inside the transaction takes SHARE on cnps_surveys (reads continue, writes wait) for the build, under a 5-second lock and 60-second statement timeout; chosen because the table is small. Deploy order: the senders' ON CONFLICT needs the index (42P10 without it), so the index must be live before the new web build and the edge function deploy. Preflight: duplicate (tenant_id, ticket_id) count must be 0, row count and size, index name free.",
       "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: revert the senders first (their ON CONFLICT needs the index), then drop ux_cnps_surveys_tenant_ticket and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-po-supplier-confirmation",
+      "migrations": [
+        "20261124180000_po_supplier_confirmation.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds four nullable columns to public.purchase_orders (supplier_confirmed_at timestamptz, supplier_confirmed_by_name varchar(255), supplier_confirmed_channel varchar(20), supplier_confirmed_note text) with no default and no backfill, and the check purchase_orders_supplier_confirmation_check (time and channel both set or both null; channel in email, phone, in_person, other), added NOT VALID and then validated in the same transaction. No status, function, trigger, policy, index or grant changes and no data UPDATE. No existing row sets the columns, so validation cannot fail. ADD COLUMN without a default is catalog-only; ADD CONSTRAINT and VALIDATE take ACCESS EXCLUSIVE on purchase_orders until commit (reads and writes wait milliseconds on a small table), under a 5-second lock and 60-second statement timeout. Deploy order: the old web build selects named columns and ignores the new ones; the new web build reads and writes them, so the migration must be applied before the new build is promoted. Preflight: column names free, constraint name free, row count and size.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: revert the web build that reads the columns first, dump any recorded confirmations, then drop the constraint, the four columns and the ledger row. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-procurement-requisition-event-request-hash",
+      "migrations": [
+        "20261124190000_procurement_requisition_event_request_hash.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds one nullable column, public.procurement_requisition_events.request_hash char(64), with no default and no backfill, so it is a catalog-only change; ALTER TABLE takes a brief ACCESS EXCLUSIVE lock on the table under a 5-second lock timeout and a 60-second statement timeout. No row, constraint, index, grant, policy or trigger changes; the existing audit trigger and the tenant SELECT policy cover the column. Core API writes the SHA-256 of the canonical command on every new requisition event and refuses (409) an idempotency key reused with another action, actor or payload. Existing create events keep their hash in reason ('request_hash:<sha256>'), which Core API still reads; existing transition events have NULL, so a retry of one of them is refused instead of replayed. The Core API release that writes the column must not deploy before this migration; the production migration ledger gate already blocks it. Preflight: count public.procurement_requisition_events rows and confirm no request_hash column exists.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: roll the Core API release back first, then alter table public.procurement_requisition_events drop column if exists request_hash; this discards the stored hashes only, never an event. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-revoke-client-table-reads",
+      "migrations": [
+        "20261124200000_revoke_client_table_reads.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Privilege-only, HIGH BLAST RADIUS. Revokes SELECT from authenticated and anon on 200 public tables (every replayed public table except users, read by the getUserProfile server client, and notifications, read by the bell and scoped to the recipient by 20261124210000; audit_log and the 12 cortex_* tables are left to the Cortex hardening) and removes SELECT from the postgres default ACL in public so later tables stay server-only. opportunities, purchase_orders, invoices and boms lose the browser read too: their only user-JWT readers are the Realtime subscriptions in realtime-refresher.tsx and pipeline-board.tsx, and the production supabase_realtime publication holds no public table, so those subscriptions already receive no events. No table, column, constraint, function, trigger, policy or data change. Drizzle SSR, the Core API, the service-role client and SECURITY DEFINER RPCs are unaffected. A direct PostgREST read of a revoked table by a signed-in user now returns 403 (42501) instead of tenant-filtered rows; production-cross-tenant-isolation.spec.ts asserts that denial and keeps a users RLS control, and complete-route-audit.spec.ts resolves record ids with a tenant-filtered service-role lookup. A listed table missing in production aborts the transaction, changing nothing. No table rewrite or data scan; each REVOKE waits only on concurrent DDL or GRANT on that table, under a 5-second lock and 60-second statement timeout. Preflight: ledger head, Realtime publication membership, and save the current SELECT grants as the rollback script.",
+      "recovery": "Take an encrypted backup first and save the output of the header's grant query (the exact rollback). The migration is transactional and aborts without changes on failure. Rollback: run the saved grant statements, re-grant SELECT in the postgres default ACL for public to authenticated only (anon held none), and delete the ledger row by name (revoke_client_table_reads); no data to restore. If login breaks, first grant select on public.users to authenticated. This source-only batch does not authorize hosted application."
     },
     {
       "id": "20261124-notifications-recipient-read",

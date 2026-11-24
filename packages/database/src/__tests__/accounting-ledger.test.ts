@@ -534,6 +534,8 @@ runtimeSuite('accounting ledger runtime proof', () => {
     const visible = await inRollback(sqlClient, async (tx) => {
       const tenantA = await seedAccountingFixture(tx, 'finance')
       await seedAccountingFixture(tx, 'finance')
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.fiscal_periods, public.ledger_accounts to authenticated')
       await becomeAuthenticated(tx, tenantA.actorId)
       const periods = (await tx.unsafe(
         `select count(*)::integer as count from fiscal_periods`

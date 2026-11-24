@@ -4,6 +4,7 @@ import {
   scrubSentryEvent,
   scrubSentryUrl,
   sentryErrorsOnlyOptions,
+  withoutSessionTracking,
 } from '../sentry-privacy'
 
 const DSN = 'https://key@o1.ingest.us.sentry.io/2'
@@ -23,6 +24,9 @@ describe('sentryErrorsOnlyOptions', () => {
       environment: 'production',
       release: 'abc123',
       tracesSampleRate: 0,
+      tracesSampler: expect.any(Function),
+      integrations: withoutSessionTracking,
+      sendClientReports: false,
       tracePropagationTargets: [],
       dataCollection: {
         userInfo: false,
@@ -45,6 +49,18 @@ describe('sentryErrorsOnlyOptions', () => {
       beforeBreadcrumb: dropConsoleBreadcrumb,
       beforeSend: scrubSentryEvent,
     })
+  })
+
+  // The web and Core API tests run the SDKs' real default integrations.
+  it('drops the session integrations and keeps the rest in order', () => {
+    const defaults = ['Dedupe', 'BrowserSession', 'Http', 'ProcessSession', 'Console'].map((name) => ({ name }))
+    const options = sentryErrorsOnlyOptions({ dsn: DSN })
+    expect(options?.integrations(defaults).map(({ name }) => name)).toEqual(['Dedupe', 'Http', 'Console'])
+    expect(options?.sendClientReports).toBe(false)
+  })
+
+  it('samples no trace, whatever the caller asks for', () => {
+    expect(sentryErrorsOnlyOptions({ dsn: DSN })?.tracesSampler()).toBe(0)
   })
 
   it('omits unset environment and release instead of overriding SDK values', () => {

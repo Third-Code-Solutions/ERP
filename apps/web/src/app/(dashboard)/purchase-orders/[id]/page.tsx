@@ -26,7 +26,16 @@ import { PoLineStockLink } from '@/components/procurement/po-line-stock-link'
 import { loadPoLineStockLinks } from '@/lib/procurement/po-line-stock-link-queries'
 import { SupplierEmailBanner } from '@/components/procurement/supplier-email-banner'
 import { purchaseOrderWorkflowWritesUseCoreApi } from '@/lib/erp-core-client'
-import { supplierEmailNotice } from '@/lib/procurement/supplier-email-outcome'
+import {
+  isSupplierEmailPoStatus,
+  supplierEmailNotice,
+} from '@/lib/procurement/supplier-email-outcome'
+import { SupplierConfirmation } from '@/components/procurement/supplier-confirmation'
+import { manilaToday } from '@/lib/manila-date'
+import {
+  SUPPLIER_CONFIRMATION_CHANNELS,
+  type SupplierConfirmationChannel,
+} from '@/lib/procurement/supplier-confirmation'
 
 export const metadata: Metadata = { title: 'Purchase Order' }
 
@@ -113,6 +122,10 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
       commercial_approved_at: purchaseOrders.commercial_approved_at,
       scm_issued_at: purchaseOrders.scm_issued_at,
       supplier_email_sent_at: purchaseOrders.supplier_email_sent_at,
+      supplier_confirmed_at: purchaseOrders.supplier_confirmed_at,
+      supplier_confirmed_by_name: purchaseOrders.supplier_confirmed_by_name,
+      supplier_confirmed_channel: purchaseOrders.supplier_confirmed_channel,
+      supplier_confirmed_note: purchaseOrders.supplier_confirmed_note,
       pm_approver_name: pmUser.full_name,
       commercial_approver_name: commercialUser.full_name,
       scm_issuer_name: scmUser.full_name,
@@ -152,6 +165,22 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
   const canManagePayables = can(profile.role, 'finance.post_supplier_bill')
   const canManageInventory = can(profile.role, 'inventory.manage')
   const canEditPoLines = can(profile.role, 'po.create')
+  const canIssue = can(profile.role, 'po.issue')
+  const confirmedChannel = SUPPLIER_CONFIRMATION_CHANNELS.find(
+    (channel): channel is SupplierConfirmationChannel =>
+      channel === po.supplier_confirmed_channel
+  )
+  // A retired project's PO shows a recorded confirmation but takes no new one.
+  const canRecordConfirmation = canIssue && po.project_live
+  const recordedConfirmation =
+    po.supplier_confirmed_at && po.supplier_confirmed_by_name && confirmedChannel
+      ? {
+          date: manilaToday(po.supplier_confirmed_at),
+          byName: po.supplier_confirmed_by_name,
+          channel: confirmedChannel,
+          note: po.supplier_confirmed_note,
+        }
+      : null
   // Only people who receive stock see the stock link; it is what lets a line be received.
   // A retired project's lines show their link but cannot be relinked.
   const stockLinkEditable = po.status !== 'cancelled' && po.project_live
@@ -383,7 +412,7 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
         <SupplierEmailBanner
           poId={po.id}
           message={emailNotice.message}
-          canResend={can(profile.role, 'po.issue')}
+          canResend={canIssue}
         />
       )}
 
@@ -488,6 +517,15 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </div>
+
+      {isSupplierEmailPoStatus(po.status) && (recordedConfirmation || canRecordConfirmation) && (
+        <SupplierConfirmation
+          poId={po.id}
+          recorded={recordedConfirmation}
+          canRecord={canRecordConfirmation}
+          today={manilaToday()}
+        />
+      )}
 
       {canManagePayables && (
         <div

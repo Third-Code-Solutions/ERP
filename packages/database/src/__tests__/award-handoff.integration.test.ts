@@ -166,6 +166,8 @@ runtimeSuite('WO-13 award handoff database controls', () => {
     const visible = await inRollback(sql, async (tx) => {
       const fixture = await seedTwoTenants(tx)
       await seedAwardGraph(tx, fixture.tenantB, fixture.userB)
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.award_handoffs to authenticated')
       await becomeAuthenticated(tx, fixture.userA)
       return (await tx.unsafe(
         `select id from award_handoffs where tenant_id = '${fixture.tenantB}'`

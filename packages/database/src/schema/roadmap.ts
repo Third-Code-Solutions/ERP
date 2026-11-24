@@ -153,6 +153,7 @@ export const procurementRequisitionEvents = pgTable(
     reason: text('reason'),
     actor_id: uuid('actor_id').notNull(),
     idempotency_key: varchar('idempotency_key', { length: 256 }).notNull(),
+    request_hash: char('request_hash', { length: 64 }),
     created_at: createdAt,
   },
   (table) => ({

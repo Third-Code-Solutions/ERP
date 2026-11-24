@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { auditLog } from '@third-code-erp/database/schema'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 
@@ -19,7 +20,9 @@ const mocks = vi.hoisted(() => ({
   notifyExternalEmail: vi.fn(),
   notifyRoles: vi.fn(),
   revokeOpenSigningSessions: vi.fn(),
-  newestOpenSigningSessionAt: vi.fn(),
+  auditWhere: vi.fn(),
+  auditOrderBy: vi.fn(),
+  auditLimit: vi.fn(),
   findDefaultCocSigner: vi.fn(),
   writeAuditLog: vi.fn(),
   writeAuditLogInTransaction: vi.fn(),
@@ -44,7 +47,6 @@ vi.mock('@/lib/operations/integrations/docuseal', () => ({
 
 vi.mock('@/lib/operations/signing-sessions', () => ({
   revokeOpenSigningSessions: mocks.revokeOpenSigningSessions,
-  newestOpenSigningSessionAt: mocks.newestOpenSigningSessionAt,
 }))
 
 vi.mock('./queries', () => ({ findDefaultCocSigner: mocks.findDefaultCocSigner }))
@@ -104,7 +106,12 @@ describe('COC signing link lifecycle', () => {
       limit: () => Promise.resolve(mocks.selectResults.shift() ?? []),
     }))
     mocks.transaction.mockImplementation(async (callback: (t: typeof tx) => unknown) => callback(tx))
-    mocks.txSelect.mockImplementation(() => ({ from: () => ({ where: mocks.lockWhere }) }))
+    mocks.txSelect.mockImplementation(() => ({
+      from: (table: unknown) => ({ where: table === auditLog ? mocks.auditWhere : mocks.lockWhere }),
+    }))
+    mocks.auditWhere.mockImplementation(() => ({ orderBy: mocks.auditOrderBy }))
+    mocks.auditOrderBy.mockImplementation(() => ({ limit: mocks.auditLimit }))
+    mocks.auditLimit.mockResolvedValue([])
     mocks.lockWhere.mockImplementation(() => ({
       for: () => Promise.resolve(mocks.lockResults.shift() ?? [{ docusealSubmissionId: null }]),
     }))
@@ -127,7 +134,6 @@ describe('COC signing link lifecycle', () => {
     mocks.notifyExternalEmail.mockResolvedValue({ delivered: true })
     mocks.notifyRoles.mockResolvedValue(undefined)
     mocks.revokeOpenSigningSessions.mockResolvedValue(undefined)
-    mocks.newestOpenSigningSessionAt.mockResolvedValue(null)
     mocks.writeAuditLog.mockResolvedValue(undefined)
     mocks.writeAuditLogInTransaction.mockResolvedValue(undefined)
   })
@@ -420,69 +426,6 @@ describe('COC signing link lifecycle', () => {
       expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
     })
 
-    it('lets one resend through, refuses an immediate second, and leaves another tenant alone', async () => {
-      const OTHER_TENANT_ID = '99999999-9999-4999-8999-999999999999'
-      // Newest open canvas link per tenant and certificate, as createSigningSession writes it.
-      const issuedAt = new Map<string, Date>()
-      const key = (tenantId: string, cocId: string) => `${tenantId}:${cocId}`
-      mocks.createSigningSession.mockImplementation(
-        async (input: { tenantId: string; entityId: string }) => {
-          issuedAt.set(key(input.tenantId, input.entityId), new Date())
-          return { mechanism: 'canvas', token: 'secret-token', url: SIGN_URL, is_dev_stub: false }
-        }
-      )
-      mocks.newestOpenSigningSessionAt.mockImplementation(
-        async (_tx: unknown, tenantId: string, _type: string, cocId: string) =>
-          issuedAt.get(key(tenantId, cocId)) ?? null
-      )
-      const asTenant = (tenantId: string) =>
-        mocks.requireUserProfile.mockResolvedValue({
-          role: 'sd_pm_pe',
-          tenantId,
-          user: { id: '55555555-5555-4555-8555-555555555555' },
-        })
-      const resend = () => {
-        selectRows(cocRow('pending_signature'), PROJECT_ROW)
-        return resendCocSigningLink(PROJECT_ID, { name: 'Ana Client', email: 'ana@client.test' })
-      }
-
-      vi.useFakeTimers({ toFake: ['Date'] })
-      try {
-        vi.setSystemTime(new Date('2026-11-24T09:00:00.000Z'))
-        await expect(resend()).resolves.toMatchObject({ url: SIGN_URL, emailed: true })
-
-        vi.setSystemTime(new Date('2026-11-24T09:00:05.000Z'))
-        await expect(resend()).resolves.toEqual({
-          error: 'A signing link was sent for this certificate a few minutes ago. Try again in 10 minutes.',
-        })
-        // Read under the lock, for this tenant's certificate only.
-        expect(mocks.newestOpenSigningSessionAt).toHaveBeenLastCalledWith(tx, TENANT_ID, 'coc', COC_ID)
-        // The refusal minted, revoked, emailed and audited nothing.
-        expect(mocks.createSigningSession).toHaveBeenCalledOnce()
-        expect(mocks.revokeOpenSigningSessions).toHaveBeenCalledOnce()
-        expect(mocks.set).toHaveBeenCalledOnce()
-        expect(mocks.notifyExternalEmail).toHaveBeenCalledOnce()
-        expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledOnce()
-        expect(mocks.archiveDocuSealSubmission).toHaveBeenCalledOnce()
-
-        // Another tenant's certificate with the same id keeps its own clock.
-        asTenant(OTHER_TENANT_ID)
-        await expect(resend()).resolves.toMatchObject({ url: SIGN_URL })
-        expect(mocks.createSigningSession).toHaveBeenLastCalledWith(
-          expect.objectContaining({ tenantId: OTHER_TENANT_ID, entityId: COC_ID }),
-          tx
-        )
-
-        // Ten minutes after the first link the first tenant may resend again.
-        asTenant(TENANT_ID)
-        vi.setSystemTime(new Date('2026-11-24T09:10:00.000Z'))
-        await expect(resend()).resolves.toMatchObject({ url: SIGN_URL })
-        expect(mocks.createSigningSession).toHaveBeenCalledTimes(3)
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
     it('refuses to resend a draft or signed certificate', async () => {
       selectRows(cocRow('draft'))
 
@@ -490,6 +433,177 @@ describe('COC signing link lifecycle', () => {
 
       expect(result.error).toMatch(/only be sent while the certificate is waiting for signature/)
       expect(mocks.createSigningSession).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('the 10-minute wait between signing links', () => {
+    const OTHER_TENANT_ID = '99999999-9999-4999-8999-999999999999'
+    const SIGNER = { name: 'Ana Client', email: 'ana@client.test' }
+    const WAIT_ERROR =
+      'A signing link was sent for this certificate a few minutes ago. Try again in 10 minutes.'
+    type AuditRow = {
+      tenantId: string
+      entityType: string
+      entityId: string
+      diff: Record<string, unknown>
+      createdAt: Date
+    }
+    // Audit rows as the writer stores them (stamped with this server's clock); the wait reads them back.
+    let auditRows: AuditRow[] = []
+
+    const at = (time: string) => vi.setSystemTime(new Date(`2026-11-24T${time}.000Z`))
+    const asTenant = (tenantId: string) =>
+      mocks.requireUserProfile.mockResolvedValue({
+        role: 'sd_pm_pe',
+        tenantId,
+        user: { id: '55555555-5555-4555-8555-555555555555' },
+      })
+    const send = () => {
+      selectRows(cocRow('draft'), PROJECT_ROW)
+      return sendCocForSignature(PROJECT_ID, SIGNER)
+    }
+    const resend = () => {
+      selectRows(cocRow('pending_signature'), PROJECT_ROW)
+      return resendCocSigningLink(PROJECT_ID, SIGNER)
+    }
+    const cancel = () => {
+      selectRows(cocRow('pending_signature'))
+      return cancelCocSigningRequest(PROJECT_ID)
+    }
+    /** Every side effect of a sent link, so a refusal can be shown to add none. */
+    const linkSideEffects = () => ({
+      minted: mocks.createSigningSession.mock.calls.length,
+      moved: mocks.set.mock.calls.length,
+      revoked: mocks.revokeOpenSigningSessions.mock.calls.length,
+      audited: mocks.writeAuditLogInTransaction.mock.calls.length,
+      archived: mocks.archiveDocuSealSubmission.mock.calls.length,
+      emailed: mocks.notifyExternalEmail.mock.calls.length,
+    })
+
+    beforeEach(() => {
+      auditRows = []
+      mocks.writeAuditLogInTransaction.mockImplementation(
+        async (
+          _tx: unknown,
+          entry: Omit<AuditRow, 'createdAt' | 'diff'> & { diff?: Record<string, unknown> }
+        ) => {
+          auditRows.push({ ...entry, diff: entry.diff ?? {}, createdAt: new Date() })
+        }
+      )
+      mocks.auditLimit.mockImplementation(async () => {
+        const where = new PgDialect().sqlToQuery(mocks.auditWhere.mock.calls.at(-1)![0] as SQL)
+        const [tenantId, entityType, entityId, key] = where.params as string[]
+        const newest = auditRows
+          .filter(
+            (row) =>
+              row.tenantId === tenantId &&
+              row.entityType === entityType &&
+              row.entityId === entityId &&
+              row.diff[key!] != null
+          )
+          .at(-1)
+        return newest ? [{ createdAt: newest.createdAt }] : []
+      })
+      vi.useFakeTimers({ toFake: ['Date'] })
+      at('09:00:00')
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('refuses a resend right after a send, reading under the lock for this tenant and certificate', async () => {
+      await expect(send()).resolves.toMatchObject({ url: SIGN_URL, emailed: true })
+      expect(auditRows[0]?.diff).toMatchObject({ signer_email: 'ana@client.test' })
+      const afterSend = linkSideEffects()
+
+      at('09:00:05')
+      await expect(resend()).resolves.toEqual({ error: WAIT_ERROR })
+      expect(linkSideEffects()).toEqual(afterSend)
+
+      const where = rendered(mocks.auditWhere, 1)
+      expect(where.sql).toBe(
+        '("audit_log"."tenant_id" = $1 and "audit_log"."entity_type" = $2 and "audit_log"."entity_id" = $3 and "audit_log"."diff" ->> $4 is not null)'
+      )
+      expect(where.params).toEqual([TENANT_ID, 'certificate_of_completion', COC_ID, 'signer_email'])
+      expect(rendered(mocks.auditOrderBy, 1).sql).toBe('"audit_log"."created_at" desc')
+      expect(mocks.auditLimit).toHaveBeenLastCalledWith(1)
+      expect(mocks.lockWhere.mock.invocationCallOrder[1]).toBeLessThan(
+        mocks.auditWhere.mock.invocationCallOrder[1]!
+      )
+
+      // Ten minutes after the send, the resend goes out and is audited the same way.
+      at('09:10:00')
+      await expect(resend()).resolves.toMatchObject({ url: SIGN_URL })
+      expect(auditRows[1]?.diff).toMatchObject({
+        signing_link: 'reissued',
+        signer_email: 'ana@client.test',
+      })
+    })
+
+    it('refuses a send right after a resend', async () => {
+      await expect(resend()).resolves.toMatchObject({ url: SIGN_URL })
+      const afterResend = linkSideEffects()
+
+      at('09:00:05')
+      await expect(send()).resolves.toEqual({ error: WAIT_ERROR })
+      expect(linkSideEffects()).toEqual(afterResend)
+    })
+
+    it('refuses the send/cancel loop until the wait is over', async () => {
+      await expect(send()).resolves.toMatchObject({ url: SIGN_URL })
+      at('09:01:00')
+      await expect(cancel()).resolves.toEqual({})
+      const afterCancel = linkSideEffects()
+
+      at('09:02:00')
+      await expect(send()).resolves.toEqual({
+        error: 'A signing link was sent for this certificate a few minutes ago. Try again in 8 minutes.',
+      })
+      expect(linkSideEffects()).toEqual(afterCancel)
+      expect(mocks.notifyExternalEmail).toHaveBeenCalledOnce()
+
+      at('09:10:00')
+      await expect(send()).resolves.toMatchObject({ url: SIGN_URL })
+      expect(mocks.notifyExternalEmail).toHaveBeenCalledTimes(2)
+    })
+
+    it('counts a DocuSeal send like a canvas one', async () => {
+      mocks.createSigningSession.mockResolvedValue({
+        mechanism: 'docuseal',
+        token: 'slug-credential',
+        submissionId: 'submission-7',
+        url: 'https://docuseal.example.test/s/slug-credential',
+        is_dev_stub: false,
+      })
+      await expect(send()).resolves.toMatchObject({ emailed: true })
+      expect(auditRows[0]?.diff).toMatchObject({
+        mechanism: 'docuseal',
+        signer_email: 'ana@client.test',
+      })
+      const afterSend = linkSideEffects()
+
+      at('09:00:05')
+      await expect(resend()).resolves.toEqual({ error: WAIT_ERROR })
+      expect(linkSideEffects()).toEqual(afterSend)
+    })
+
+    it("leaves another tenant's certificate with the same id alone", async () => {
+      await expect(send()).resolves.toMatchObject({ url: SIGN_URL })
+
+      at('09:00:05')
+      asTenant(OTHER_TENANT_ID)
+      await expect(send()).resolves.toMatchObject({ url: SIGN_URL })
+      expect(mocks.createSigningSession).toHaveBeenLastCalledWith(
+        expect.objectContaining({ tenantId: OTHER_TENANT_ID, entityId: COC_ID }),
+        tx
+      )
+      expect(rendered(mocks.auditWhere, 1).params).toEqual([
+        OTHER_TENANT_ID,
+        'certificate_of_completion',
+        COC_ID,
+        'signer_email',
+      ])
     })
   })
 

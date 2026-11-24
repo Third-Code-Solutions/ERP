@@ -20,28 +20,24 @@ $$;
 grant usage on schema public to anon, authenticated, service_role;
 
 -- Production's post-migration table default: service_role full, authenticated
--- SELECT only, anon nothing (20260806160000 + 20261104055626). Grant only that,
--- so this script never revokes on the migration's behalf and cannot mask it.
+-- and anon nothing (20260806160000 + 20261104055626 + 20261124200000 S12A).
+-- Grant only that, so this script never revokes on the migration's behalf and
+-- cannot mask it.
 alter default privileges for role postgres in schema public
   grant all on tables to service_role;
-alter default privileges for role postgres in schema public
-  grant select on tables to authenticated;
 alter default privileges for role postgres in schema public
   grant all on sequences to anon, authenticated, service_role;
 alter default privileges for role postgres in schema public
   grant execute on functions to anon, authenticated, service_role;
 
 -- The legacy Project table predates the repository's explicit privilege
--- hardening migrations. Project mutations are Core-owned (ADR-025); the
--- browser role is intentionally read-only even in the disposable CI DB.
--- Keep this fixture aligned with the production revoke in the controlled
--- project-retirement migration so CI cannot re-introduce a browser write path.
+-- hardening migrations. Project mutations are Core-owned (ADR-025) and S12A
+-- retired the browser read, so the browser role holds nothing on it even in the
+-- disposable CI DB. Keep this fixture aligned with production so CI cannot
+-- re-introduce a browser read or write path.
 revoke all privileges
   on table public.projects
   from public, anon, authenticated;
-grant select
-  on table public.projects
-  to authenticated;
 
 -- User role changes are Core-owned. Authenticated users retain tenant-scoped
 -- reads through RLS; anonymous users must not receive a direct ERP-table grant.
@@ -55,16 +51,14 @@ revoke all privileges
 -- These legacy tables were created before explicit role grants. The CLI reset
 -- does not inherit the manual system bootstrap's pre-creation default grants;
 -- ALTER DEFAULT PRIVILEGES above cannot repair already-created relations.
--- Model only preserved read/server access, never restore client mutations.
-grant select on table public.documents, public.progress_claims,
-  public.tenants, public.progress_claim_documents to authenticated;
+-- Model only preserved server access, never restore client access: S12A
+-- retired the browser reads on these tables.
 grant select, insert, update, delete, truncate on table public.documents,
   public.progress_claims, public.tenants, public.progress_claim_documents,
   public.projects to service_role;
--- KYC uses the same pre-existing table boundary. Preserve known reader and
--- trusted-server access; artifact mutation and parent deletion denials stay put.
-grant select on table public.account_kyc_artifacts, public.accounts,
-  public.opportunities to authenticated;
+-- KYC uses the same pre-existing table boundary. Preserve trusted-server access
+-- only: S12A retired the opportunities browser read, and artifact mutation and
+-- parent deletion denials stay put.
 -- The legacy account/opportunity INSERT/UPDATE grants were retired by
 -- 20261104055626_revoke_client_table_writes; do not restore them here.
 grant select, insert, update, delete, truncate on table

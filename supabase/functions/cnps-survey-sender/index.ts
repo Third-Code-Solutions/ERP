@@ -10,7 +10,7 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
 import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import { pgInsert, pgSelect, sendEmail } from '../_shared/email.ts'
-import { insertSurveyOnce, markSurveySent, sendTicketSurvey } from './claim-survey.ts'
+import { insertSurveyOnce, markSurveySent, sendTicketSurvey, ticketsWithSurvey } from './claim-survey.ts'
 import { buildSurveyEmail, surveyUrl, tenantNamesById } from './survey-email.ts'
 
 interface TicketRow {
@@ -22,10 +22,6 @@ interface TicketRow {
   submitted_by_name: string | null
   submitted_by_email: string | null
   closed_at: string
-}
-
-interface ExistingSurveyRow {
-  ticket_id: string
 }
 
 interface RunSummary {
@@ -80,14 +76,9 @@ Deno.serve(async (req) => {
 
     if (closedTickets.length === 0) return jsonResponse(summary)
 
-    const ticketIds = closedTickets.map((t) => t.id)
     // Any survey row, sent or pending: a pending row belongs to the web app's Inngest
     // sender, which retries it, so this function must not send a second survey.
-    const existing = await pgSelect<ExistingSurveyRow>(
-      'cnps_surveys',
-      `ticket_id=in.(${ticketIds.join(',')})&select=ticket_id`
-    )
-    const alreadySent = new Set(existing.map((r) => r.ticket_id))
+    const alreadySent = await ticketsWithSurvey(closedTickets.map((t) => t.id))
 
     const portalBase =
       Deno.env.get('PUBLIC_CNPS_BASE_URL') ?? Deno.env.get('PUBLIC_APP_URL')
@@ -120,7 +111,7 @@ Deno.serve(async (req) => {
         const tokenHash = await sha256Hex(token)
         const nowIso = new Date(nowMs).toISOString()
 
-        const { subject, html, text } = buildSurveyEmail({
+        const { subject, html, text, storedText } = buildSurveyEmail({
           ticketNumber: ticket.ticket_number,
           recipientName: ticket.submitted_by_name,
           surveyUrl: surveyUrl(portalBase, token),
@@ -138,7 +129,7 @@ Deno.serve(async (req) => {
           {
             insertSurvey: (row) => insertSurveyOnce(row),
             send: () => sendEmail({ to: recipient, subject, html, text }),
-            markSent: (surveyId) => markSurveySent(surveyId, ticket.tenant_id, nowIso),
+            markSent: (surveyId) => markSurveySent(surveyId, ticket.tenant_id, tokenHash, nowIso),
           }
         )
         // Another sender created this ticket's survey since the read above.
@@ -156,7 +147,8 @@ Deno.serve(async (req) => {
           recipient_email: ticket.submitted_by_email,
           channel: 'email',
           subject,
-          body: text,
+          // The link carries the survey token: only the email holds it.
+          body: storedText,
           sent_at: nowIso,
           payload: {
             template_id: 'cnps-survey',

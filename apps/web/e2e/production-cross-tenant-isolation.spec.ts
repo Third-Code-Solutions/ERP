@@ -13,6 +13,8 @@ import {
 // client. Never render or attach the response body to the production report.
 test.use({ screenshot: 'off', trace: 'off' })
 
+const postgrestError = z.object({ code: z.string() })
+
 test('all demo roles cannot read an active project from another tenant', async ({ browser }, testInfo) => {
   testInfo.setTimeout(300_000)
   test.skip(
@@ -53,42 +55,49 @@ test('all demo roles cannot read an active project from another tenant', async (
         ).toBe(false)
         await ownProject.dispose()
 
-        const ownRestResponse = await fetch(
-          `${auth.supabaseUrl}/rest/v1/projects?select=id&id=eq.${encodeURIComponent(configuredProjectId)}`,
-          {
-            headers: {
-              apikey: auth.anonKey,
-              Authorization: `Bearer ${auth.accessToken}`,
-            },
-            cache: 'no-store',
-          }
-        )
-        expect(ownRestResponse.status, `${role} own project RLS control status`).toBe(200)
-        const ownRestRows: unknown = await ownRestResponse.json()
-        const ownRestParsed = z.array(z.object({ id: z.string().uuid() })).safeParse(ownRestRows)
-        expect(
-          ownRestParsed.success &&
-            ownRestParsed.data.length === 1 &&
-            ownRestParsed.data[0]?.id === configuredProjectId,
-          `${role} own project must be visible through RLS`
-        ).toBe(true)
+        const userJwtHeaders = {
+          apikey: auth.anonKey,
+          Authorization: `Bearer ${auth.accessToken}`,
+        }
+        // 20261124200000 revoked the user JWT's SELECT on projects: own and
+        // foreign reads through PostgREST are both refused, not just filtered.
+        for (const [label, projectId] of [
+          ['own', configuredProjectId],
+          ['foreign', foreignProjectId],
+        ] as const) {
+          const denied = await fetch(
+            `${auth.supabaseUrl}/rest/v1/projects?select=id&id=eq.${encodeURIComponent(projectId)}`,
+            { headers: userJwtHeaders, cache: 'no-store' }
+          )
+          expect(denied.status, `${role} ${label} project REST read status`).toBe(403)
+          const deniedBody = postgrestError.safeParse(await denied.json())
+          expect(
+            deniedBody.success ? deniedBody.data.code : null,
+            `${role} ${label} project REST read must be a privilege denial`
+          ).toBe('42501')
+        }
 
-        const restResponse = await fetch(
-          `${auth.supabaseUrl}/rest/v1/projects?select=id&id=eq.${encodeURIComponent(foreignProjectId)}`,
-          {
-            headers: {
-              apikey: auth.anonKey,
-              Authorization: `Bearer ${auth.accessToken}`,
-            },
-            cache: 'no-store',
-          }
+        // Positive RLS control on a table the user JWT still reads: the caller
+        // sees its own profile and no user of another tenant.
+        const usersResponse = await fetch(
+          `${auth.supabaseUrl}/rest/v1/users?select=id,tenant_id`,
+          { headers: userJwtHeaders, cache: 'no-store' }
         )
-        expect(restResponse.status, `${role} authenticated RLS project read`).toBe(200)
-        const restRows: unknown = await restResponse.json()
+        expect(usersResponse.status, `${role} users RLS control status`).toBe(200)
+        const usersParsed = z
+          .array(z.object({ id: z.string().uuid(), tenant_id: z.string().uuid() }))
+          .safeParse(await usersResponse.json())
+        expect(usersParsed.success, `${role} users RLS control shape`).toBe(true)
+        const visibleUsers = usersParsed.success ? usersParsed.data : []
+        const ownUserId = auth.userId
         expect(
-          Array.isArray(restRows) && restRows.length === 0,
-          `${role} foreign project must be invisible`
-        ).toBe(true)
+          visibleUsers.filter((user) => user.id === ownUserId).length,
+          `${role} own user row must be visible through RLS`
+        ).toBe(1)
+        expect(
+          visibleUsers.filter((user) => user.tenant_id !== demoTenantId).length,
+          `${role} users of another tenant must be invisible`
+        ).toBe(0)
 
         const foreignProject = await context.request.get(`${baseUrl}/projects/${foreignProjectId}`, {
           maxRedirects: 0,

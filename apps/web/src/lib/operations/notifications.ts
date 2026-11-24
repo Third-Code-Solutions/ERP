@@ -153,15 +153,28 @@ export async function notifyExternalEmail(
    * records a real provider response only.
    */
   if (notification?.id && !delivery.is_dev_stub) {
-    await db
-      .update(notifications)
-      .set({ sent_at: new Date() })
-      .where(
-        and(
-          eq(notifications.id, notification.id),
-          eq(notifications.tenant_id, d.tenantId)
+    // Best effort: the email already went out. A throw here would make the
+    // caller retry, and a retried caller can email the recipient again.
+    try {
+      await db
+        .update(notifications)
+        .set({ sent_at: new Date() })
+        .where(
+          and(
+            eq(notifications.id, notification.id),
+            eq(notifications.tenant_id, d.tenantId)
+          )
         )
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: 'notification_sent_at_stamp_failed',
+          tenant_id: d.tenantId,
+          notification_id: notification.id,
+          error: error instanceof Error ? error.message : 'unknown',
+        })
       )
+    }
   }
 
   return { delivered: !delivery.is_dev_stub }

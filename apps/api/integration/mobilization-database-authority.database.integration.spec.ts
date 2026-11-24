@@ -58,6 +58,8 @@ function pgCode(error: unknown): string | undefined {
     const rollback = new Error('Synthetic rollback')
     try { await db.transaction(async tx => {
       await f.stamp(tx)
+      // S12A revoked browser reads; re-grant inside this always-rolled-back transaction so RLS stays proven as defense in depth.
+      await tx.execute(sql`grant select on public.mobilization_readiness to authenticated`)
       await tx.execute(sql`set local role authenticated`)
       const visible = await tx.execute(sql`select id from public.mobilization_readiness where tenant_id=${f.tenantId}`)
       expect(visible).toHaveLength(1)

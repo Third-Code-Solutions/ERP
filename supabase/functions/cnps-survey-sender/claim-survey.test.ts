@@ -1,4 +1,12 @@
-import { insertSurveyOnce, markSurveySent, sendTicketSurvey, type SurveyRow } from './claim-survey.ts'
+import {
+  insertSurveyOnce,
+  markSurveySent,
+  sendTicketSurvey,
+  STAMP_ATTEMPTS,
+  SURVEY_LOOKUP_CHUNK,
+  ticketsWithSurvey,
+  type SurveyRow,
+} from './claim-survey.ts'
 
 const row: SurveyRow = {
   tenant_id: 'tenant-id',
@@ -47,18 +55,27 @@ Deno.test('no row back means another sender owns the survey', async () => {
   }
 })
 
-Deno.test('sent_at is stamped on the tenant row only', async () => {
+Deno.test('sent_at is stamped on the tenant row only while it is unsent and holds the emailed hash', async () => {
   const { calls, rest } = fakeRest(undefined)
 
-  await markSurveySent('survey-id', 'tenant-id', '2026-11-24T00:00:00.000Z', rest)
+  await markSurveySent('survey-id', 'tenant-id', 'hash', '2026-11-24T00:00:00.000Z', rest)
 
-  assert(calls[0].path === 'cnps_surveys?id=eq.survey-id&tenant_id=eq.tenant-id', `path: ${calls[0].path}`)
+  // A row another sender re-claimed has a new hash: the stamp matches nothing.
+  assert(
+    calls[0].path === 'cnps_surveys?id=eq.survey-id&tenant_id=eq.tenant-id&sent_at=is.null&response_token_hash=eq.hash',
+    `path: ${calls[0].path}`
+  )
   assert(calls[0].method === 'PATCH', `method: ${calls[0].method}`)
   assert(calls[0].body.sent_at === '2026-11-24T00:00:00.000Z', 'sent_at body')
 })
 
-function steps(surveyId: string | null, delivery: { ok: boolean; skipped?: boolean; error?: string }) {
+function steps(
+  surveyId: string | null,
+  delivery: { ok: boolean; skipped?: boolean; error?: string },
+  stampFailures = 0
+) {
   const log: string[] = []
+  let failuresLeft = stampFailures
   return {
     log,
     steps: {
@@ -72,8 +89,13 @@ function steps(surveyId: string | null, delivery: { ok: boolean; skipped?: boole
       },
       markSent: (id: string) => {
         log.push(`mark:${id}`)
+        if (failuresLeft > 0) {
+          failuresLeft -= 1
+          return Promise.reject(new Error('PostgREST PATCH 503'))
+        }
         return Promise.resolve()
       },
+      pause: () => Promise.resolve(),
     },
   }
 }
@@ -105,4 +127,56 @@ Deno.test('a failed or skipped send leaves the survey pending for a retry', asyn
     assert(result.outcome === 'not_delivered', `outcome: ${result.outcome}`)
     assert(log.join(',') === 'insert,send', `steps: ${log.join(',')}`)
   }
+})
+
+Deno.test('a stamp that fails is retried, and the email is never sent twice', async () => {
+  const { log, steps: s } = steps('survey-id', { ok: true }, STAMP_ATTEMPTS - 1)
+
+  const result = await sendTicketSurvey(row, s)
+
+  assert(result.outcome === 'sent', `outcome: ${result.outcome}`)
+  const marks = Array(STAMP_ATTEMPTS).fill('mark:survey-id')
+  assert(log.join(',') === ['insert', 'send', ...marks].join(','), `steps: ${log.join(',')}`)
+})
+
+Deno.test('a stamp that keeps failing reports the error after the last attempt', async () => {
+  const { log, steps: s } = steps('survey-id', { ok: true }, STAMP_ATTEMPTS)
+
+  let error: unknown
+  await sendTicketSurvey(row, s).catch((caught) => (error = caught))
+
+  assert(error instanceof Error && error.message === 'PostgREST PATCH 503', `error: ${error}`)
+  assert(log.filter((step) => step === 'send').length === 1, `steps: ${log.join(',')}`)
+  assert(log.filter((step) => step.startsWith('mark:')).length === STAMP_ATTEMPTS, `steps: ${log.join(',')}`)
+})
+
+Deno.test('the survey lookup asks for at most SURVEY_LOOKUP_CHUNK ticket ids per request', async () => {
+  const ids = Array.from({ length: SURVEY_LOOKUP_CHUNK * 2 + 50 }, (_, i) => `t${i}`)
+  const queries: string[] = []
+  const select = <T>(table: string, query: string): Promise<T[]> => {
+    assert(table === 'cnps_surveys', `table: ${table}`)
+    queries.push(query)
+    const asked = query.match(/^ticket_id=in\.\(([^)]*)\)&select=ticket_id$/)?.[1].split(',') ?? []
+    // Every 100th ticket already has a survey.
+    return Promise.resolve(asked.filter((id) => Number(id.slice(1)) % 100 === 0).map((ticket_id) => ({ ticket_id }) as T))
+  }
+
+  const found = await ticketsWithSurvey(ids, select)
+
+  assert(queries.length === 3, `requests: ${queries.length}`)
+  const asked = queries.map((query) => query.match(/in\.\(([^)]*)\)/)?.[1].split(',') ?? [])
+  assert(asked.map((chunk) => chunk.length).join(',') === '100,100,50', `chunk sizes: ${asked.map((c) => c.length)}`)
+  assert(asked.flat().join(',') === ids.join(','), 'every id is asked once, in order')
+  assert([...found].sort().join(',') === 't0,t100,t200', `found: ${[...found]}`)
+})
+
+Deno.test('no closed ticket means no survey lookup', async () => {
+  let requests = 0
+  const select = <T>(): Promise<T[]> => {
+    requests += 1
+    return Promise.resolve([])
+  }
+
+  assert((await ticketsWithSurvey([], select)).size === 0, 'nothing found')
+  assert(requests === 0, `requests: ${requests}`)
 })

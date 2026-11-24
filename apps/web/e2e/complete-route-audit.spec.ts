@@ -4,10 +4,13 @@ import { join, relative, resolve } from 'node:path'
 import { test, expect, type ConsoleMessage, type Page } from './base-test'
 import { z } from 'zod'
 import { authenticateRole } from './helpers/supabase-magic-link'
+import { tenantRows } from './helpers/trial-live'
 import { requireE2EBaseUrl } from './helpers/env'
 
 // Read-only page audit: no form submissions, business writes, or bearer-token
-// enumeration. Dynamic positive cases use only the controlled identity's RLS.
+// enumeration. Dynamic positive cases render as the controlled identity; their
+// record ids come from a read-only service-role lookup filtered to that
+// identity's tenant (the user JWT no longer reads these tables directly).
 const entities: Record<string, string> = {
   '/projects/': 'projects', '/crm/accounts/': 'accounts',
   '/crm/opportunities/': 'opportunities', '/admin/users/': 'users',
@@ -26,6 +29,8 @@ const entities: Record<string, string> = {
 // audit proves the route contract instead of sampling an intermediate shell.
 type CanonicalRedirectExpectation = {
   targetPath: string
+  // Query parameters the target URL must carry, such as a client-side view.
+  search?: Record<string, string>
   heading: RegExp
   content: RegExp
 }
@@ -46,20 +51,68 @@ const expectedRedirects: Record<string, CanonicalRedirectExpectation> = {
     heading: /^Finance$/,
     content: /Prepare, post, trace, and reverse/,
   },
+  // Redirects to /pipeline?view=list after the pipeline loading shell has
+  // streamed, so the target only appears after hydration (or a meta refresh).
+  // The board and list views share their heading; only the URL tells them apart.
+  '/pipeline/list': {
+    targetPath: '/pipeline',
+    search: { view: 'list' },
+    heading: /^Pipeline Board$/,
+    content: /track ownership and next steps/,
+  },
+  // next.config.ts 308s this to /pipeline/list, then the same streamed redirect.
+  '/pipeline/conversion': {
+    targetPath: '/pipeline',
+    search: { view: 'list' },
+    heading: /^Pipeline Board$/,
+    content: /track ownership and next steps/,
+  },
 }
 
-const CANONICAL_REDIRECT_READY_TIMEOUT_MS = 15_000
+const ROUTE_OUTCOME_READY_TIMEOUT_MS = 15_000
+
+// Routes that ship dark behind a server-only flag the audit cannot read. With
+// the flag off the page calls notFound() after its segment's loading shell has
+// streamed (HTTP 200), so the not-found view appears only after hydration and
+// the 80-character body wait can sample the skeleton and layout instead. Wait
+// for either outcome's own heading; only these routes may resolve to not found,
+// and only on the requested URL.
+type DarkRouteExpectation = { flag: string; heading: RegExp }
+
+const darkRoutes: Record<string, DarkRouteExpectation> = {
+  // Remove this entry when ERP_TENANCY_ENABLED ships, so no later notFound() on
+  // this page can pass as dark.
+  '/settings/tax': { flag: 'ERP_TENANCY_ENABLED', heading: /^Tax rates$/ },
+}
+
+const DASHBOARD_NOT_FOUND_HEADING = /^We could not find that workspace record$/
+
+async function waitForDarkRoute(
+  page: Page,
+  expectation: DarkRouteExpectation,
+  timeoutMs = ROUTE_OUTCOME_READY_TIMEOUT_MS,
+): Promise<'dark' | 'live' | null> {
+  const dark = page.getByRole('heading', { level: 1, name: DASHBOARD_NOT_FOUND_HEADING })
+  const live = page.getByRole('heading', { level: 1, name: expectation.heading })
+  try {
+    await expect(dark.or(live).first()).toBeVisible({ timeout: timeoutMs })
+  } catch {
+    return null
+  }
+  return (await dark.isVisible()) ? 'dark' : 'live'
+}
 
 async function waitForCanonicalRedirect(
   page: Page,
   expectation: CanonicalRedirectExpectation,
-  timeoutMs = CANONICAL_REDIRECT_READY_TIMEOUT_MS,
+  timeoutMs = ROUTE_OUTCOME_READY_TIMEOUT_MS,
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
   const remaining = () => Math.max(1, deadline - Date.now())
   try {
     await page.waitForURL(
-      (url) => url.pathname.replace(/\/+$/, '') === expectation.targetPath,
+      (url) => url.pathname.replace(/\/+$/, '') === expectation.targetPath
+        && Object.entries(expectation.search ?? {}).every(([key, value]) => url.searchParams.get(key) === value),
       { waitUntil: 'domcontentloaded', timeout: remaining() },
     )
     await expect(page.getByRole('heading', { name: expectation.heading })).toBeVisible({ timeout: remaining() })
@@ -104,7 +157,7 @@ test('inventory every page with explicit live render and guard evidence', async 
     pageErrors: number
     pageErrorMessages: string[]
   }[] = []
-  const lookups: { table: string; status: number; available: boolean }[] = []
+  const lookups: { table: string; available: boolean }[] = []
   let authenticatedPage: Page | null = null
   let anonymousPage: Page | null = null
   let authenticatedRoutesInContext = 0
@@ -154,12 +207,10 @@ test('inventory every page with explicit live render and guard evidence', async 
 
   async function recordId(table: string): Promise<string | null> {
     if (cache.has(table)) return cache.get(table) ?? null
-    const response = await fetch(`${auth.supabaseUrl}/rest/v1/${table}?select=id&tenant_id=eq.${auth.tenantId}&limit=1`, {
-      headers: { apikey: auth.anonKey, Authorization: `Bearer ${auth.accessToken}` },
-    })
-    const parsed = response.ok ? z.array(z.object({ id: z.string().uuid() })).safeParse(await response.json()) : null
-    const id = parsed?.success ? parsed.data[0]?.id ?? null : null
-    lookups.push({ table, status: response.status, available: id !== null })
+    // tenantRows adds tenant_id=eq.<tenant> and throws (table and status only) when the lookup fails.
+    const rows = await tenantRows({ tenantId: auth.tenantId }, table, 'select=id&limit=1', z.object({ id: z.string().uuid() }))
+    const id = rows[0]?.id ?? null
+    lookups.push({ table, available: id !== null })
     cache.set(table, id)
     return id
   }
@@ -208,7 +259,9 @@ test('inventory every page with explicit live render and guard evidence', async 
         let status = 0
         let result = 'FAILED navigation'
         const expectedRedirect = expectedRedirects[path]
+        const darkRoute = darkRoutes[path]
         let canonicalRedirectReady = false
+        let darkRouteOutcome: 'dark' | 'live' | null = null
         try {
           // Route pages can legitimately keep a realtime or analytics request
           // open after the document is usable. Waiting for networkidle here
@@ -223,6 +276,8 @@ test('inventory every page with explicit live render and guard evidence', async 
             // for the canonical URL and its real target landmarks as one
             // bounded readiness check before taking the body snapshot.
             canonicalRedirectReady = await waitForCanonicalRedirect(page, expectedRedirect)
+          } else if (darkRoute) {
+            darkRouteOutcome = await waitForDarkRoute(page, darkRoute)
           } else {
             // Next streams the route shell and page content separately. The
             // load event avoids waiting on long-lived realtime requests, but
@@ -244,7 +299,8 @@ test('inventory every page with explicit live render and guard evidence', async 
           const failed = /Runtime Error|Application error:|Workspace paused before anything changed\./i.test(body)
           const denied = /access denied|permission denied|not authorized|don't have permission|do not have permission/i.test(body)
           const missing = status === 404 || /this page could not be found|does not exist|could not find that/i.test(body)
-          const login = !publicPage && new URL(page.url()).pathname.startsWith('/auth/')
+          const finalPath = new URL(page.url()).pathname.replace(/\/+$/, '') || '/'
+          const login = !publicPage && finalPath.startsWith('/auth/')
           const accessDenied = status === 401 || status === 403 || denied
           const guardVerified = mode.startsWith('invalid-') && (missing || /invalid|expired|not found|unavailable|link is no longer active|does not exist|could not find that/i.test(body))
           result = guardVerified ? 'GUARD VERIFIED; positive case NOT RUN'
@@ -254,6 +310,12 @@ test('inventory every page with explicit live render and guard evidence', async 
               ? canonicalRedirectReady && status >= 200 && status < 400 && !accessDenied && !missing && consoleErrors === 0
                 ? 'REDIRECT VERIFIED; canonical target reached'
                 : 'FAILED canonical redirect readiness'
+            : darkRoute
+              ? darkRouteOutcome === 'dark' && finalPath === path && consoleErrors === 0
+                ? `DARK VERIFIED; ${darkRoute.flag} off, route not found`
+                : darkRouteOutcome === 'live' && status >= 200 && status < 400 && !accessDenied && !missing && consoleErrors === 0
+                  ? 'RENDER VERIFIED; mutations NOT RUN'
+                  : 'FAILED dark route readiness'
             : mode.startsWith('invalid-') ? 'REVIEW guard response'
             : accessDenied ? 'ACCESS DENIED; positive case NOT RUN'
             : missing ? 'FAILED record/page not found'
@@ -399,6 +461,91 @@ test('redirect audit rejects a wrong canonical target even when it renders', asy
     await page.goto(crmUrl, { waitUntil: 'load', timeout: 15_000 })
     expect(await waitForCanonicalRedirect(page, expectation, 500)).toBe(false)
     expect(new URL(page.url()).pathname).toBe(wrongPath)
+  } finally {
+    await context.close()
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve())
+    })
+  }
+})
+
+test('redirect audit requires the target view, not only the target page', async ({ browser }) => {
+  test.setTimeout(30_000)
+  const expectation = expectedRedirects['/pipeline/list']
+  if (!expectation) throw new Error('Pipeline list redirect expectation is missing')
+  const server = createServer((request, response) => {
+    if (request.url === '/pipeline/list' || request.url === '/pipeline/board-only') {
+      const view = request.url === '/pipeline/list' ? '?view=list' : ''
+      response.writeHead(302, { location: `/pipeline${view}` }).end()
+      return
+    }
+    response.writeHead(200, { 'content-type': 'text/html' })
+      .end('<main><h1>Pipeline Board</h1><p>3 opportunities across every stage · track ownership and next steps</p></main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Local redirect regression server did not bind')
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const origin = `http://127.0.0.1:${address.port}`
+  try {
+    await page.goto(`${origin}/pipeline/board-only`, { waitUntil: 'load', timeout: 15_000 })
+    expect(await waitForCanonicalRedirect(page, expectation, 500), 'the board view is not the list view').toBe(false)
+    await page.goto(`${origin}/pipeline/list`, { waitUntil: 'load', timeout: 15_000 })
+    expect(await waitForCanonicalRedirect(page, expectation)).toBe(true)
+  } finally {
+    await context.close()
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve())
+    })
+  }
+})
+
+test('dark route readiness waits past the streamed skeleton for either outcome', async ({ browser }) => {
+  test.setTimeout(30_000)
+  const expectation = darkRoutes['/settings/tax']
+  if (!expectation) throw new Error('Tax settings dark route expectation is missing')
+  // Layout chrome alone clears the 80-character body wait, as on production.
+  const chrome = `<nav>${'Dashboard Projects Pipeline Procurement Finance Reports Settings '.repeat(2)}</nav>`
+  // The crash view (error.tsx) and the root not-found view for an unmatched URL
+  // must not count as dark.
+  const pages: Record<string, [number, string]> = {
+    '/live': [200, '<main><h1>Tax rates</h1><p>Effective rates as of 2026-11-24 (Manila)</p></main>'],
+    '/crash': [200, '<main><h1>Workspace paused before anything changed.</h1></main>'],
+    '/unmatched': [404, '<main><h1>That record or view does not exist</h1></main>'],
+  }
+  const server = createServer((request, response) => {
+    const [status, body] = pages[request.url ?? ''] ?? [200, `<main><div class="skeleton"></div><button
+      onclick="document.querySelector('main').innerHTML = '<h1>We could not find that workspace record</h1>'">Hydrate</button></main>`]
+    response.writeHead(status, { 'content-type': 'text/html' }).end(chrome + body)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Local dark route regression server did not bind')
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const origin = `http://127.0.0.1:${address.port}`
+  try {
+    await page.goto(`${origin}/dark`, { waitUntil: 'load', timeout: 15_000 })
+    expect((await page.locator('body').innerText()).length).toBeGreaterThan(80)
+    expect(await waitForDarkRoute(page, expectation, 500)).toBeNull()
+    const readiness = waitForDarkRoute(page, expectation)
+    await page.getByRole('button', { name: 'Hydrate' }).click()
+    expect(await readiness).toBe('dark')
+
+    await page.goto(`${origin}/live`, { waitUntil: 'load', timeout: 15_000 })
+    expect(await waitForDarkRoute(page, expectation)).toBe('live')
+
+    for (const path of ['/crash', '/unmatched']) {
+      await page.goto(`${origin}${path}`, { waitUntil: 'load', timeout: 15_000 })
+      expect(await waitForDarkRoute(page, expectation, 500), `${path} is not a dark outcome`).toBeNull()
+    }
   } finally {
     await context.close()
     await new Promise<void>((resolve, reject) => {

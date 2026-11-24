@@ -117,6 +117,18 @@ describe('external email delivery evidence', () => {
     expect(mocks.update).not.toHaveBeenCalled()
   })
 
+  it('reports a delivered email as delivered when stamping its notification fails', async () => {
+    mocks.sendEmail.mockResolvedValue({ id: 'provider-id', is_dev_stub: false })
+    mocks.updateWhere.mockRejectedValueOnce(new Error('connection reset'))
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    // A throw would make the caller retry, and a retried caller can send again.
+    await expect(notifyExternalEmail(input)).resolves.toEqual({ delivered: true })
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1)
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining('"event":"notification_sent_at_stamp_failed"'))
+    logged.mockRestore()
+  })
+
   it('keeps delivery evidence pending when the provider fails', async () => {
     mocks.sendEmail.mockRejectedValue(new Error('provider unavailable'))
 

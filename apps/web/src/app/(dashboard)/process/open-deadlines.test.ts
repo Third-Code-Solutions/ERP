@@ -66,6 +66,28 @@ describe('loadOpenDeadlines', () => {
     expect(query?.limit).toHaveBeenCalledWith(OPEN_CLOCK_ROW_LIMIT)
   })
 
+  it('leaves out clocks under a retired project and reads unreadable configs last, both before the cap', async () => {
+    const [query] = queueSelects([clockRow(1)])
+
+    await loadOpenDeadlines(TENANT_ID, 'admin', NOW)
+
+    const dialect = new PgDialect()
+    const where = dialect.sqlToQuery(query?.where.mock.calls[0]?.[0] as SQL)
+    // One anti-join each for permits and checklist items, every table filtered on the tenant.
+    expect(where.sql.match(/not exists \(/g)).toHaveLength(2)
+    expect(where.sql.match(/"projects"\."deleted_at" is not null/g)).toHaveLength(2)
+    for (const table of ['permits', 'pre_con_checklists', 'pre_con_checklist_items']) {
+      expect(where.sql).toMatch(new RegExp(`"${table}"\\."tenant_id" = \\$\\d+`))
+    }
+    expect(where.sql.match(/"projects"\."tenant_id" = \$\d+/g)).toHaveLength(2)
+    expect(where.params.filter((param) => param === TENANT_ID)).toHaveLength(6)
+    const [dueOrder] = query?.orderBy.mock.calls[0] ?? []
+    const order = dialect.sqlToQuery(dueOrder as SQL).sql
+    expect(order).toMatch(/asc nulls last$/)
+    // No fallback: an unreadable config yields NULL, not its start time.
+    expect(order).not.toMatch(/,\s*0\)\)/)
+  })
+
   it('returns an empty list without further queries when nothing is open', async () => {
     queueSelects([])
 

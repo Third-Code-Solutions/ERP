@@ -99,7 +99,7 @@ export function pickRole(
  * `query` is the rest of the PostgREST query string (select, filters, order).
  */
 export async function tenantRows<T extends z.ZodTypeAny>(
-  target: TrialTarget,
+  target: Pick<TrialTarget, 'tenantId'>,
   table: string,
   query: string,
   row: T
