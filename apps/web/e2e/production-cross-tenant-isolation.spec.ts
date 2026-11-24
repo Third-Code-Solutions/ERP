@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './base-test'
 import { z } from 'zod'
 import { authenticateRole, type MagicLinkRole } from './helpers/supabase-magic-link'
 import {

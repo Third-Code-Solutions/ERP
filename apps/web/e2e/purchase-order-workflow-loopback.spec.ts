@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './base-test'
 
 type WorkflowAction =
   | 'submit_pm_approval'

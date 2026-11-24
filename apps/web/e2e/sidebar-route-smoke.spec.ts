@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './base-test'
 import { visibleNavSections } from '../src/lib/operations/nav-config'
 import { requireE2EBaseUrl } from './helpers/env'
 import { authenticateRole } from './helpers/supabase-magic-link'

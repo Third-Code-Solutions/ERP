@@ -151,7 +151,7 @@ company's standing cost-code list if it has one.
 Bootstrap seeds PCS, SET, LOT, BAG, BOX, ROLL, M, SQM, CUM, KG, L and 41 **proposed**
 aliases (`pc`, `sq.m`, `m3`, `ls`→LOT, …) that need the company's sign-off before `--apply`,
 because an alias says two spellings are the same goods (`scripts/lib/trial-tenant-bootstrap.mjs:75-144`).
-Aliases need migration `20261118100000` (untracked). Units can also be created on
+Aliases need migration `20261124140000`. Units can also be created on
 `/inventory` (code ≤32, decimals 0-6). Provide: the unit spellings used in the company's
 BOQs and POs.
 

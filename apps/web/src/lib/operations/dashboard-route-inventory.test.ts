@@ -316,6 +316,30 @@ const ROUTE_GATE: GateKind = {
 // Only reads of the request itself may run before the route gate, never a data load.
 const PRE_GATE_AWAIT = /^await (?:requireUuidRouteParams\(|requireUserProfile\(|getUserProfile\(|(?:\w+\.)?params\b|searchParams\b)/
 
+/**
+ * The only calls a handler may make before its route gate: reading the request
+ * and the session, pure role and flag checks, and leaving early. Any other
+ * call, awaited or not, counts as a data load.
+ */
+const PRE_GATE_CALLS: ReadonlySet<string> = new Set([
+  'requireUuidRouteParams',
+  'requireUserProfile',
+  'getUserProfile',
+  'requireCapability',
+  'can',
+  'getProjectDetailAccess',
+  'parseAuditActivityViewParams',
+  'taxSettingsEnabled',
+  'z.string',
+  'notFound',
+  'redirect',
+  'NextResponse.json',
+])
+const CALL_LIKE_KEYWORDS: ReadonlySet<string> = new Set([
+  'if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'await',
+  'throw', 'case', 'else', 'do', 'in', 'of', 'void', 'delete', 'yield',
+])
+
 function readRouteFile(root: string, routeTemplate: string, file = 'page.tsx'): string {
   return readFileSync(join(root, ...routeTemplate.split('/').filter(Boolean), file), 'utf8')
 }
@@ -328,44 +352,69 @@ function gatedRoutes(source: string, kind: GateKind = PAGE_GATE): string[] {
   return [...source.matchAll(new RegExp(kind.gate.source, 'g'))].map((match) => wildcard(match[2] ?? ''))
 }
 
-/** Value imports from the Core API client: calling one before the gate is a data load. */
-function coreClientNames(source: string): string[] {
-  return [...source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'@\/lib\/erp-core-client'/g)]
-    .flatMap((match) => (match[1] ?? '').split(','))
-    .map((part) => part.trim())
-    .filter((part) => part !== '' && !part.startsWith('type '))
-    .map((part) => part.split(/\s+as\s+/).pop() ?? part)
+/**
+ * Code only: comments dropped and string contents blanked, read left to right
+ * in one pass, so a quote inside a comment cannot open a string that hides
+ * code. A template stays a backtick pair, so a tagged template still reads as a call.
+ * shortcut: a call inside a template literal's ${} is blanked too; move to a TypeScript parse if one ever hides a loader.
+ */
+function codeOnly(text: string): string {
+  return text.replace(
+    /\/\*[\s\S]*?\*\/|\/\/[^\n]*|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g,
+    (token) => (token.startsWith('/') ? '' : token.startsWith('`') ? '``' : "''"),
+  )
+}
+
+/** Index just past the `{` that opens the body of the function whose signature starts at `start`. */
+function bodyStart(source: string, start: number): number {
+  let depth = 0
+  for (let index = source.indexOf('(', start); index >= 0 && index < source.length; index += 1) {
+    if (source[index] === '(') depth += 1
+    else if (source[index] === ')' && --depth === 0) return source.indexOf('{', index) + 1
+  }
+  return start
 }
 
 /**
- * Everything wrong before the handler's first gate: an await that is not a
- * request read, any `db.` use, any Core client call, and a gate that sits
- * inside a block or under an unbraced condition.
+ * Everything wrong before the handler's first gate: a call that is not a
+ * request read or role check (awaited or not, including any `db.` use and any
+ * Core client call), an await of anything but the request, and a gate that is
+ * not a statement of its own at the top of the handler body.
  */
 function preGateProblems(source: string, kind: GateKind = PAGE_GATE): string[] {
   const start = Math.max(0, source.indexOf(kind.handler))
   const found = kind.gate.exec(source.slice(start))
-  const before = source.slice(start, found ? start + found.index : undefined)
+  const gateAt = found ? start + found.index : source.length
+  const body = codeOnly(source.slice(bodyStart(source, start), gateAt))
 
-  const problems = [...before.matchAll(/await\s+[\w.]+\(?/g)]
+  const problems = [...body.matchAll(/await\s+[\w.]+\(?/g)]
     .map((match) => match[0])
     .filter((expression) => !PRE_GATE_AWAIT.test(expression))
-  if (/\bdb\s*\./.test(before)) problems.push('db query')
-  for (const name of coreClientNames(source)) {
-    if (new RegExp(`\\b${name}\\(`).test(before)) problems.push(`${name}()`)
+  if (/\bdb\s*\??\./.test(body)) problems.push('db query')
+  // A call is a name chain (`.` or `?.`) followed by `(`, `?.(` or a tagged template.
+  for (const match of body.matchAll(/(?<![\w$.?])((?:[A-Za-z_$][\w$]*\s*\??\.\s*)*[A-Za-z_$][\w$]*)\s*(?:\?\.\s*)?[(`]/g)) {
+    const name = (match[1] ?? '').replace(/\s+/g, '').replace(/\?\./g, '.')
+    if (!CALL_LIKE_KEYWORDS.has(name) && !PRE_GATE_CALLS.has(name)) problems.push(`${name}()`)
   }
+  if (/\]\s*(?:\?\.\s*)?[(`]/.test(body)) problems.push('computed call')
   if (!found) return [...problems, 'no gate']
 
+  const before = codeOnly(source.slice(start, gateAt))
+  const lines = before.split('\n')
+  const gateLinePrefix = lines.pop() ?? ''
+  const previous = lines.map((line) => line.trim()).filter((line) => line !== '').pop() ?? ''
+  if (gateLinePrefix.trim() !== '') problems.push('gate does not start its own statement')
   const depth = (before.match(/\{/g)?.length ?? 0) - (before.match(/\}/g)?.length ?? 0)
-  const previous = before.split('\n').map((line) => line.trim()).filter((line) => line !== '' && !line.startsWith('//')).pop() ?? ''
-  if (depth !== 1 || isBareConditionHeader(previous)) problems.push('gate inside a condition or block')
+  // A previous line ending in an operator makes the gate part of its expression (`flag &&`, `x ?`, `=>`, `obj.`).
+  const continues = /(?:[=?:,([+\-*/!<>|&.]|=>)$/.test(previous)
+  if (depth !== 1 || continues || isBareConditionHeader(previous)) problems.push('gate inside a condition or block')
   return problems
 }
 
 /** `if (x)` or `else` with its body on the next line; `if (x) return y()` has its own body. */
 function isBareConditionHeader(line: string): boolean {
   if (/^(?:\}\s*)?else$/.test(line)) return true
-  const head = /^(?:\}\s*else\s+)?(?:if|for|while)\s*\(/.exec(line)
+  const head = /^(?:\}?\s*else\s+)?(?:if|for|while)\s*\(/.exec(line)
   if (!head) return false
   let open = 0
   for (let index = head[0].length - 1; index < line.length; index += 1) {
@@ -482,17 +531,50 @@ describe('dashboard route authorization inventory', () => {
     }
   })
 
-  it('rejects a gate placed after a query, inside a condition, or after a Core call', () => {
-    const page = (body: string) =>
-      `import { getThing } from '@/lib/erp-core-client'\nexport default async function Page() {\n  const profile = await requireUserProfile()\n${body}\n}\n`
+  it('rejects a data load before the gate, or a gate that is not its own top-level statement', () => {
+    const page = (body: string, imports = "import { getThing } from '@/lib/erp-core-client'") =>
+      `${imports}\nexport default async function Page({ params }: { params: Promise<{ id: string }> }) {\n  const profile = await requireUserProfile()\n${body}\n}\n`
+    const gate = "requireRouteAccess(profile.role, '/x')"
 
-    expect(preGateProblems(page("  const rows = db.select().from(t)\n  requireRouteAccess(profile.role, '/x')\n  await rows"))).toContain('db query')
-    expect(preGateProblems(page("  if (flag) {\n    requireRouteAccess(profile.role, '/x')\n  }"))).toContain('gate inside a condition or block')
-    expect(preGateProblems(page("  if (flag)\n    requireRouteAccess(profile.role, '/x')"))).toContain('gate inside a condition or block')
-    expect(preGateProblems(page("  const thing = getThing()\n  requireRouteAccess(profile.role, '/x')"))).toContain('getThing()')
-    expect(preGateProblems(page("  const rows = await load()\n  requireRouteAccess(profile.role, '/x')"))).toContain('await load(')
-    expect(preGateProblems(page("  requireRouteAccess(profile.role, '/x')\n  const rows = await db.select()"))).toEqual([])
-    expect(preGateProblems(page("  if (!can(profile.role, 'finance.read')) return notFound()\n  requireRouteAccess(profile.role, '/x')"))).toEqual([])
+    // Loads before the gate, awaited or not.
+    expect(preGateProblems(page(`  const rows = db.select().from(t)\n  ${gate}\n  await rows`))).toContain('db query')
+    expect(preGateProblems(page(`  const thing = getThing()\n  ${gate}`))).toContain('getThing()')
+    expect(preGateProblems(page(`  const rows = await load()\n  ${gate}`))).toContain('await load(')
+    expect(preGateProblems(page(`  const rows = loadRows(profile.tenantId)\n  ${gate}\n  await rows`))).toContain('loadRows()')
+    expect(
+      preGateProblems(page(`  const thing = core.getThing()\n  ${gate}`, 'import * as core from "@/lib/erp-core-client"'))
+    ).toContain('core.getThing()')
+    expect(
+      preGateProblems(page(`  const thing = getThing()\n  ${gate}`, 'import { getThing } from "@/lib/erp-core-client"'))
+    ).toContain('getThing()')
+
+    // The gate inside a block, a condition or an expression.
+    expect(preGateProblems(page(`  if (flag) {\n    ${gate}\n  }`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  if (flag)\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  flag && ${gate}`))).toContain('gate does not start its own statement')
+    expect(preGateProblems(page(`  const ok = flag ? ${gate} : null`))).toContain('gate does not start its own statement')
+    expect(preGateProblems(page(`  flag &&\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  const check = () =>\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  if (a) {\n    note = 1\n  }\n  else if (flag)\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  profile.\n    ${gate}`))).toContain('gate inside a condition or block')
+
+    // Call forms that read past a plain `name(`.
+    expect(preGateProblems(page(`  const thing = core?.getThing()\n  ${gate}`))).toContain('core.getThing()')
+    expect(preGateProblems(page(`  const thing = getThing?.()\n  ${gate}`))).toContain('getThing()')
+    expect(preGateProblems(page(`  const rows = db?.select()\n  ${gate}`))).toContain('db query')
+    expect(preGateProblems(page(`  const thing = core['getThing']()\n  ${gate}`))).toContain('computed call')
+    expect(preGateProblems(page(`  const rows = loadRows\`select\`\n  ${gate}`))).toContain('loadRows()')
+    // A lone backtick in a comment does not open a template that hides the next lines.
+    expect(
+      preGateProblems(page(`  // never wrap ids in \` here\n  const rows = loadRows()\n  const note = \`done\`\n  ${gate}`))
+    ).toContain('loadRows()')
+
+    // Allowed: request reads and role checks first, loads after; words in comments and strings are not calls.
+    expect(preGateProblems(page(`  ${gate}\n  const rows = await db.select()`))).toEqual([])
+    expect(preGateProblems(page(`  if (!can(profile.role, 'finance.read')) return notFound()\n  ${gate}`))).toEqual([])
+    expect(
+      preGateProblems(page(`  const { id } = await params\n  // Load the rows (later), after the gate.\n  const label = 'Back (to list)'\n  ${gate}`))
+    ).toEqual([])
   })
 
   it('does not let a dynamic or nested registration restore unknown fallback', () => {

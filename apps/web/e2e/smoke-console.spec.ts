@@ -14,7 +14,7 @@
 // E2E_USER_EMAIL=<dedicated-test-user> E2E_USER_PASSWORD=<dedicated-password> \
 // E2E_PROJECT_ID=<isolated-project-id> \
 // npx playwright test --project=chromium --workers=1 e2e/smoke-console.spec.ts
-import { test, expect, type BrowserContext } from '@playwright/test'
+import { test, expect, type BrowserContext } from './base-test'
 import { requireE2ECredentials } from './helpers/auth'
 import { readE2EEnv, requireE2EBaseUrl } from './helpers/env'
 import { authenticateRole } from './helpers/supabase-magic-link'

@@ -16,7 +16,7 @@
  */
 
 import crypto from 'node:crypto'
-import { db } from '@third-code-erp/database'
+import { db, type Database } from '@third-code-erp/database'
 import { signatureSessions } from '@third-code-erp/database/schema'
 import { eq } from 'drizzle-orm'
 
@@ -52,7 +52,9 @@ export function hashToken(token: string): string {
 }
 
 export async function createCanvasSignSession(
-  input: CreateSignSessionInput
+  input: CreateSignSessionInput,
+  // The caller's transaction, so the link exists only if the request commits.
+  executor: Pick<Database, 'insert'> = db
 ): Promise<SignSessionResult> {
   const token = crypto.randomBytes(32).toString('hex')
   const tokenHash = hashToken(token)
@@ -60,7 +62,7 @@ export async function createCanvasSignSession(
     Date.now() + (input.expiresInHours ?? 48) * 60 * 60 * 1000
   )
 
-  await db.insert(signatureSessions).values({
+  await executor.insert(signatureSessions).values({
     tenant_id: input.tenantId,
     entity_type: input.entityType,
     entity_id: input.entityId,

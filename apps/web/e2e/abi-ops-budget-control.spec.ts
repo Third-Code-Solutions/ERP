@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './base-test'
 import { login } from './helpers/auth'
 
 test.describe('Project Budget Control', () => {

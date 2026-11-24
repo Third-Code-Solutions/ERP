@@ -3,6 +3,7 @@ import {
   calendarDaysBetween,
   formatManilaDate,
   formatManilaDateTime,
+  formatManilaLongDate,
   manilaToday,
 } from './manila-date'
 
@@ -52,5 +53,12 @@ describe('formatManilaDateTime', () => {
     expect(formatManilaDateTime(new Date('2026-11-16T20:15:00Z'))).toContain(
       '17'
     )
+  })
+})
+
+describe('formatManilaLongDate', () => {
+  it('prints the Manila day of a late-UTC instant and a calendar date as itself', () => {
+    expect(formatManilaLongDate(new Date('2026-11-30T17:00:00Z'))).toBe('December 1, 2026')
+    expect(formatManilaLongDate('2026-11-30')).toBe('November 30, 2026')
   })
 })

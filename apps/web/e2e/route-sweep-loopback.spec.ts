@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from './base-test'
 
 const appRoot = resolve('src/app')
 const renderFailure = /Workspace paused before anything changed\.|could not render this view|Application error:|Something went wrong|This (workspace|protected) view could not load|Finance is temporarily unavailable|Could not load users?|Your profile settings could not be loaded|password form could not be loaded|password reset form could not be loaded/i

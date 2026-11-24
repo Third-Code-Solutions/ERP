@@ -60,6 +60,21 @@ describe('OpportunityKycTrackPanel', () => {
     expect(markup).toMatch(/<textarea[^>]*name="notes"[^>]*><\/textarea>/)
   })
 
+  it('hides Approve on a flagged track that still carries an older recommendation', () => {
+    const markup = render(
+      track('flagged', { fc_recommended_at: '2026-11-01T00:00:00.000Z', decision_reason: 'Adverse report' })
+    )
+
+    expect(markup).not.toContain('value="approve"')
+    expect(markup).toContain('value="recommend"')
+  })
+
+  it('offers Approve on a recommended track that is not flagged', () => {
+    const markup = render(track('in_review', { fc_recommended_at: '2026-11-01T00:00:00.000Z' }))
+
+    expect(markup).toContain('value="approve"')
+  })
+
   it('keeps Start, Recommend clear and Flag on a pending track', () => {
     const markup = render(track('pending'))
 
