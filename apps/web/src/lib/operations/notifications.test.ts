@@ -4,6 +4,9 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   insertValues: vi.fn(),
   insertReturning: vi.fn(),
+  select: vi.fn(),
+  selectLimit: vi.fn(),
+  bomTemplate: vi.fn(),
   update: vi.fn(),
   updateSet: vi.fn(),
   updateWhere: vi.fn(),
@@ -13,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@third-code-erp/database', () => ({
   db: {
     insert: mocks.insert,
+    select: mocks.select,
     update: mocks.update,
   },
 }))
@@ -20,11 +24,7 @@ vi.mock('@third-code-erp/database', () => ({
 vi.mock('./integrations/resend', () => ({
   sendEmail: mocks.sendEmail,
   templates: {
-    'bom-portal-link': () => ({
-      subject: 'BOM ready',
-      html: '<p>BOM ready</p>',
-      text: 'BOM ready',
-    }),
+    'bom-portal-link': mocks.bomTemplate,
   },
 }))
 
@@ -33,6 +33,15 @@ import { notifyExternalEmail } from './notifications'
 describe('external email delivery evidence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.select.mockReturnValue({
+      from: () => ({ where: () => ({ limit: mocks.selectLimit }) }),
+    })
+    mocks.selectLimit.mockResolvedValue([{ name: 'Northwind Builders' }])
+    mocks.bomTemplate.mockReturnValue({
+      subject: 'BOM ready',
+      html: '<p>BOM ready</p>',
+      text: 'BOM ready',
+    })
     mocks.insert.mockReturnValue({ values: mocks.insertValues })
     mocks.insertValues.mockReturnValue({ returning: mocks.insertReturning })
     mocks.insertReturning.mockResolvedValue([{ id: 'notification-id' }])
@@ -62,6 +71,27 @@ describe('external email delivery evidence', () => {
       expect.objectContaining({ sent_at: null })
     )
     expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({ sent_at: expect.any(Date) }))
+  })
+
+  it('builds the email in the name of the tenant that issues it', async () => {
+    mocks.sendEmail.mockResolvedValue({ id: 'provider-id', is_dev_stub: false })
+
+    await notifyExternalEmail(input)
+
+    expect(mocks.bomTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ project_name: 'Project', company_name: 'Northwind Builders' })
+    )
+  })
+
+  it('uses a neutral company name when the tenant row has no name', async () => {
+    mocks.sendEmail.mockResolvedValue({ id: 'provider-id', is_dev_stub: false })
+    mocks.selectLimit.mockResolvedValue([])
+
+    await notifyExternalEmail(input)
+
+    expect(mocks.bomTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ company_name: 'Your contractor' })
+    )
   })
 
   it('keeps development-stub delivery pending', async () => {

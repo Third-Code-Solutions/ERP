@@ -12,10 +12,11 @@
  */
 
 import { db } from '@third-code-erp/database'
-import { notifications, users } from '@third-code-erp/database/schema'
+import { notifications, tenants, users } from '@third-code-erp/database/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { sendEmail, templates, type EmailTemplateId } from './integrations/resend'
 import { sendSms } from './integrations/semaphore'
+import { tenantDisplayName } from '@/lib/tenant-branding'
 import type { AppRole } from '@third-code-erp/auth'
 
 interface BaseDispatch {
@@ -126,6 +127,7 @@ export async function notifyExternalEmail(
   let delivery: { id: string; is_dev_stub: boolean }
   try {
     delivery = await sendEmailFromTemplate(
+      d.tenantId,
       d.recipientEmail,
       d.templateId,
       d.templateVars
@@ -165,7 +167,12 @@ async function attemptEmailDelivery(
   context: { tenant_id: string; recipient_user_id: string }
 ): Promise<boolean> {
   try {
-    const delivery = await sendEmailFromTemplate(to, templateId, vars)
+    const delivery = await sendEmailFromTemplate(
+      context.tenant_id,
+      to,
+      templateId,
+      vars
+    )
     return !delivery.is_dev_stub
   } catch (error) {
     logEmailDeliveryFailure(error, {
@@ -229,6 +236,7 @@ function logEmailDeliveryFailure(
  * boundary so user/role and external-recipient flows share the same result.
  */
 async function sendEmailFromTemplate(
+  tenantId: string,
   to: string,
   templateId: EmailTemplateId,
   vars: Record<string, string | number>
@@ -236,12 +244,21 @@ async function sendEmailFromTemplate(
   // Tiny narrowing: each template wants its own var shape. We trust the
   // caller and cast — Zod-style runtime checks are unnecessary for an
   // internal mapping.
-  const builder = templates[templateId] as (v: Record<string, string | number>) => {
+  const builder = templates[templateId] as unknown as (v: Record<string, string | number>) => {
     subject: string
     html: string
     text: string
   }
-  const { subject, html, text } = builder(vars)
+  // The email names the tenant that issues it, read server-side by tenant id.
+  const [tenant] = await db
+    .select({ name: tenants.name })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1)
+  const { subject, html, text } = builder({
+    ...vars,
+    company_name: tenantDisplayName(tenant?.name),
+  })
   return sendEmail({ to, subject, html, text })
 }
 
