@@ -383,6 +383,51 @@ describe('public canvas signing integrity', () => {
     expect(mocks.transaction).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { entityType: 'variation_order' as const, label: 'rejected variation order' },
+    { entityType: 'coc' as const, label: 'cancelled certificate of completion' },
+  ])(
+    'refuses to sign a $label through an old link and cleans the upload',
+    async ({ entityType }) => {
+      const staleSession = { ...session, entity_type: entityType }
+      mocks.limit.mockReset()
+      mocks.limit
+        .mockResolvedValueOnce([staleSession])
+        .mockResolvedValueOnce([{ project_id: PROJECT_ID }])
+      mocks.txFor.mockResolvedValue([staleSession])
+      // The status-guarded UPDATE matches no row because the source left the signable state.
+      mocks.txUpdateReturning.mockReset()
+      mocks.txUpdateReturning.mockResolvedValueOnce([])
+
+      await expect(recordCanvasSign(signInput())).resolves.toEqual({
+        ok: false,
+        error:
+          'This request is no longer waiting for a signature. Ask the sender for a new link.',
+      })
+      expect(mocks.txUpdate).toHaveBeenCalledOnce()
+      expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+      expect(mocks.remove).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each(['variation_order', 'coc'] as const)(
+    'guards the %s signature UPDATE by status as well as tenant and id',
+    async (entityType) => {
+      const signableSession = { ...session, entity_type: entityType }
+      mocks.limit.mockReset()
+      mocks.limit
+        .mockResolvedValueOnce([signableSession])
+        .mockResolvedValueOnce([{ project_id: PROJECT_ID }])
+      mocks.txFor.mockResolvedValue([signableSession])
+
+      await expect(recordCanvasSign(signInput())).resolves.toEqual({ ok: true })
+
+      expect(collectColumnNames(mocks.txUpdateWhere.mock.calls[0]?.[0])).toEqual(
+        expect.arrayContaining(['id', 'tenant_id', 'status'])
+      )
+    }
+  )
+
   it('routes an approved tenant through Core without a legacy Storage write', async () => {
     mocks.publicSigningWritesUseCoreApi.mockReturnValue(true)
     mocks.signPublicSignatureThroughCoreApi.mockResolvedValue({
