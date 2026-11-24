@@ -19,6 +19,29 @@ describe('safeActionError', () => {
     ).toBe('Cannot complete because related records exist.')
   })
 
+  it.each([
+    ['23505', 'A record with these values already exists.'],
+    ['23503', 'Cannot complete because related records exist.'],
+    ['23514', 'Could not save rate card.'],
+  ])('maps a Drizzle-wrapped SQLSTATE %s by its cause code', (code, expected) => {
+    const wrapped = new Error('Failed query: insert into "rate_cards" ("name") values ($1)\nparams: Cement', {
+      cause: Object.assign(new Error('database rule text'), { code }),
+    })
+
+    expect(safeActionError(wrapped, 'Could not save rate card.')).toBe(expected)
+  })
+
+  it('never lets the SQL text or its parameters steer or leak into the copy', () => {
+    const wrapped = new Error(
+      'Failed query: insert into "rate_cards" ("name") values ($1)\nparams: this name already exists, foreign key',
+      { cause: Object.assign(new Error('value too long for type character varying(80)'), { code: '22001' }) }
+    )
+
+    const copy = safeActionError(wrapped, 'Could not save rate card.')
+
+    expect(copy).toBe('Could not save rate card.')
+  })
+
   it('preserves typed authorization copy and uses fallback for unknown errors', () => {
     expect(
       safeActionError(

@@ -10,13 +10,29 @@
  * the chain carries the SQL text and its parameters.
  */
 export function errorChainMessage(error: unknown): string {
-  const messages: string[] = []
-  const seen = new Set<unknown>()
+  return errorChain(error)
+    .map((link) => link.message)
+    .join('\n')
+}
+
+/**
+ * Postgres SQLSTATE (for example "23505" unique violation) of the first error
+ * in the cause chain that carries one; Drizzle keeps the driver error on `.cause`.
+ */
+export function errorChainSqlState(error: unknown): string | undefined {
+  for (const link of errorChain(error)) {
+    const code = (link as { code?: unknown }).code
+    if (typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)) return code
+  }
+  return undefined
+}
+
+function errorChain(error: unknown): Error[] {
+  const chain: Error[] = []
   let current: unknown = error
-  while (current instanceof Error && !seen.has(current)) {
-    seen.add(current)
-    messages.push(current.message)
+  while (current instanceof Error && !chain.includes(current)) {
+    chain.push(current)
     current = current.cause
   }
-  return messages.join('\n')
+  return chain
 }
