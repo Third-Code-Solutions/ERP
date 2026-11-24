@@ -25,6 +25,9 @@ export function gateTrialLive(): void {
     !TRIAL_LIVE,
     'Set E2E_TRIAL_LIVE=1 (verify-trial-live workflow) to run live trial-readiness checks.'
   )
+  // The repo is public: traces, screenshots and videos of authenticated
+  // production pages (and the client-portal bearer URL) must never be recorded.
+  test.use({ trace: 'off', screenshot: 'off', video: 'off' })
 }
 
 export type TrialTarget = {
@@ -145,29 +148,52 @@ export type ServerActionTap = {
 }
 
 /**
- * Intercepts Next.js server action POSTs (they carry a `next-action` header).
- * Without `rewrite` every action is aborted, so a client-side probe never reaches
- * the server. With `rewrite` the edited body is sent on; a `null` rewrite aborts.
+ * Stops writes from the page to the app. Every non-GET request to the page's
+ * origin is aborted, so neither a hydrated server action (`next-action` header)
+ * nor a pre-hydration form POST (`$ACTION_ID_` in the body) reaches the server.
+ * With `rewrite`, server actions are instead sent on with the edited body; a
+ * `null` rewrite aborts. Only server action bodies are recorded.
  */
 export async function tapServerActions(
   page: Page,
   rewrite?: (body: string) => string | null
 ): Promise<ServerActionTap> {
+  const appOrigin = new URL(page.url()).origin
+  if (!/^https?:/.test(appOrigin)) throw new Error('tapServerActions needs a page already on the app')
   const bodies: string[] = []
   const handler = async (route: Route) => {
     const request = route.request()
-    if (request.method() !== 'POST' || !request.headers()['next-action']) {
+    if (request.method() === 'GET' || new URL(request.url()).origin !== appOrigin) {
       await route.fallback()
       return
     }
     const body = request.postData() ?? ''
-    bodies.push(body)
-    const edited = rewrite ? rewrite(body) : null
+    const isAction = Boolean(request.headers()['next-action']) || /\$ACTION_(?:ID|REF)_/.test(body)
+    if (isAction) bodies.push(body)
+    const edited = isAction && rewrite ? rewrite(body) : null
     if (edited === null) await route.abort('failed')
     else await route.continue({ postData: edited })
   }
   await page.route('**/*', handler)
   return { bodies, stop: () => page.unroute('**/*', handler) }
+}
+
+const PORTAL_TOKEN = /(\/portal\/(?:project|bom)\/)[^/?#\s"'`<>]+/g
+
+/**
+ * Runs `body` and rethrows any failure with client-portal tokens masked, so a
+ * live client link never reaches report.json or the public run log.
+ */
+export async function maskingPortalTokens<T>(body: () => Promise<T>): Promise<T> {
+  try {
+    return await body()
+  } catch (error) {
+    for (let e: unknown = error; e instanceof Error; e = e.cause) {
+      e.message = e.message.replace(PORTAL_TOKEN, '$1<token>')
+      if (e.stack) e.stack = e.stack.replace(PORTAL_TOKEN, '$1<token>')
+    }
+    throw error
+  }
 }
 
 /** Parses ₱1,234.56 / ₱ 1,234.56 / −₱1,234.56 / -₱1,234.56 into integer centavos. */

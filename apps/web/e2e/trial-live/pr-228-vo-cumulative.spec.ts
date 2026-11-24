@@ -35,6 +35,15 @@ async function expectedCumulative(target: TrialTarget) {
   }
 }
 
+/** Rejects a draft VO from its detail page: a terminal state that must stay out of the total. */
+async function rejectVo(page: Page, listUrl: string, id: string) {
+  await page.goto(`${listUrl}/${id}`)
+  await page.getByRole('button', { name: 'Reject', exact: true }).click()
+  await page.getByPlaceholder('Reason for rejection…').fill(`trial-live ${RUN_ID} cleanup`)
+  await page.getByRole('button', { name: 'Confirm rejection' }).click()
+  await expect(page.getByText('VO rejected.')).toBeVisible()
+}
+
 async function shownCumulative(page: Page) {
   const footer = page.locator('tfoot tr').filter({ hasText: 'Cumulative' })
   await expect(footer).toContainText('excludes draft and rejected')
@@ -45,12 +54,11 @@ async function shownCumulative(page: Page) {
 
 test('VO cumulative impact excludes draft and rejected VOs', { tag: '@pr-228' }, async ({ browser }, testInfo) => {
   const target = await trialTarget(testInfo)
+  const description = `trial-live ${RUN_ID} VO cumulative check`
+  const listUrl = `/projects/${target.projectId}/vos`
   const admin = await openRole(browser, target, 'admin')
+  const { page } = admin
   try {
-    const { page } = admin
-    const description = `trial-live ${RUN_ID} VO cumulative check`
-    const listUrl = `/projects/${target.projectId}/vos`
-
     await page.goto(listUrl)
     const form = page.locator('form:has(textarea[name="description"])')
     await form.locator('textarea[name="description"]').fill(description)
@@ -66,18 +74,20 @@ test('VO cumulative impact excludes draft and rejected VOs', { tag: '@pr-228' },
     await page.goto(listUrl)
     expect(await shownCumulative(page)).toEqual({ costCents: afterDraft.costCents, timeDays: afterDraft.timeDays })
 
-    // Reject the probe VO: a terminal state that must stay out of the total.
-    await page.goto(`${listUrl}/${created!.id}`)
-    await page.getByRole('button', { name: 'Reject', exact: true }).click()
-    await page.getByPlaceholder('Reason for rejection…').fill(`trial-live ${RUN_ID} cleanup`)
-    await page.getByRole('button', { name: 'Confirm rejection' }).click()
-    await expect(page.getByText('VO rejected.')).toBeVisible()
-
+    await rejectVo(page, listUrl, created!.id)
     const afterReject = await expectedCumulative(target)
     expect(afterReject.rows.find((row) => row.id === created!.id)?.status).toBe('rejected')
     await page.goto(listUrl)
     expect(await shownCumulative(page)).toEqual({ costCents: afterReject.costCents, timeDays: afterReject.timeDays })
   } finally {
-    await admin.close()
+    try {
+      // A VO cannot be deleted: leave every probe VO of this run in its terminal Rejected state.
+      const leftovers = (await expectedCumulative(target)).rows.filter(
+        (row) => row.description === description && row.status === 'draft'
+      )
+      for (const row of leftovers) await rejectVo(page, listUrl, row.id)
+    } finally {
+      await admin.close()
+    }
   }
 })

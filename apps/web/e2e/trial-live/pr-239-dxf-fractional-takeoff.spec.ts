@@ -19,7 +19,6 @@ test('a DXF with a fractional area produces a fractional takeoff quantity', { ta
   const scopeQuery = `project_id=eq.${target.projectId}&description=eq.${encodeURIComponent(description)}&select=id,quantity,quantity_decimal`
 
   const admin = await openRole(browser, target, 'admin')
-  let uploaded = false
   try {
     const { page } = admin
     await page.goto(`/projects/${target.projectId}/documents`)
@@ -35,7 +34,6 @@ test('a DXF with a fractional area produces a fractional takeoff quantity', { ta
     const response = await complete
     const body = await response.text()
     expect(response.status(), body).toBe(200)
-    uploaded = true
     expect(JSON.parse(body)).toMatchObject({
       cadFormat: 'dxf',
       cadResult: { status: 'extracted', detectedFormat: 'dxf', scopeItemsCreated: 1 },
@@ -58,10 +56,12 @@ test('a DXF with a fractional area produces a fractional takeoff quantity', { ta
           await expect(rows).toHaveCount(left - 1)
         }
       }
-      if (uploaded) {
-        await page.goto(`/projects/${target.projectId}/documents`)
-        await page.getByRole('button', { name: `Delete ${fileName}` }).click()
-        await expect(page.getByRole('button', { name: `Delete ${fileName}` })).toHaveCount(0)
+      // The document row can exist even when /complete failed, so always look for it.
+      await page.goto(`/projects/${target.projectId}/documents`)
+      const remove = page.getByRole('button', { name: `Delete ${fileName}` })
+      if ((await remove.count()) > 0) {
+        await remove.click()
+        await expect(remove).toHaveCount(0)
       }
       expect(await tenantRows(target, 'scope_items', scopeQuery, scopeRow)).toEqual([])
     } finally {

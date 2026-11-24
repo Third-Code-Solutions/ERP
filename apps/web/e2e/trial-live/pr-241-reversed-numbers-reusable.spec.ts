@@ -23,8 +23,9 @@ const BILL_DUPLICATE = 'That Vendor bill number already exists for this Vendor.'
 const BILLABLE_PO = 'confirmed,issued,partial_delivery,partial_delivered,delivered,fully_delivered'
 const OPEN_INVOICE = 'issued,overdue,partial_payment'
 const RECENT = 'order=created_at.desc&limit=25'
-const CASH_DRAFT_URL = /\/finance\/cash\/[0-9a-f-]{36}$/
-const BILL_DRAFT_URL = /\/finance\/payables\/[0-9a-f-]{36}$/
+const CASH = { table: 'cash_transactions', list: '/finance/cash', detail: /^\/finance\/cash\/[0-9a-f-]{36}$/ }
+const BILL = { table: 'supplier_bills', list: '/finance/payables', detail: /^\/finance\/payables\/[0-9a-f-]{36}$/ }
+type DraftKind = typeof CASH
 
 // The partial unique indexes compare lower(btrim(...)).
 const sameKey = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
@@ -124,12 +125,18 @@ const billablePurchaseOrders = (target: TrialTarget, vendorId: string) =>
     z.object({ id: uuid })
   )
 
-/** Deletes a draft the probe created, from its detail page, and proves the row is gone. */
-async function deleteDraft(page: Page, target: TrialTarget, table: string, detailPath: string, listPath: string, id: string) {
-  if (new URL(page.url()).pathname !== detailPath) await page.goto(detailPath)
+const draftIdOf = (page: Page, kind: DraftKind) => {
+  const path = new URL(page.url()).pathname
+  return kind.detail.test(path) ? path.split('/').pop()! : null
+}
+
+/** Runs in `finally`: if the submit landed on a new draft, deletes it and proves the row is gone. */
+async function deleteDraftIfCreated(page: Page, target: TrialTarget, kind: DraftKind) {
+  const id = draftIdOf(page, kind)
+  if (!id) return
   await page.getByRole('button', { name: 'Delete draft' }).click()
-  await page.waitForURL((url) => url.pathname === listPath)
-  expect(await tenantRows(target, table, `id=eq.${id}&select=id,status`, draftRow)).toHaveLength(0)
+  await page.waitForURL((url) => url.pathname === kind.list)
+  expect(await tenantRows(target, kind.table, `id=eq.${id}&select=id,status`, draftRow)).toHaveLength(0)
 }
 
 test(
@@ -141,6 +148,7 @@ test(
     const admin = await openRole(browser, target, 'admin')
     const { page } = admin
     const missing: string[] = []
+    let reversedRan = 0
     try {
       await test.step('a live cash reference is still refused', async () => {
         const tried = new Set<string>()
@@ -150,10 +158,15 @@ test(
           tried.add(slot)
           if (!(await fillCashDraft(page, target, row))) continue
           const before = (await liveCashWithKey(target, row)).length
-          await page.getByRole('button', { name: 'Review cash transaction' }).click()
-          await expect(page.getByText(CASH_DUPLICATE)).toBeVisible()
-          expect(page.url()).toMatch(/\/finance\/cash\/new$/)
-          expect((await liveCashWithKey(target, row)).length).toBe(before)
+          try {
+            await page.getByRole('button', { name: 'Review cash transaction' }).click()
+            await expect(page.getByText(CASH_DUPLICATE)).toBeVisible()
+            expect(page.url()).toMatch(/\/finance\/cash\/new$/)
+            expect((await liveCashWithKey(target, row)).length).toBe(before)
+          } finally {
+            // A regressed constraint would have saved the duplicate as a draft.
+            await deleteDraftIfCreated(page, target, CASH)
+          }
           return
         }
         missing.push('a live cash transaction on an active Cash Account whose direction has an open item on the E2E project')
@@ -163,15 +176,15 @@ test(
         for (const row of await tenantRows(target, 'cash_transactions', `status=eq.reversed&select=id,cash_account_id,direction,reference_number&${RECENT}`, cashRow)) {
           if ((await liveCashWithKey(target, row)).length > 0) continue
           if (!(await fillCashDraft(page, target, row))) continue
-          await page.getByRole('button', { name: 'Review cash transaction' }).click()
-          await expect(page, 'the reversed reference must save as a new draft').toHaveURL(CASH_DRAFT_URL, { timeout: 30_000 })
-          const draftId = new URL(page.url()).pathname.split('/').pop()!
           try {
-            const [draft] = await tenantRows(target, 'cash_transactions', `id=eq.${draftId}&select=id,status`, draftRow)
+            await page.getByRole('button', { name: 'Review cash transaction' }).click()
+            await expect(page, 'the reversed reference must save as a new draft').toHaveURL((url) => CASH.detail.test(url.pathname), { timeout: 30_000 })
+            const [draft] = await tenantRows(target, CASH.table, `id=eq.${draftIdOf(page, CASH)}&select=id,status`, draftRow)
             expect(draft?.status).toBe('draft')
           } finally {
-            await deleteDraft(page, target, 'cash_transactions', `/finance/cash/${draftId}`, '/finance/cash', draftId)
+            await deleteDraftIfCreated(page, target, CASH)
           }
+          reversedRan += 1
           return
         }
         missing.push('a reversed cash transaction (no live twin) whose direction has an open item on the E2E project')
@@ -185,10 +198,14 @@ test(
           for (const purchaseOrder of await billablePurchaseOrders(target, bill.vendor_id)) {
             if (!(await fillBillDraft(page, purchaseOrder.id, bill.vendor_bill_number))) continue
             const before = (await liveBillsWithKey(target, bill)).length
-            await page.getByRole('button', { name: 'Review supplier bill' }).click()
-            await expect(page.getByText(BILL_DUPLICATE)).toBeVisible()
-            expect(page.url()).toMatch(/\/finance\/payables\/new$/)
-            expect((await liveBillsWithKey(target, bill)).length).toBe(before)
+            try {
+              await page.getByRole('button', { name: 'Review supplier bill' }).click()
+              await expect(page.getByText(BILL_DUPLICATE)).toBeVisible()
+              expect(page.url()).toMatch(/\/finance\/payables\/new$/)
+              expect((await liveBillsWithKey(target, bill)).length).toBe(before)
+            } finally {
+              await deleteDraftIfCreated(page, target, BILL)
+            }
             return
           }
         }
@@ -200,15 +217,15 @@ test(
           if ((await liveBillsWithKey(target, bill)).length > 0) continue
           for (const purchaseOrder of await billablePurchaseOrders(target, bill.vendor_id)) {
             if (!(await fillBillDraft(page, purchaseOrder.id, bill.vendor_bill_number))) continue
-            await page.getByRole('button', { name: 'Review supplier bill' }).click()
-            await expect(page, 'the reversed number must save as a new draft').toHaveURL(BILL_DRAFT_URL, { timeout: 30_000 })
-            const draftId = new URL(page.url()).pathname.split('/').pop()!
             try {
-              const [draft] = await tenantRows(target, 'supplier_bills', `id=eq.${draftId}&select=id,status`, draftRow)
+              await page.getByRole('button', { name: 'Review supplier bill' }).click()
+              await expect(page, 'the reversed number must save as a new draft').toHaveURL((url) => BILL.detail.test(url.pathname), { timeout: 30_000 })
+              const [draft] = await tenantRows(target, BILL.table, `id=eq.${draftIdOf(page, BILL)}&select=id,status`, draftRow)
               expect(draft?.status).toBe('draft')
             } finally {
-              await deleteDraft(page, target, 'supplier_bills', `/finance/payables/${draftId}`, '/finance/payables', draftId)
+              await deleteDraftIfCreated(page, target, BILL)
             }
+            reversedRan += 1
             return
           }
         }
@@ -217,7 +234,8 @@ test(
     } finally {
       await admin.close()
     }
-    if (missing.length === 4) needsData(missing.join('; '))
     for (const what of missing) noteNeedsData(testInfo, what)
+    // Live duplicates were refused before #241 too: only a reused reversed number proves the fix.
+    if (reversedRan === 0) needsData(missing.filter((what) => what.startsWith('a reversed')).join('; '))
   }
 )
