@@ -3,7 +3,7 @@ import { getVendorConfirmationView } from '@/lib/vendor-confirmation-client'
 import { VendorConfirmationForm } from './vendor-confirmation-form'
 
 export const metadata: Metadata = {
-  title: 'Supplier order review | ABI OPS',
+  title: 'Supplier order review',
   robots: { index: false, follow: false },
 }
 
@@ -193,7 +193,7 @@ export default async function VendorConfirmationPage({ params }: PageProps) {
 function StateCard({ title, body }: { title: string; body: string }) {
   return (
     <section className="vendor-confirmation-state-card">
-      <p className="vendor-confirmation-kicker">ABI OPS</p>
+      <p className="vendor-confirmation-kicker">Supplier review</p>
       <h2>{title}</h2>
       <p>{body}</p>
       <style>{styles}</style>

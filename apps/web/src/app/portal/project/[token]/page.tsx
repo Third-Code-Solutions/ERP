@@ -31,7 +31,7 @@ import { findActiveCustomerSession, logCustomerView } from '@/lib/operations/cus
 import { PortalEmpty } from '@/components/customer-portal/portal-empty'
 
 export const metadata: Metadata = {
-  title: 'Project overview · ABI OPS',
+  title: 'Project overview',
   robots: { index: false, follow: false },
 }
 

@@ -13,7 +13,10 @@ import {
 } from '@third-code-erp/database/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { parseBankStatementCsv } from './bank-statement-csv'
+import {
+  numberBankStatementOccurrences,
+  parseBankStatementCsv,
+} from './bank-statement-csv'
 import {
   autoMatchBankStatementThroughCoreApi,
   createBankStatementThroughCoreApi,
@@ -80,6 +83,22 @@ const statementSchema = z
     { message: 'Provide exactly one inline source or storage source.' }
   )
 
+/** Parser errors that name the CSV line; safe and useful to show as written. */
+const CSV_LINE_ERROR = new RegExp(
+  '^Line \\d+ (?:' +
+    [
+      'requires a concise description',
+      'reference is too long',
+      'date must use YYYY-MM-DD',
+      'contains an invalid calendar date',
+      'amount must be a signed number with at most two decimals',
+      'amount must be a safe, non-zero value',
+      'has a stray quote\\. Quotes may only wrap a whole field; write a quote inside a field as two quotes\\.',
+      'has a quote that is never closed\\.',
+    ].join('|') +
+    ')$'
+)
+
 function safeReconciliationError(error: unknown): string {
   if (error instanceof z.ZodError) {
     return error.issues[0]?.message ?? 'Check the statement fields.'
@@ -89,10 +108,6 @@ function safeReconciliationError(error: unknown): string {
   const known = [
     'CSV requires a header and at least one statement line',
     'CSV header must include date, reference, description, amount',
-    'Statement dates must use YYYY-MM-DD',
-    'Statement contains an invalid calendar date',
-    'Statement amounts must be signed numbers with two decimals',
-    'Statement amounts must be safe, non-zero values',
     'A statement can contain at most 5,000 lines',
     'Source file encoding is invalid',
     'Source file must be 2 MB or smaller',
@@ -120,11 +135,7 @@ function safeReconciliationError(error: unknown): string {
   if (message.includes('ux_bank_statement_lines_cash_transaction')) {
     return 'That cash transaction is already matched to another statement line.'
   }
-  if (
-    /^Line \d+ (requires a concise description|reference is too long)$/.test(
-      message
-    )
-  ) {
+  if (CSV_LINE_ERROR.test(message)) {
     return message
   }
 
@@ -185,7 +196,10 @@ export async function createBankStatement(
     if (sourceBytes.length === 0 || sourceBytes.length > 2_000_000) {
       throw new Error('Source file must be 2 MB or smaller')
     }
-    const lines = parseBankStatementCsv(sourceBytes.toString('utf8'))
+    // Identical rows are real repeated bank entries: the Nth copy is numbered N.
+    const lines = numberBankStatementOccurrences(
+      parseBankStatementCsv(sourceBytes.toString('utf8'))
+    )
     const sourceSha256 = createHash('sha256')
       .update(sourceBytes)
       .digest('hex')
@@ -198,22 +212,6 @@ export async function createBankStatement(
       )
     ) {
       throw new Error('Bank statement line must match its tenant and date range')
-    }
-
-    const fingerprints = new Set<string>()
-    for (const line of lines) {
-      const fingerprint = [
-        line.transactionDate,
-        line.referenceNumber?.toLowerCase() ?? '',
-        line.amountCents,
-        line.description.trim().toLowerCase(),
-      ].join('|')
-      if (fingerprints.has(fingerprint)) {
-        throw new Error(
-          'That statement reference or an exact duplicate line already exists.'
-        )
-      }
-      fingerprints.add(fingerprint)
     }
 
     const lineTotal = lines.reduce(
@@ -273,6 +271,7 @@ export async function createBankStatement(
           reference_number: line.referenceNumber,
           description: line.description,
           amount_cents: line.amountCents,
+          occurrence: line.occurrence,
         }))
       )
       return statement.id

@@ -11,8 +11,8 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 187,
-    "pendingCount": 30,
+    "sourceCount": 190,
+    "pendingCount": 33,
     "appliedHead": "20260901141949",
     "sourceHead": "20261124140100",
     "ledgerStatus": "current_remote_ledger_matches_source",
@@ -183,6 +183,36 @@
       "hostedApplyApproved": false,
       "risk": "Security fix, two function replacements only. public.handle_new_user() (trigger on_auth_user_created, AFTER INSERT on auth.users) no longer creates a tenant and an Admin profile for an identity without a public.users row; it returns unchanged when the profile exists and otherwise raises P0001, so Auth rolls back the insert. Public sign-up (POST /auth/v1/signup with the anon key), OAuth or magic-link first sign-in, and any admin createUser without an invitation or a pre-placed profile are refused. public.provision_platform_invited_user() (trigger a_platform_invited_user_provision) now claims only a pending invitation created in the last 5 minutes, so a pending row left behind is no longer a sign-up route into its tenant; both server invitation flows create the identity within seconds, and older pending rows stay unchanged and unclaimable. Platform and tenant-admin invitations still work because the a_ trigger places the profile earlier in the same insert. scripts/seed-role-accounts.mjs now places the profile first and passes its id to the Auth admin API. SECURITY DEFINER, the empty search_path, both triggers and the grants are unchanged; no table, column, row or policy changes. CREATE OR REPLACE takes a brief lock on each function only, under a 5-second lock timeout. Preflight: list both auth.users triggers (expect a_platform_invited_user_provision then on_auth_user_created, both enabled); confirm both functions are owned by postgres; list pending platform_user_invitations (expect none, or only seconds old); count auth.users without a public.users row (expect 0 or a known list); and list self-provisioned workspaces by the timestamp match, not the slug suffix, because the 2026-06-13 to 2026-07-29 auto-provision version used a random slug suffix: tenants t join public.users u on u.tenant_id = t.id and u.created_at = t.created_at and u.role = 'admin' where no platform_user_invitations row has auth_user_id = u.id.",
       "recovery": "Take an encrypted backup first and save pg_get_functiondef for both functions. The migration is transactional and aborts without changes on failure. Rollback restores both captured definitions (equivalently, the create or replace function public.handle_new_user() statement and its revoke/grant from 20260729054456_persist_signup_organization_type.sql, without its tenants column or check, and the create or replace function public.provision_platform_invited_user() statement and its revoke/grant from 20260904020000_platform_owner_administration_boundary.sql); that re-opens self-service workspace creation, so roll back only with public sign-up already disabled in Supabase Auth. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-progress-claims-one-live-claim-per-invoice",
+      "migrations": [
+        "20261124120000_progress_claims_one_live_claim_per_invoice.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "S9a expand-only. Adds the partial unique index ux_progress_claims_tenant_invoice_live on progress_claims (tenant_id, invoice_id) WHERE invoice_id IS NOT NULL AND status NOT IN ('rejected', 'cancelled'): one invoice backs at most one live claim, and a rejected or cancelled claim releases it. It is the race backstop behind Core ClaimTransitionService.assertInvoice; Core reports a violation of this index as 'already linked'. A preflight aborts with 23505, changing nothing, if an invoice already has two live claims. No column, row, grant, trigger or function changes. The non-concurrent build takes SHARE on progress_claims, so claim writes wait for the build, under a 5-second lock and 60-second statement timeout. Preflight: select tenant_id, invoice_id, count(*) from public.progress_claims where invoice_id is not null and status not in ('rejected','cancelled') group by 1, 2 having count(*) > 1 (expect no rows).",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback is drop index if exists public.ux_progress_claims_tenant_invoice_live (no data effect); Core still refuses a second live link without it, only the concurrent race backstop is lost. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-bank-statement-line-occurrence",
+      "migrations": [
+        "20261124130000_bank_statement_line_occurrence.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "S8a. Adds bank_statement_lines.occurrence smallint not null default 1 with check bank_statement_lines_occurrence_positive (occurrence > 0); every existing row keeps 1, which the old unique index already makes valid. Rebuilds ux_bank_statement_lines_fingerprint with occurrence as its last column (built under a temporary name, the old index dropped, the new one renamed back), so two identical rows of one statement can be imported as two bank entries; Core and Web number the Nth identical row N. ADD COLUMN and DROP INDEX take ACCESS EXCLUSIVE on bank_statement_lines until commit, under a 5-second lock and 60-second statement timeout. No grant, function, trigger or policy changes. Preflight: confirm the column does not exist and the current index definition.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. The header rollback aborts with 55000 once any statement holds identical lines (the old index cannot be rebuilt without deleting evidence); otherwise it rebuilds the old index, drops the check and the column. Roll back S8b first. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-bank-statement-void-releases-matches",
+      "migrations": [
+        "20261124130100_bank_statement_void_releases_matches.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "S8b. Adds bank_statement_lines.released_at timestamptz with check bank_statement_lines_release_state (released_at is null or matched_cash_transaction_id is not null). Replaces three SECURITY DEFINER functions with their live bodies (20260726232000 plus the 20260727194805 `for key share` on the guard's cash_transactions read) plus marked S8b changes: void_bank_statement sets released_at on the statement's matched lines; guard_bank_statement_line allows only that release (released_at from null, other columns unchanged except updated_at) on a voided statement while app.bank_statement_void holds its id; auto_match_bank_statement ignores released lines. Grants re-asserted to service_role only. Data UPDATE: lines of statements already voided are released with the statement's voided_at, tenant-scoped, under the same GUC; each updated line writes one audit row (session time zone pinned to UTC for the audit hash). ux_bank_statement_lines_cash_transaction becomes partial (matched and not released) via build, drop, rename. ACCESS EXCLUSIVE on bank_statement_lines until commit, 5-second lock and 60-second statement timeout. Preflight: count voided statements with matched unreleased lines (the backfill scope) and confirm function owners.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. The header rollback aborts with 55000 once a cash transaction is matched by an active and a released line; otherwise it rebuilds the old index, restores the three function definitions saved before apply (equivalently the 20260726232000 bodies plus the 20260727194805 guard patch) with their service_role-only grants, and drops the check and the column. This source-only batch does not authorize hosted application."
     },
     {
       "id": "20261124-po-line-item-and-unit-link",

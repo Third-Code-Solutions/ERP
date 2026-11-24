@@ -98,13 +98,9 @@ export async function acknowledgeTicket(ticketId: string): Promise<ActionResult>
     await notifyExternalEmail({
       tenantId: profile.tenantId,
       recipientEmail: existing.submitted_by_email,
-      subject: `Ticket ${existing.ticket_number} acknowledged`,
-      templateId: 'ticket-schedule',
-      templateVars: {
-        ticket_number: existing.ticket_number,
-        scheduled_for: 'TBD — your project manager will confirm shortly',
-        confirm_url: `${siteBase()}/warranty/${ticketId}`,
-      },
+      subject: `Warranty request ${existing.ticket_number} acknowledged`,
+      templateId: 'ticket-acknowledged',
+      templateVars: { ticket_number: existing.ticket_number },
     })
   }
 
@@ -167,12 +163,16 @@ export async function scheduleTicketRepair(
     await notifyExternalEmail({
       tenantId: profile.tenantId,
       recipientEmail: existing.submitted_by_email,
-      subject: `Repair scheduled — ticket ${existing.ticket_number}`,
+      subject: `Repair scheduled for ticket ${existing.ticket_number}`,
       templateId: 'ticket-schedule',
+      // No confirm link: /warranty/<id> is staff-only. Manila time, not the server's zone.
       templateVars: {
         ticket_number: existing.ticket_number,
-        scheduled_for: scheduled.toLocaleString('en-PH'),
-        confirm_url: `${siteBase()}/warranty/${ticketId}`,
+        scheduled_for: scheduled.toLocaleString('en-PH', {
+          timeZone: 'Asia/Manila',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }),
       },
     })
   }
@@ -328,10 +328,10 @@ export async function postTicketMessage(
       tenantId: profile.tenantId,
       recipientEmail: existing.submitted_by_email,
       subject: `Update on ticket ${existing.ticket_number}`,
-      templateId: 'ticket-ack',
+      templateId: 'ticket-update',
       templateVars: {
         ticket_number: existing.ticket_number,
-        description: trimmed.slice(0, 500),
+        message: trimmed.slice(0, 500),
       },
     })
   }

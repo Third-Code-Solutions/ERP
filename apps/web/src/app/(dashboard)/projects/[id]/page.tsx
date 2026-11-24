@@ -22,20 +22,13 @@ import {
   IconReceipt,
   IconChevronRight,
 } from '@/components/ui/icons'
+import { projectTypeLabel } from '@third-code-erp/shared-types'
 import { getProjectDetailAccess } from './project-detail-access'
 
 export const metadata: Metadata = { title: 'Project' }
 
 function formatPHP(cents: number): string {
   return `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-const TYPE_LABELS: Record<string, string> = {
-  mep: 'MEP',
-  fit_out: 'Fit-out',
-  interior: 'Interior',
-  mixed: 'Structural and Civil',
-  structural_civil: 'Structural and Civil',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -166,7 +159,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             <div className={styles.projectFacts}>
               <span>{project.client}</span>
               {project.location && <span>{project.location}</span>}
-              {project.project_type && <span>{TYPE_LABELS[project.project_type] ?? project.project_type}</span>}
+              {project.project_type && <span>{projectTypeLabel(project.project_type) ?? project.project_type}</span>}
               {project.total_sqm && <span>{project.total_sqm.toLocaleString()} sqm</span>}
             </div>
           </div>
@@ -347,7 +340,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <dl style={{ margin: 0 }}>
             {[
               { label: 'Status', value: STATUS_LABELS[project.status] ?? project.status },
-              { label: 'Type', value: project.project_type ? (TYPE_LABELS[project.project_type] ?? project.project_type) : '—' },
+              { label: 'Type', value: project.project_type ? (projectTypeLabel(project.project_type) ?? project.project_type) : '—' },
               { label: 'Client', value: project.client },
               { label: 'Location', value: project.location ?? '—' },
               { label: 'Area', value: project.total_sqm ? `${project.total_sqm.toLocaleString()} sqm` : '—' },

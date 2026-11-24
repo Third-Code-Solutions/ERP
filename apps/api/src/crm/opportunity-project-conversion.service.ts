@@ -26,6 +26,7 @@ import {
 import {
   opportunityProjectConversionCommandSchema,
   opportunityProjectConversionResultSchema,
+  projectTypeLabel,
   type OpportunityProjectConversionCommand,
   type OpportunityProjectConversionResult,
 } from '@third-code-erp/shared-types'
@@ -335,7 +336,12 @@ export class OpportunityProjectConversionService {
       let createdProject = false
       if (!projectId) {
         const clientName = accountName ?? 'Unknown client'
-        const projectName = opportunity.opportunityType?.trim() || clientName
+        const typeName = opportunity.opportunityType?.trim()
+        // A Type option gets its label; free text falls through unchanged.
+        // Array.from counts code points, so the cap never splits a surrogate pair.
+        const projectName = typeName
+          ? Array.from(`${clientName} — ${projectTypeLabel(typeName) ?? typeName}`).slice(0, 200).join('')
+          : clientName
         const [created] = await transaction
           .insert(projects)
           .values({

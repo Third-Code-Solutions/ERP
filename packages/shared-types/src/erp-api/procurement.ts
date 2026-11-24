@@ -101,7 +101,8 @@ export const logRfqQuoteCommandSchema = z
     submissionId: z.string().uuid(),
     bomLineItemId: z.string().uuid(),
     vendorId: z.string().uuid(),
-    unitPriceCents: z.number().int().safe().nonnegative(),
+    // A quote is price evidence: zero is refused here as in the web action.
+    unitPriceCents: z.number().int().safe().positive(),
     leadTimeDays: z.number().int().nonnegative().max(3_650).optional(),
     validUntil: z.string().datetime({ offset: true }).optional(),
     notes: z.string().trim().max(2_000).optional(),

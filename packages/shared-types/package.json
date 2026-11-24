@@ -14,7 +14,8 @@
     "./authorization": "./src/authorization.ts",
     "./business-days": "./src/business-days/index.ts",
     "./process-sla": "./src/process-sla/index.ts",
-    "./platform-administration": "./src/erp-api/platform-administration.ts"
+    "./platform-administration": "./src/erp-api/platform-administration.ts",
+    "./sentry-privacy": "./src/sentry-privacy.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -17,7 +17,7 @@
 import { requireUuidRouteParams } from '@/lib/uuid-route-params'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, notInArray } from 'drizzle-orm'
 import { can, requireUserProfile } from '@third-code-erp/auth'
 import { requireRouteAccess } from '@/lib/require-route-access'
 import { db } from '@third-code-erp/database'
@@ -34,6 +34,8 @@ import { ClaimDetailHeader } from '@/components/claims/claim-detail-header'
 import { ClaimStepper } from '@/components/claims/claim-stepper'
 import { ClaimTransitionActions } from '@/components/claims/claim-transition-actions'
 import { ClaimDocumentAttach } from '@/components/claims/claim-document-attach'
+import { claimPaymentLabel } from '@/lib/claim-invoice-link'
+import { RELEASED_CLAIM_STATUSES } from '@third-code-erp/shared-types'
 
 export const metadata: Metadata = { title: 'Progress Claim' }
 
@@ -209,14 +211,27 @@ export default async function ClaimDetailPage({ params }: PageProps) {
     .orderBy(desc(documents.created_at))
     .limit(50)
 
-  // Invoices on this project — for the "Link invoice" picker.
+  // Invoices on this project — for the "Link invoice" picker. The picker shows
+  // each invoice's subtotal beside the claim amount and disables the ones Core
+  // would refuse, so it needs status, reversal and the live claim holding it.
   const projectInvoices = await db
     .select({
       id: invoices.id,
       invoice_number: invoices.invoice_number,
-      net_amount_cents: invoices.net_amount_cents,
+      status: invoices.status,
+      reversed_at: invoices.reversed_at,
+      subtotal_cents: invoices.subtotal_cents,
+      linked_claim_number: progressClaims.claim_number,
     })
     .from(invoices)
+    .leftJoin(
+      progressClaims,
+      and(
+        eq(progressClaims.invoice_id, invoices.id),
+        eq(progressClaims.tenant_id, profile.tenantId),
+        notInArray(progressClaims.status, [...RELEASED_CLAIM_STATUSES])
+      )
+    )
     .where(
       and(
         eq(invoices.tenant_id, profile.tenantId),
@@ -231,6 +246,8 @@ export default async function ClaimDetailPage({ params }: PageProps) {
     id: string
     invoice_number: string
     net_amount_cents: number
+    status: string
+    reversed_at: Date | null
   } | null = null
   if (claim.invoice_id) {
     const [inv] = await db
@@ -238,6 +255,8 @@ export default async function ClaimDetailPage({ params }: PageProps) {
         id: invoices.id,
         invoice_number: invoices.invoice_number,
         net_amount_cents: invoices.net_amount_cents,
+        status: invoices.status,
+        reversed_at: invoices.reversed_at,
       })
       .from(invoices)
       .where(
@@ -335,6 +354,17 @@ export default async function ClaimDetailPage({ params }: PageProps) {
                 value={
                   linkedInvoice
                     ? `${linkedInvoice.invoice_number} · ${pesos(linkedInvoice.net_amount_cents)}`
+                    : '—'
+                }
+              />
+              <MetaField
+                label="Payment"
+                value={
+                  linkedInvoice
+                    ? claimPaymentLabel({
+                        status: linkedInvoice.status,
+                        reversed: linkedInvoice.reversed_at !== null,
+                      })
                     : '—'
                 }
               />
@@ -602,8 +632,11 @@ export default async function ClaimDetailPage({ params }: PageProps) {
         {canManageClaim && <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <ClaimTransitionActions
             claimId={claim.id}
+            projectId={claim.project_id}
+            claimAmountCents={claim.amount_cents}
             status={claim.status as ClaimStatus}
             rejectedReason={claim.rejected_reason}
+            linkedInvoiceReversed={linkedInvoice?.reversed_at != null}
             certificateDocs={projectDocs.map((d) => ({
               id: d.id,
               file_name: d.file_name,
@@ -611,7 +644,10 @@ export default async function ClaimDetailPage({ params }: PageProps) {
             invoices={projectInvoices.map((i) => ({
               id: i.id,
               invoice_number: i.invoice_number,
-              net_amount_cents: i.net_amount_cents,
+              status: i.status,
+              reversed: i.reversed_at !== null,
+              subtotal_cents: i.subtotal_cents,
+              linked_claim_number: i.linked_claim_number,
             }))}
           />
         </aside>}
