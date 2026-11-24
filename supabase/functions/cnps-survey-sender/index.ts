@@ -1,13 +1,16 @@
 // CNPS Survey Sender — runs every hour.
 //
 // Finds warranty tickets closed > 48h ago that don't yet have a sent CNPS
-// survey. For each: generate a random token, hash it, INSERT a
-// `cnps_surveys` row with sent_at = now(), and email the submitter the
-// survey link.
+// survey. For each: generate a random token, hash it, INSERT a pending
+// `cnps_surveys` row (sent_at null), email the submitter the survey link,
+// and stamp sent_at once the provider accepted it. The insert does nothing
+// when the ticket already has a survey (ux_cnps_surveys_tenant_ticket), and
+// then no email goes out. A failed send stays pending for the Inngest cron.
 
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
 import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import { pgInsert, pgSelect, sendEmail } from '../_shared/email.ts'
+import { insertSurveyOnce, markSurveySent, sendTicketSurvey } from './claim-survey.ts'
 import { buildSurveyEmail, surveyUrl, tenantNamesById } from './survey-email.ts'
 
 interface TicketRow {
@@ -29,6 +32,7 @@ interface RunSummary {
   processed: number
   sent: number
   skipped_no_email: number
+  skipped_existing: number
   errors: Array<{ id: string; error: string }>
 }
 
@@ -62,6 +66,7 @@ Deno.serve(async (req) => {
     processed: 0,
     sent: 0,
     skipped_no_email: 0,
+    skipped_existing: 0,
     errors: [],
   }
   const nowMs = Date.now()
@@ -115,27 +120,36 @@ Deno.serve(async (req) => {
         const tokenHash = await sha256Hex(token)
         const nowIso = new Date(nowMs).toISOString()
 
-        await pgInsert('cnps_surveys', {
-          tenant_id: ticket.tenant_id,
-          ticket_id: ticket.id,
-          account_id: ticket.account_id,
-          sent_at: nowIso,
-          response_token_hash: tokenHash,
-        })
-
         const { subject, html, text } = buildSurveyEmail({
           ticketNumber: ticket.ticket_number,
           recipientName: ticket.submitted_by_name,
           surveyUrl: surveyUrl(portalBase, token),
           companyName: tenantNames.get(ticket.tenant_id),
         })
+        const recipient = ticket.submitted_by_email
 
-        await sendEmail({
-          to: ticket.submitted_by_email,
-          subject,
-          html,
-          text,
-        })
+        const result = await sendTicketSurvey(
+          {
+            tenant_id: ticket.tenant_id,
+            ticket_id: ticket.id,
+            account_id: ticket.account_id,
+            response_token_hash: tokenHash,
+          },
+          {
+            insertSurvey: (row) => insertSurveyOnce(row),
+            send: () => sendEmail({ to: recipient, subject, html, text }),
+            markSent: (surveyId) => markSurveySent(surveyId, ticket.tenant_id, nowIso),
+          }
+        )
+        // Another sender created this ticket's survey since the read above.
+        if (result.outcome === 'skipped_existing') {
+          summary.skipped_existing += 1
+          continue
+        }
+        if (result.outcome === 'not_delivered') {
+          summary.errors.push({ id: ticket.id, error: result.error })
+          continue
+        }
 
         await pgInsert('notifications', {
           tenant_id: ticket.tenant_id,
