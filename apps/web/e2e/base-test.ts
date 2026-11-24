@@ -1,5 +1,6 @@
 import {
   test as base,
+  type APIRequestContext,
   type Browser,
   type BrowserContext,
   type BrowserContextOptions,
@@ -7,44 +8,67 @@ import {
 
 export * from '@playwright/test'
 
+const bypassSecret = () => process.env.E2E_VERCEL_PROTECTION_BYPASS_SECRET
+
 /**
- * The headers that let the trusted-PR job through Vercel Authentication and
- * keep Vercel's preview toolbar out of console assertions. Read on every call
- * so a spec can set the secret before it creates a context.
+ * Lets `requests` (a context's request, or an APIRequestContext) through
+ * Vercel Authentication. The secret goes out once, on a request to baseURL
+ * that is never redirected, and asks Vercel for its bypass cookie. That
+ * cookie is host-only, so it reaches the app host and nothing else, redirects
+ * included. It also rides on every app request a route cannot reach:
+ * page.request, a spec's route.continue() or route.fetch(), and fetch().
  */
-export function vercelPreviewHeaders(
-  secret = process.env.E2E_VERCEL_PROTECTION_BYPASS_SECRET,
-): Record<string, string> {
-  return secret
-    ? { 'x-vercel-protection-bypass': secret, 'x-vercel-skip-toolbar': '1' }
-    : {}
+export async function mintVercelBypassCookie(
+  requests: APIRequestContext,
+  baseURL: string | undefined,
+  secret = bypassSecret(),
+): Promise<void> {
+  if (!baseURL || !secret) return
+  const response = await requests.get(baseURL, {
+    headers: {
+      'x-vercel-protection-bypass': secret,
+      'x-vercel-set-bypass-cookie': 'true',
+    },
+    maxRedirects: 0,
+  })
+  const status = response.status()
+  await response.dispose()
+  if (status === 401 || status === 403) {
+    throw new Error(`Vercel refused the protection bypass for ${baseURL} (${status})`)
+  }
 }
 
 /**
- * Adds `headers` to requests for the app's own origin only. Sent to another
- * origin (Sentry ingest, Supabase), they fail its CORS preflight, which shows
- * up as console errors, and they would hand the bypass secret to a third party.
+ * Keeps Vercel's preview toolbar out of console assertions. The toolbar is
+ * injected into app pages, so only app-origin documents ask to skip it. The
+ * header is not secret: a document that redirects off the app origin keeps it
+ * on the next hop, and navigations send no CORS preflight. A spec route that
+ * calls route.continue() for a page skips this, and that page may then show
+ * the toolbar.
  */
-export async function addHeadersForOrigin(
+export async function skipVercelToolbar(
   context: BrowserContext,
   baseURL: string | undefined,
-  headers: Record<string, string>,
 ): Promise<void> {
-  if (!baseURL || Object.keys(headers).length === 0) return
+  if (!baseURL) return
   const { origin } = new URL(baseURL)
-  // fallback, not continue, so routes a spec adds later still run first.
   await context.route(
     (url) => url.origin === origin,
     (route) =>
-      route.fallback({ headers: { ...route.request().headers(), ...headers } }),
+      route.request().resourceType() === 'document'
+        ? route.fallback({
+            headers: { ...route.request().headers(), 'x-vercel-skip-toolbar': '1' },
+          })
+        : route.fallback(),
   )
 }
 
 /**
- * Every spec imports `test` from here. The worker's browser adds the Vercel
- * headers to each context it creates: the built-in `context` and `page`
- * fixtures and a spec's own `browser.newContext()` all go through it.
- * shortcut: PW_TEST_REUSE_CONTEXT contexts skip newContext and get no headers;
+ * Every e2e file takes `test` from here. The worker's browser sets up each
+ * context it creates: the built-in `context` and `page` fixtures and a spec's
+ * own `browser.newContext()` all go through it. Without the secret (local,
+ * loopback and production runs) nothing changes.
+ * shortcut: PW_TEST_REUSE_CONTEXT contexts skip newContext and get no bypass;
  * CI never sets it.
  */
 export const test = base.extend<object, { browser: Browser }>({
@@ -53,24 +77,20 @@ export const test = base.extend<object, { browser: Browser }>({
       const newContext = browser.newContext.bind(browser)
       browser.newContext = async (options?: BrowserContextOptions) => {
         const context = await newContext(options)
-        await addHeadersForOrigin(
-          context,
-          options?.baseURL ?? workerInfo.project.use.baseURL,
-          vercelPreviewHeaders(),
-        )
+        const baseURL = options?.baseURL ?? workerInfo.project.use.baseURL
+        if (bypassSecret()) {
+          await mintVercelBypassCookie(context.request, baseURL)
+          await skipVercelToolbar(context, baseURL)
+        }
         return context
       }
       await use(browser)
     },
     { scope: 'worker' },
   ],
-  // APIRequestContext has no routes and no CORS, so it keeps the headers
-  // directly. Point it only at the app's origin.
   request: async ({ playwright, baseURL }, use) => {
-    const request = await playwright.request.newContext({
-      baseURL,
-      extraHTTPHeaders: vercelPreviewHeaders(),
-    })
+    const request = await playwright.request.newContext()
+    await mintVercelBypassCookie(request, baseURL)
     await use(request)
     await request.dispose()
   },
