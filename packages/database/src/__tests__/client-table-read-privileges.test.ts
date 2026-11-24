@@ -4,9 +4,10 @@
  *
  * Every ERP read and write runs as `postgres` (Drizzle SSR, Nest Core API), the
  * service-role client, or a SECURITY DEFINER RPC. The user-JWT path reads only
- * `users` (profile, server client from the session cookie), `notifications`
- * (Realtime), and Realtime on `opportunities`, `purchase_orders`, `invoices`,
- * `boms`. `tenants` has no user-JWT reader and is revoked. `audit_log` and the
+ * `users` (profile, server client from the session cookie) and `notifications`
+ * (the bell). `opportunities`, `purchase_orders`, `invoices` and `boms` had only
+ * Realtime subscribers, and production publishes no public table, so they are
+ * revoked. `tenants` has no user-JWT reader and is revoked. `audit_log` and the
  * `cortex_*` tables belong to the Cortex hardening and are neither revoked nor
  * granted here.
  *
@@ -35,14 +36,7 @@ import {
 const MIGRATION_FILE = '20261124200000_revoke_client_table_reads.sql'
 
 /** Tables the product reads through the browser JWT. Add a table here only with a reviewed browser read. */
-export const ALLOWED_BROWSER_READS = [
-  'boms',
-  'invoices',
-  'notifications',
-  'opportunities',
-  'purchase_orders',
-  'users',
-] as const
+export const ALLOWED_BROWSER_READS = ['notifications', 'users'] as const
 
 /** Owned by the Cortex hardening (#147): this migration leaves their grants alone. */
 function ownedByCortexHardening(table: string): boolean {
@@ -84,14 +78,10 @@ describe('client table read revocation migration (static replay)', () => {
     expect(statements[2]).toBe("set local statement_timeout = '60s'")
     expect(statements[statements.length - 1]).toBe('commit')
     const body = statements.slice(3, -1)
-    expect(body).toHaveLength(3)
+    expect(body).toHaveLength(2)
     expect(body[0]).toMatch(/^revoke select on table public\./)
     expect(body[0]).toMatch(/ from authenticated, anon$/)
-    // The kept reads are granted explicitly, so a fresh replay matches production.
     expect(body[1]).toBe(
-      `grant select on table ${ALLOWED_BROWSER_READS.map((table) => `public.${table}`).join(', ')} to authenticated`
-    )
-    expect(body[2]).toBe(
       'alter default privileges for role postgres in schema public revoke select on tables from authenticated, anon'
     )
   })
@@ -253,7 +243,17 @@ runtimeDescribe('client table read privileges (database)', () => {
     await inRollback(sql, async (tx) => {
       const { userA, tenantA } = await seedTwoTenants(tx)
       await becomeAuthenticated(tx, userA)
-      for (const table of ['projects', 'documents', 'journal_entries', 'cost_entries', 'tenants']) {
+      for (const table of [
+        'projects',
+        'documents',
+        'journal_entries',
+        'cost_entries',
+        'tenants',
+        'opportunities',
+        'purchase_orders',
+        'invoices',
+        'boms',
+      ]) {
         expect(await failureCode(tx, `select 1 from public.${table} limit 1`), table).toBe('42501')
       }
       const visible = await tx.unsafe<Array<{ tenant_id: string }>>(
@@ -279,7 +279,8 @@ runtimeDescribe('client table read privileges (database)', () => {
 
       const held = await selectableBy(tx, 'authenticated')
       expect(held).not.toContain('projects')
-      expect(held).toContain('purchase_orders')
+      expect(held).not.toContain('purchase_orders')
+      expect(held).toContain('notifications')
       // The probe is not on the list: only tables the migrations created are named.
       expect(held).toContain('client_read_existing_probe')
       expect(await defaultAclSelect(tx)).toEqual([])

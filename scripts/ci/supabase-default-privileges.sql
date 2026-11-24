@@ -56,10 +56,9 @@ revoke all privileges
 grant select, insert, update, delete, truncate on table public.documents,
   public.progress_claims, public.tenants, public.progress_claim_documents,
   public.projects to service_role;
--- KYC uses the same pre-existing table boundary. Preserve the one browser read
--- S12A keeps (opportunities) and trusted-server access; artifact mutation and
+-- KYC uses the same pre-existing table boundary. Preserve trusted-server access
+-- only: S12A retired the opportunities browser read, and artifact mutation and
 -- parent deletion denials stay put.
-grant select on table public.opportunities to authenticated;
 -- The legacy account/opportunity INSERT/UPDATE grants were retired by
 -- 20261104055626_revoke_client_table_writes; do not restore them here.
 grant select, insert, update, delete, truncate on table

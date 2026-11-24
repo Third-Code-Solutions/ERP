@@ -1762,7 +1762,7 @@ try {
   const authenticatedReadableTables = requiredTables.filter(
     (table) =>
       !requiredDirectClientDenyTables.includes(table)
-      && (table.startsWith('cortex_') || ['audit_log', 'invoices'].includes(table))
+      && (table.startsWith('cortex_') || ['audit_log', 'notifications', 'users'].includes(table))
   )
 
   // 20261104055626 (SEC-01/SEC-02) retired every browser-role table DML grant;

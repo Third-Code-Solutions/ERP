@@ -15,24 +15,27 @@
 -- What the product reads through the user JWT (audit of main at ff97f39d:
 -- server supabase-js clients built from the session cookie, browser clients,
 -- Realtime subscriptions, RPCs, RLS policy and view dependencies, edge
--- functions). Each of these keeps SELECT for authenticated and is NOT revoked:
+-- functions). Only these keep SELECT for authenticated and are NOT revoked:
 --   users            packages/auth/src/server.ts getUserProfile: server client from the session cookie
---   notifications    Realtime in components/nav/notifications-dropdown.tsx
---   opportunities    Realtime in components/dashboard/realtime-refresher.tsx and components/pipeline/pipeline-board.tsx
---   purchase_orders  Realtime in components/dashboard/realtime-refresher.tsx
---   invoices         Realtime in components/dashboard/realtime-refresher.tsx
---   boms             Realtime in components/dashboard/realtime-refresher.tsx
--- Realtime evaluates RLS as the subscriber, so those tables need SELECT. They
--- are granted explicitly below (a no-op in production, where they already hold
--- it) so every environment ends with the same browser reads.
+--   notifications    the bell (components/nav/notifications-dropdown.tsx);
+--                    20261124210000 narrows its policy to the recipient
+-- opportunities, purchase_orders, invoices and boms are revoked as well. Their
+-- only user-JWT readers are the Realtime subscriptions in
+-- components/dashboard/realtime-refresher.tsx and
+-- components/pipeline/pipeline-board.tsx, and the production supabase_realtime
+-- publication holds no public table, so those subscriptions already receive no
+-- events and revoking changes nothing visible. Keeping the reads would let any
+-- tenant user read PO amounts, BOM costs and deal values directly through
+-- PostgREST, past the pages' role checks. Publishing one of them later needs a
+-- role-aware SELECT policy and an explicit grant first.
 -- tenants has no user-JWT reader (settings reads it through Drizzle;
 -- auth_tenant_id() reads it as SECURITY DEFINER), so it is revoked too.
 -- No anon read of any public table exists. The only other user-JWT calls are the
 -- SECURITY DEFINER RPCs activate_current_invited_user() and is_platform_owner()
 -- and Storage (signed upload URLs); none of them need table SELECT. The RLS
--- policies on the kept tables call only auth_tenant_id() and
--- auth_can_manage_finance() (both SECURITY DEFINER), never another table. No
--- views exist in public.
+-- policies on the kept tables call only auth_tenant_id() (SECURITY DEFINER) and,
+-- from 20261124210000, auth.uid(); never another table. No views exist in
+-- public.
 -- NOT touched here: audit_log and the cortex_* tables. The hardening that owns
 -- their grants (#147) decides them; this migration neither revokes nor grants.
 --
@@ -40,8 +43,8 @@
 -- supabase/migrations in filename order (packages/database/src/__tests__/
 -- _migration-replay.ts: comments and dollar quotes skipped, create / drop /
 -- rename table applied, nothing executed) through THIS file gives 215 public
--- tables. Minus the 6 kept above and minus audit_log plus the 12 cortex_*
--- tables, 196 remain. client-table-read-privileges.test.ts re-runs the replay on
+-- tables. Minus the 2 kept above and minus audit_log plus the 12 cortex_*
+-- tables, 200 remain. client-table-read-privileges.test.ts re-runs the replay on
 -- every build and fails if this list and the replay ever differ.
 -- Stamped after every migration that creates a listed table (unit_aliases comes
 -- from 20261124140000). A table on the list that does not exist in production
@@ -72,13 +75,18 @@
 --      and has_table_privilege(r.rolname, c.oid, 'SELECT')
 --    order by 1;
 -- ROLLBACK: run the saved statements (a grant, instant, no data effect), restore
--- the default ACL, and delete the ledger row:
+-- the default ACL for authenticated only (anon held no default SELECT before
+-- this; 20260806160000 revoked it), and delete the ledger row by name (an MCP
+-- apply may stamp a different version):
 --   alter default privileges for role postgres in schema public
---     grant select on tables to authenticated, anon;
---   delete from supabase_migrations.schema_migrations where version = '20261124200000';
+--     grant select on tables to authenticated;
+--   delete from supabase_migrations.schema_migrations
+--    where name = 'revoke_client_table_reads' returning version;
 -- If login or the dashboard breaks, first run only:
 --   grant select on table public.users to authenticated;
--- AFTER applying, this must return only the kept tables, audit_log and cortex_*:
+-- AFTER applying, this must return exactly 8 rows, all authenticated and none
+-- anon: audit_log, cortex_conversations, cortex_edges, cortex_messages,
+-- cortex_nodes, cortex_provenance, notifications, users:
 --   select c.relname, r.rolname
 --     from pg_class c
 --     join pg_namespace n on n.oid = c.relnamespace
@@ -87,8 +95,9 @@
 --      and c.relkind in ('r', 'p', 'v', 'm', 'f')
 --      and has_table_privilege(r.rolname, c.oid, 'SELECT')
 --    order by 1, 2;
--- Smoke after applying: sign in, open the dashboard (it must still refresh on a
--- change), open the notification bell, move a deal on the pipeline.
+-- Smoke after applying: sign in, open the dashboard, a purchase order, a BOM and
+-- an invoice (all server-rendered), open the notification bell, move a deal on
+-- the pipeline.
 begin;
 
 set local lock_timeout = '5s';
@@ -120,6 +129,7 @@ revoke select on table
   public.bom_line_item_location_reviews,
   public.bom_line_items,
   public.bom_portal_tokens,
+  public.boms,
   public.boq_divisions,
   public.business_calendar_holidays,
   public.cad_evidence_commit_requests,
@@ -172,6 +182,7 @@ revoke select on table
   public.fiscal_periods,
   public.inventory_reservation_events,
   public.inventory_reservations,
+  public.invoices,
   public.journal_entries,
   public.journal_lines,
   public.journal_post_requests,
@@ -187,6 +198,7 @@ revoke select on table
   public.mobilization_readiness,
   public.notification_deliveries,
   public.notification_outbox,
+  public.opportunities,
   public.opportunity_kyc_tracks,
   public.opportunity_project_conversion_requests,
   public.opportunity_stage_transition_requests,
@@ -234,6 +246,7 @@ revoke select on table
   public.purchase_order_create_requests,
   public.purchase_order_supplier_email_deliveries,
   public.purchase_order_workflow_requests,
+  public.purchase_orders,
   public.quality_hold_point_punchlist_handoffs,
   public.quality_hold_points,
   public.rate_cards,
@@ -293,18 +306,6 @@ revoke select on table
   public.warranty_tickets,
   public.weekly_reports
 from authenticated, anon;
-
--- The kept user-JWT reads, granted explicitly so a fresh replay matches
--- production, where they came from the bootstrap default ACL (boms and
--- purchase_orders have no migration grant). A no-op where the grant exists.
-grant select on table
-  public.boms,
-  public.invoices,
-  public.notifications,
-  public.opportunities,
-  public.purchase_orders,
-  public.users
-to authenticated;
 
 -- Tables created later by postgres in public must not regain SELECT.
 alter default privileges for role postgres in schema public
