@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common'
 import {
   auditLog,
+  boms,
   progressClaims,
   projects,
   tenants,
@@ -24,7 +25,7 @@ import {
   type CreateClaimDraftResult,
 } from '@third-code-erp/shared-types'
 import { ERP_ROLES, roleHasCapability } from '@third-code-erp/shared-types/authorization'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { ErpPrincipal } from '../auth/current-principal.decorator'
 import { AuditService } from '../audit/audit.service'
@@ -33,6 +34,8 @@ import { DatabaseService, type DatabaseTransaction } from '../database/database.
 const CLAIM_COMMAND_ENTITY = 'progress_claim_command'
 const CREATE_ACTION = 'create'
 const MAX_SUFFIX_DIGITS = 29
+// A rejected or cancelled claim no longer counts against the contract value.
+const RELEASED_CLAIM_STATUSES: Array<'rejected' | 'cancelled'> = ['rejected', 'cancelled']
 
 function pgCode(error: unknown): string | undefined {
   const seen = new Set<object>()
@@ -47,6 +50,12 @@ function pgCode(error: unknown): string | undefined {
 
 function hashPayload(command: CreateClaimDraftCommand): string {
   return createHash('sha256').update(claimDraftPayload(command)).digest('hex')
+}
+
+function pesoText(cents: bigint): string {
+  const whole = cents / 100n
+  const fraction = (cents % 100n).toString().padStart(2, '0')
+  return `₱${whole.toLocaleString('en-PH')}.${fraction}`
 }
 
 function nextClaimNumber(maxSuffix: string | null): string {
@@ -75,6 +84,8 @@ export class ClaimDraftService {
           await this.lockProject(transaction, input.projectId, actor.tenantId)
           const replay = await this.findReceipt(transaction, actor, input.projectId, input.clientRequestId, payloadHash)
           if (replay) return createClaimDraftResultSchema.parse({ projectId: input.projectId, created: false, changed: false, receipt: replay })
+
+          await this.assertWithinApprovedBomValue(transaction, actor.tenantId, input.projectId, input.amountCents)
 
           const [max] = await transaction.execute<{ max_suffix: string | null }>(sql`
             select max((substring(${progressClaims.claim_number} from '^PC-([0-9]+)$'))::numeric)::text as max_suffix
@@ -168,6 +179,40 @@ export class ClaimDraftService {
     await this.audit.stampActor(transaction, actorPrincipal)
     if (!await this.audit.tryLockTenantChain(transaction, actorPrincipal.tenantId)) throw new ConflictException('Claim writes are busy; retry the unchanged draft')
     return actorPrincipal
+  }
+
+  /**
+   * Live claims plus the new one may not exceed the latest approved or locked
+   * BOM TCV (the same BOM the invoice draft bills). Runs under the project lock,
+   * so two concurrent drafts cannot both pass. A project with no approved BOM
+   * has no contract value to cap against and is left to Commercial's review.
+   */
+  private async assertWithinApprovedBomValue(transaction: DatabaseTransaction, tenantId: string, projectId: string, newAmountCents: number): Promise<void> {
+    const [bom] = await transaction
+      .select({ tcvCents: sql<string>`cast(${boms.tcv_cents} as text)` })
+      .from(boms)
+      .where(and(eq(boms.project_id, projectId), eq(boms.tenant_id, tenantId), inArray(boms.status, ['approved', 'locked'])))
+      .orderBy(desc(boms.version))
+      .limit(1)
+    if (!bom) return
+    const [live] = await transaction
+      .select({ total: sql<string>`coalesce(sum(${progressClaims.amount_cents}), 0)::text` })
+      .from(progressClaims)
+      .where(and(eq(progressClaims.tenant_id, tenantId), eq(progressClaims.project_id, projectId), notInArray(progressClaims.status, RELEASED_CLAIM_STATUSES)))
+    let contractCents: bigint
+    let liveCents: bigint
+    try {
+      contractCents = BigInt(bom.tcvCents)
+      liveCents = BigInt(live?.total ?? '0')
+    } catch {
+      throw new InternalServerErrorException('Claim totals are not exact centavo amounts')
+    }
+    const proposedCents = liveCents + BigInt(newAmountCents)
+    if (proposedCents > contractCents) {
+      throw new ConflictException(
+        `This claim would bring the project's live claims to ${pesoText(proposedCents)}, above the approved BOM value of ${pesoText(contractCents)}. Lower the amount or reject an earlier claim.`,
+      )
+    }
   }
 
   private async lockProject(transaction: DatabaseTransaction, projectId: string, tenantId: string): Promise<void> {
