@@ -36,6 +36,12 @@ export async function mintVercelBypassCookie(
   if (status === 401 || status === 403) {
     throw new Error(`Vercel refused the protection bypass for ${baseURL} (${status})`)
   }
+  // A leading dot means a Domain attribute: the cookie would also reach other hosts.
+  const shared = (await requests.storageState()).cookies.filter(({ domain }) => domain.startsWith('.'))
+  if (shared.length > 0) {
+    const names = shared.map(({ name, domain }) => `${name} (${domain})`).join(', ')
+    throw new Error(`Vercel bypass left cookies that are not host-only: ${names}`)
+  }
 }
 
 /**
