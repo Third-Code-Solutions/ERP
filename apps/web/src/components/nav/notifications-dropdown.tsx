@@ -102,8 +102,8 @@ export function NotificationsDropdown({
     }
   }, [])
 
-  // Keep page transitions independent from the Core API. The dropdown loads on
-  // demand, then refreshes while it is visible rather than polling every route.
+  // Keep page transitions independent from the Core API. While the dropdown is
+  // visible it refreshes on an interval; closed, it does not poll every route.
   useEffect(() => {
     if (!open) return
 
@@ -134,6 +134,12 @@ export function NotificationsDropdown({
       fetchControllerRef.current?.abort()
     }
   }, [])
+
+  // One read per page load so the bell badge is correct before the dropdown is
+  // opened. Declared after the lifecycle effect so unmountedRef is already reset.
+  useEffect(() => {
+    void fetchItems()
+  }, [fetchItems])
 
   // Real-time push via Supabase Realtime on the notifications table for this user.
   useEffect(() => {

@@ -19,6 +19,7 @@ import {
   PORTAL_INVOICE_STATUSES,
   portalBillingTotals,
 } from './billing-view'
+import { CLAIM_PAID_IN_FULL, paidClaimPaymentLabel } from '@/lib/claim-invoice-link'
 
 export const metadata: Metadata = {
   title: 'Project billing',
@@ -67,6 +68,12 @@ const CLAIM_STATUS_TONES: Record<string, string> = {
   paid: '#0d5c3a',
   rejected: '#a01818',
   cancelled: '#4b5563',
+}
+
+// A paid claim shows its invoice's payment state: one receipt moves a claim to paid.
+const PAYMENT_TONES: Record<string, string> = {
+  [CLAIM_PAID_IN_FULL]: '#0d5c3a',
+  'Partially paid': '#7a4a00',
 }
 
 function fmtPHP(cents: number): string {
@@ -157,8 +164,8 @@ export default async function PortalProjectBillingPage({
       and(
         eq(invoices.tenant_id, session.tenant_id),
         eq(invoices.project_id, session.project_id),
-        // Only invoices the contractor has issued: no drafts or cancelled ones,
-        // and a reversed invoice keeps its status, so it is excluded by reversal.
+        // Only invoices the contractor has issued: no drafts or cancelled ones.
+        // Reversal cancels an invoice; reversed_at is checked as well.
         inArray(invoices.status, PORTAL_INVOICE_STATUSES),
         isNull(invoices.reversed_at)
       )
@@ -176,8 +183,17 @@ export default async function PortalProjectBillingPage({
       submitted_at: progressClaims.submitted_at,
       certified_at: progressClaims.certified_at,
       paid_at: progressClaims.paid_at,
+      invoice_status: invoices.status,
+      invoice_reversed_at: invoices.reversed_at,
     })
     .from(progressClaims)
+    .leftJoin(
+      invoices,
+      and(
+        eq(invoices.id, progressClaims.invoice_id),
+        eq(invoices.tenant_id, session.tenant_id)
+      )
+    )
     .where(
       and(
         eq(progressClaims.tenant_id, session.tenant_id),
@@ -402,7 +418,9 @@ export default async function PortalProjectBillingPage({
               </tr>
             </thead>
             <tbody>
-              {claimRows.map((c) => (
+              {claimRows.map((c) => {
+                const payment = paidClaimPaymentLabel(c)
+                return (
                 <tr key={c.id} style={{ borderBottom: '1px solid #f1f3f6' }}>
                   <td
                     style={{
@@ -416,17 +434,24 @@ export default async function PortalProjectBillingPage({
                   </td>
                   <td style={{ padding: '12px 12px' }}>
                     <StatusBadge
-                      label={CLAIM_STATUS_LABELS[c.status] ?? c.status}
-                      tone={CLAIM_STATUS_TONES[c.status] ?? '#4b5563'}
+                      label={payment ?? CLAIM_STATUS_LABELS[c.status] ?? c.status}
+                      tone={
+                        payment
+                          ? PAYMENT_TONES[payment] ?? '#4b5563'
+                          : CLAIM_STATUS_TONES[c.status] ?? '#4b5563'
+                      }
                     />
                   </td>
                   <td style={{ ...tdNum, fontWeight: 600, color: '#0F2D4A' }}>{c.milestone_pct}%</td>
                   <td style={tdNum}>{fmtPHP(c.amount_cents)}</td>
                   <td style={{ padding: '12px 12px', color: '#4b5563' }}>{fmtDate(c.submitted_at)}</td>
                   <td style={{ padding: '12px 12px', color: '#4b5563' }}>{fmtDate(c.certified_at)}</td>
-                  <td style={{ padding: '12px 18px', color: '#4b5563' }}>{fmtDate(c.paid_at)}</td>
+                  <td style={{ padding: '12px 18px', color: '#4b5563' }}>
+                    {payment === null || payment === CLAIM_PAID_IN_FULL ? fmtDate(c.paid_at) : '—'}
+                  </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
           </div>

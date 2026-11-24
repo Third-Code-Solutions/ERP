@@ -1,3 +1,5 @@
+// Sentry must initialise before any other module loads.
+import './instrument'
 import 'reflect-metadata'
 import { Logger, ValidationPipe } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'

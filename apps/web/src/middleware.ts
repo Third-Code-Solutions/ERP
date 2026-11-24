@@ -158,7 +158,8 @@ function buildCSP(nonce: string): string {
     "font-src 'self' data: https://fonts.gstatic.com https://cdn.fontshare.com",
     // No browser-side code calls OpenAI: model traffic is server-only. The
     // origin was allowlisted in error and widened the exfiltration surface.
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://vitals.vercel-insights.com${localSupabaseConnectSrc}`,
+    // The Sentry origin is the exact ingest host of the ABI OPS organisation.
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.inngest.com https://vitals.vercel-insights.com https://o4512451278274560.ingest.us.sentry.io${localSupabaseConnectSrc}`,
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",

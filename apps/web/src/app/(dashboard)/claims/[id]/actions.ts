@@ -29,13 +29,14 @@ import {
 } from '@third-code-erp/auth'
 import {
   claimDocumentAttachCommandSchema,
+  claimInvoiceAmountMismatch,
   claimTransitionPayload,
   projectDocumentListQuerySchema,
   type ProjectDocumentListResult,
   type ClaimTransitionCommand,
 } from '@third-code-erp/shared-types'
 import { db } from '@third-code-erp/database'
-import { progressClaims } from '@third-code-erp/database/schema'
+import { invoices, progressClaims } from '@third-code-erp/database/schema'
 import { notifyRoles } from '@/lib/operations/notifications'
 import {
   attachClaimDocumentThroughCoreApi,
@@ -308,6 +309,24 @@ export async function linkInvoice(
 
   const claim = await loadClaim(claimId, profile.tenantId)
   if (!claim) return { error: 'Progress claim not found' }
+
+  // The claim amount and the invoice subtotal must agree before they are tied
+  // together; Core checks the invoice status, reversal and one-claim-per-invoice.
+  const [invoice] = await db
+    .select({ subtotal_cents: invoices.subtotal_cents })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.id, invoiceIdResult.data),
+        eq(invoices.tenant_id, profile.tenantId),
+        eq(invoices.project_id, claim.project_id)
+      )
+    )
+    .limit(1)
+  if (!invoice) return { error: 'Invoice not found in the claim project', outcome: 'rejected' }
+  const mismatch = claimInvoiceAmountMismatch(claim.amount_cents, invoice.subtotal_cents)
+  if (mismatch) return { error: mismatch, outcome: 'rejected' }
+
   const transition = await executeCoreTransition(
     profile,
     claim,

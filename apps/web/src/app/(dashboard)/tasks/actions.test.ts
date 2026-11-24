@@ -616,7 +616,7 @@ describe('triggerDailyGeneration', () => {
   it.each([
     [{ created: 0, skipped: 21, projectsConsidered: 3 }, 'Today’s cadence is already generated: 21 tasks across 3 active projects. Nothing new was added.'],
     [{ created: 0, skipped: 0, projectsConsidered: 0 }, 'There are no active projects, so no cadence tasks were generated.'],
-    [{ created: 0, skipped: 0, projectsConsidered: 2 }, 'No active teammates hold a cadence role (SD / PM / PE, Safety, Commercial, Procurement), so no tasks were generated.'],
+    [{ created: 0, skipped: 0, projectsConsidered: 2 }, 'No active teammates hold a cadence role (SD / PM / PE, Safety), so no tasks were generated.'],
   ])('explains a run that adds nothing (%o)', async (summary, message) => {
     mocks.generateTasksForDate.mockResolvedValue(summary)
 

@@ -1,16 +1,10 @@
 import type { AppRole } from '@third-code-erp/auth'
 import {
   STAGE_LEGACY_MAP,
+  projectTypeLabel,
   type OpportunityStage,
 } from '@third-code-erp/shared-types'
 import { canViewPath } from '@/lib/operations/nav-config'
-
-const OPPORTUNITY_TYPE_LABELS: Record<string, string> = {
-  fit_out: 'Fit-out',
-  mep: 'MEP',
-  interior: 'Interior',
-  structural_civil: 'Structural / Civil',
-}
 
 export function formatOpportunityDate(value: Date | string | null): string {
   if (!value) return '—'
@@ -24,7 +18,7 @@ export function formatOpportunityDate(value: Date | string | null): string {
 
 export function opportunityTypeLabel(value: string | null): string {
   if (!value) return '—'
-  return OPPORTUNITY_TYPE_LABELS[value] ?? value.replace(/_/g, ' ')
+  return projectTypeLabel(value) ?? value.replace(/_/g, ' ')
 }
 
 export function opportunityWorkspaceAccess(input: {

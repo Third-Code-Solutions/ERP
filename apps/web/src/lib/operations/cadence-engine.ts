@@ -37,6 +37,9 @@ export interface CadenceTemplate {
 }
 
 // Default templates per role. Order is significant for predictable output.
+// Completing a daily task needs the `sd.daily_tasks` capability, so a template
+// may only name a role that holds it; otherwise its tasks can never be closed
+// and sit overdue forever (commercial and procurement had templates here once).
 export const DEFAULT_CADENCE_TEMPLATES: CadenceTemplate[] = [
   {
     role: 'sd_pm_pe',
@@ -51,18 +54,6 @@ export const DEFAULT_CADENCE_TEMPLATES: CadenceTemplate[] = [
     tasks: [
       { title: 'Toolbox meeting log', description: 'Run pre-shift toolbox meeting and log attendees.', hour: 7 },
       { title: 'PPE compliance check', description: 'Random PPE compliance check around the site.', hour: 10 },
-    ],
-  },
-  {
-    role: 'commercial',
-    tasks: [
-      { title: 'Variation log review', description: 'Review open variation orders for blockers.', hour: 11 },
-    ],
-  },
-  {
-    role: 'procurement',
-    tasks: [
-      { title: 'Delivery tracking sweep', description: 'Confirm scheduled deliveries against PO promises.', hour: 14 },
     ],
   },
 ]

@@ -11,6 +11,9 @@ import {
   getProcessTaskQueueThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { IconActivity, IconArrowUpRight, IconClock } from '@/components/ui/icons'
+import { errorChainMessage } from '@/lib/error-chain-message'
+import { loadOpenDeadlines } from './open-deadlines'
+import { OpenDeadlinesPanel } from './open-deadlines-panel'
 import { ProcessRetry } from './retry'
 import styles from './process.module.css'
 import { ProcessTaskActions } from './process-task-actions'
@@ -126,9 +129,8 @@ function ProcessTaskQueueClockCell({
           ? 'External / track only'
           : 'Internal'}
       </div>
-      <div>{clock.observeMode ? 'Observe mode' : 'Enforce mode'}</div>
       <div className="muted">
-        {label(clock.clockType)} · Core status: {label(clock.status)}
+        {label(clock.clockType)} · {label(clock.status)}
       </div>
       <div className="muted">Due {dateTime(clock.dueAt)}</div>
     </div>
@@ -158,8 +160,8 @@ function ProcessTaskQueueSection({
             Process task queue
           </h2>
           <p className="muted" style={{ marginTop: 4 }}>
-            Core-owned process tasks. Subject references and assignee UUIDs
-            remain opaque; clock labels are displayed exactly from Core.
+            Tasks created by the workflow engine, with their owners and
+            deadlines.
           </p>
         </div>
         {data ? (
@@ -287,8 +289,8 @@ function ProcessTaskQueueSection({
 
           {error ? (
             <div className="card-empty" role="alert" style={{ marginTop: 16 }}>
-              <strong>Verified task queue unavailable.</strong>{' '}
-              {error} No synthetic tasks are shown.
+              <strong>{error}</strong> Try again; if the problem continues,
+              contact your workspace administrator.
             </div>
           ) : data?.rows.length === 0 ? (
             <>
@@ -326,16 +328,16 @@ function ProcessTaskQueueSection({
               <div style={{ overflowX: 'auto', marginTop: 16 }}>
                 <table className="data-table">
                   <caption className="sr-only">
-                    Core process task queue with statuses, ownership, blocked
-                    reasons, and nullable SLA-clock evidence
+                    Workflow task queue with statuses, ownership, blocked
+                    reasons, and deadlines
                   </caption>
                   <thead>
                     <tr>
                       <th scope="col">Process step</th>
                       <th scope="col">Responsible BU</th>
-                      <th scope="col">Subject reference</th>
+                      <th scope="col">Subject</th>
                       <th scope="col">Status</th>
-                      <th scope="col">Assignee UUID</th>
+                      <th scope="col">Assigned</th>
                       <th scope="col">Blocked reason</th>
                       <th scope="col">Clock</th>
                       <th scope="col">Actions</th>
@@ -349,18 +351,11 @@ function ProcessTaskQueueSection({
                           <div className="muted">{row.processStepName}</div>
                         </th>
                         <td>{row.responsibleBu}</td>
-                        <td>
-                          <div>{row.subjectType}</div>
-                          <code style={{ wordBreak: 'break-all' }}>
-                            {row.subjectId}
-                          </code>
-                        </td>
+                        <td>{label(row.subjectType)}</td>
                         <td>{label(row.status)}</td>
                         <td>
                           {row.assignedTo ? (
-                            <code style={{ wordBreak: 'break-all' }}>
-                              {row.assignedTo}
-                            </code>
+                            'Assigned'
                           ) : (
                             <span className="muted">Unassigned</span>
                           )}
@@ -443,6 +438,16 @@ function ProcessTaskQueueSection({
   )
 }
 
+/** The Core client returns ok:false for fetch and HTTP failures; only a bug throws, so log it. */
+function logCoreFailure(action: string) {
+  return (error: unknown) => {
+    console.error(
+      JSON.stringify({ action, outcome: 'failure', error: errorChainMessage(error) || 'unknown' })
+    )
+    return null
+  }
+}
+
 export default async function ProcessHealthPage({
   searchParams,
 }: ProcessHealthPageProps) {
@@ -456,8 +461,13 @@ export default async function ProcessHealthPage({
     )
   }
 
-  const result = await getProcessHealthThroughCoreApi()
-  const health = result.ok ? result.data : null
+  // Deadlines come from this tenant's own sla_logs, so a Core outage can only
+  // take away the workflow-engine sections, never the whole page.
+  const [result, deadlines] = await Promise.all([
+    getProcessHealthThroughCoreApi().catch(logCoreFailure('process.health')),
+    loadOpenDeadlines(profile.tenantId, profile.role),
+  ])
+  const health = result?.ok ? result.data : null
   const resolvedSearch = searchParams ? await searchParams : {}
   const queueFilters: QueueFilterValues = {
     status: optionalSearchParam(resolvedSearch.status),
@@ -470,14 +480,17 @@ export default async function ProcessHealthPage({
     amountCentavos: optionalSearchParam(resolvedSearch.amountCentavos),
   }
   const canManageTaskQueue = can(profile.role, 'process.task.manage')
-  const queueResult = canManageTaskQueue
-    ? await getProcessTaskQueueThroughCoreApi(queueFilters)
+  const queueAttempted = canManageTaskQueue && health !== null
+  const queueResult = queueAttempted
+    ? await getProcessTaskQueueThroughCoreApi(queueFilters).catch(logCoreFailure('process.task-queue'))
     : null
   const taskQueue = queueResult?.ok ? queueResult.data ?? null : null
-  const taskQueueError =
-    queueResult && !queueResult.ok
-      ? queueResult.error ?? 'Process task queue is unavailable.'
-      : null
+  // A 400 names the bad filter; any other failure stays generic.
+  const taskQueueError = !queueAttempted || queueResult?.ok
+    ? null
+    : queueResult?.status === 400 && queueResult.error
+      ? queueResult.error
+      : 'The task queue could not be loaded.'
   const requestedAmount = firstSearchParam(resolvedSearch.amountCentavos)
   const previewResult =
     requestedAmount === undefined
@@ -492,6 +505,9 @@ export default async function ProcessHealthPage({
         : await getApprovalRoutePreviewThroughCoreApi(requestedAmount)
   const previewData = previewResult?.ok ? previewResult.data : undefined
   const hasActivity = Boolean(health?.byBu.length)
+  // No step, task or clock has ever been created by the engine: say so plainly.
+  // A queue failure is shown as a failure, never as "not configured".
+  const engineConfigured = hasActivity || taskQueueError !== null || (taskQueue?.total ?? 0) > 0
   const totals = health?.byBu.reduce(
     (summary, bu) => ({
       openTasks: summary.openTasks + bu.openTasks,
@@ -538,16 +554,51 @@ export default async function ProcessHealthPage({
         )}
       </header>
 
+      <OpenDeadlinesPanel result={deadlines} />
+
       {!health ? (
         <section className={styles.panel} aria-labelledby="process-health-unavailable">
           <div className={styles.header}>
             <h2 id="process-health-unavailable" className="card-title">
-              Process health could not be loaded
+              Workflow engine status could not be loaded
             </h2>
           </div>
           <div className={styles.failure} role="alert">
-            <p>We could not retrieve the latest workflow deadlines. Try again; if the problem continues, contact your workspace administrator.</p>
+            <p>We could not reach the workflow engine. Your open deadlines above are not affected. Try again; if the problem continues, contact your workspace administrator.</p>
             <ProcessRetry />
+          </div>
+        </section>
+      ) : !engineConfigured ? (
+        <section className={styles.panel} aria-labelledby="process-engine-not-configured">
+          <div className={styles.header}>
+            <IconActivity size={18} />
+            <div className={styles.sectionHeading}>
+              <h2 id="process-engine-not-configured" className="card-title">
+                Workflow engine, not configured
+              </h2>
+            </div>
+          </div>
+          <div className={styles.empty}>
+            <div className={styles.emptyIcon}>
+              <IconClock size={26} />
+            </div>
+            <div className={styles.emptyContent}>
+              <h3>No automated workflow steps yet</h3>
+              <p>
+                Approval steps and workflow tasks by business unit appear here
+                once the workflow engine is set up for your workspace.
+                Deadlines for the work itself are listed above; daily site
+                tasks are in Tasks.
+              </p>
+              <div className={styles.actions}>
+                <Link className="button-primary" href="/tasks">
+                  Open my tasks
+                </Link>
+                <Link className="button-secondary" href="/projects">
+                  View projects
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
       ) : (
@@ -668,13 +719,15 @@ export default async function ProcessHealthPage({
         </>
       )}
 
-      <ProcessTaskQueueSection
-        canManage={canManageTaskQueue}
-        data={taskQueue}
-        error={taskQueueError}
-        filters={queueFilters}
-        preview={previewSearch}
-      />
+      {engineConfigured ? (
+        <ProcessTaskQueueSection
+          canManage={canManageTaskQueue}
+          data={taskQueue}
+          error={taskQueueError}
+          filters={queueFilters}
+          preview={previewSearch}
+        />
+      ) : null}
 
       <section className="card" aria-labelledby="approval-route-preview">
         <div className="card-header">
@@ -683,8 +736,8 @@ export default async function ProcessHealthPage({
               Approval route preview
             </h2>
             <p className="muted" style={{ marginTop: 4 }}>
-              Read-only diagnostics for the configured purchase-order rules.
-              Enter the amount in integer PHP centavos.
+              See which approval steps a purchase order of a given amount
+              goes through. Enter the amount in centavos.
             </p>
           </div>
           {previewData ? (
@@ -732,8 +785,7 @@ export default async function ProcessHealthPage({
                 aria-describedby="approval-route-preview-help"
               />
               <p id="approval-route-preview-help" className="form-help">
-                Use a non-negative integer; no peso or decimal conversion is
-                performed in this diagnostic.
+                Whole centavos only, for example 150000 for PHP 1,500.00.
               </p>
             </div>
             <div style={{ alignSelf: 'end' }}>
@@ -756,8 +808,7 @@ export default async function ProcessHealthPage({
                 ? 'Approval route preview request is invalid.'
                 : 'Approval route preview is unavailable.'}
             </strong>{' '}
-            {previewResult.error ?? 'No verified preview was returned.'} No
-            synthetic route is shown.
+            {previewResult.error ?? 'No preview was returned.'}
           </div>
         ) : (
           <div style={{ marginTop: 16 }} aria-live="polite">
