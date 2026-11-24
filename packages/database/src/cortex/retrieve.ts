@@ -24,6 +24,7 @@ import type { CortexNode, CortexProvenance } from '../schema/cortex'
 import {
   cortexGraphRefTableMatchesType,
   isCortexGraphRefTable,
+  redactCortexText,
 } from '@third-code-erp/shared-types'
 
 export interface Citation {
@@ -185,10 +186,13 @@ export async function cortexKeywordAnswer(
 export function cortexEmbeddingText(
   node: Pick<CortexNode, 'node_type' | 'title' | 'summary'>
 ): string {
-  return [node.node_type, node.title ?? '', node.summary ?? '']
-    .filter(Boolean)
-    .join(' — ')
-    .slice(0, 8000)
+  // The text goes to an external embedding provider; redact before truncating
+  // so a cut can never leave half of an identifier behind.
+  return redactCortexText(
+    [node.node_type, node.title ?? '', node.summary ?? '']
+      .filter(Boolean)
+      .join(' — ')
+  ).slice(0, 8000)
 }
 
 const UUID_PATTERN =

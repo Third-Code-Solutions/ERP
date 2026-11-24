@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./graph', () => mocks)
 
 import {
+  cortexEmbeddingText,
   cortexEntitySearchTerms,
   cortexKeywordAnswer,
   isBroadCortexQuestion,
@@ -158,5 +159,30 @@ describe('Cortex keyword retrieval', () => {
       limit: 8,
       nodeTypes: ['invoice'],
     })
+  })
+})
+
+describe('Cortex embedding text', () => {
+  it('redacts direct identifiers before the text leaves for the embedding provider', () => {
+    const text = cortexEmbeddingText({
+      node_type: 'contact',
+      title: 'Reach jane@example.com',
+      summary: 'TIN 123-456-789, phone +639171234567',
+    })
+
+    expect(text).toBe(
+      'contact — Reach [email redacted] — [tax id redacted], phone [phone redacted]'
+    )
+  })
+
+  it('truncates after redaction', () => {
+    const text = cortexEmbeddingText({
+      node_type: 'project',
+      title: `${'a'.repeat(7_980)} jane@example.com`,
+      summary: null,
+    })
+
+    expect(text.length).toBeLessThanOrEqual(8_000)
+    expect(text).not.toContain('@')
   })
 })
