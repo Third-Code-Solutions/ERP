@@ -48,19 +48,41 @@ function entityIds(rows: readonly OpenSlaLogRow[], entityType: string): string[]
 /**
  * A lower bound of each clock's due time, for reading the likeliest-late clocks
  * first: calendar hours exactly, business days as (days - 1) calendar days
- * (the start day counts in full). An unreadable config sorts by its start.
+ * (the start day counts in full). An unreadable config has no due time (NULL)
+ * and is read after every readable one, so it never takes a capped slot first.
  */
 const approximateDueAt = sql`${slaLogs.started_at} + make_interval(secs => coalesce(
   case when jsonb_typeof(${slaLogs.sla_seconds} -> 'breach_at_seconds') = 'number'
     then (${slaLogs.sla_seconds} ->> 'breach_at_seconds')::double precision end,
   case when jsonb_typeof(${slaLogs.sla_seconds} -> 'breach_business_days') = 'number'
-    then ((${slaLogs.sla_seconds} ->> 'breach_business_days')::double precision - 1) * 86400 end,
-  0))`
+    then ((${slaLogs.sla_seconds} ->> 'breach_business_days')::double precision - 1) * 86400 end))`
+
+/**
+ * A permit or checklist item under a retired project keeps an open clock, but
+ * it is no longer a deadline anyone can act on: leave it out in SQL, before the
+ * row cap. Every table in both subqueries is filtered on the tenant.
+ */
+function notUnderRetiredProject(tenantId: string) {
+  return sql`not exists (
+    select 1 from ${permits}
+    join ${projects} on ${projects.id} = ${permits.project_id} and ${projects.tenant_id} = ${tenantId}
+    where ${slaLogs.entity_type} = 'permit' and ${permits.id} = ${slaLogs.entity_id}
+      and ${permits.tenant_id} = ${tenantId} and ${projects.deleted_at} is not null
+  ) and not exists (
+    select 1 from ${preConChecklistItems}
+    join ${preConChecklists} on ${preConChecklists.id} = ${preConChecklistItems.checklist_id}
+      and ${preConChecklists.tenant_id} = ${tenantId}
+    join ${projects} on ${projects.id} = ${preConChecklists.project_id} and ${projects.tenant_id} = ${tenantId}
+    where ${slaLogs.entity_type} = 'pre_con_checklist_item' and ${preConChecklistItems.id} = ${slaLogs.entity_id}
+      and ${preConChecklistItems.tenant_id} = ${tenantId} and ${projects.deleted_at} is not null
+  )`
+}
 
 /**
  * Permits and checklist items only know their own id, but their links need the
- * project. A retired project gives no link (its pages are not found). Everything
- * is tenant-scoped and one query per type.
+ * project. Clocks under a retired project are already left out; one retired
+ * between the two reads still gets no link. Everything is tenant-scoped and one
+ * query per type.
  */
 function liveProject(projectId: AnyColumn, tenantId: string) {
   return and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId), isNull(projects.deleted_at))
@@ -160,10 +182,11 @@ export async function loadOpenDeadlines(
         and(
           eq(slaLogs.tenant_id, tenantId),
           isNull(slaLogs.completed_at),
-          inArray(slaLogs.entity_type, entityTypes)
+          inArray(slaLogs.entity_type, entityTypes),
+          notUnderRetiredProject(tenantId)
         )
       )
-      .orderBy(asc(approximateDueAt), asc(slaLogs.started_at))
+      .orderBy(sql`${approximateDueAt} asc nulls last`, asc(slaLogs.started_at))
       .limit(OPEN_CLOCK_ROW_LIMIT)
 
     if (rows.length === 0) {

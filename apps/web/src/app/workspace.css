@@ -327,13 +327,19 @@ body:has(.app-layout[data-theme='dark'], .platform-layout[data-theme='dark']) {
 .app-layout[data-theme='dark'] .data-table tbody tr:hover td {
   background: var(--color-neutral-75);
 }
-.app-layout[data-theme='dark'] :is(.finance-field input, .finance-field select, .finance-field textarea, .journal-line input, .journal-line select, .form-input) {
+/* Dark form fields. Both rules use one field list: keep them in sync. */
+/* Not when disabled: .form-input:disabled keeps its own fill and text. */
+.app-layout[data-theme='dark'] :is(.finance-field input, .finance-field select, .finance-field textarea, .journal-line input, .journal-line select, .form-input):not(:disabled) {
   background: var(--color-surface-raised);
   color: var(--color-neutral-900);
 }
 /* Not while focused: the shared :focus rule's gold border (4.2:1 on raised) is the focus cue. */
 .app-layout[data-theme='dark'] :is(.finance-field input, .finance-field select, .finance-field textarea, .journal-line input, .journal-line select, .form-input):not(:focus) {
   border-color: var(--color-border-strong);
+}
+/* gold-700 is under 3:1 on dark surfaces; gold-600 is at least 4.2:1. Specific focus rules still win. */
+:where(.app-layout, .platform-layout)[data-theme='dark'] :where(a, button, input, select, textarea):focus-visible {
+  outline-color: var(--color-gold-600);
 }
 .app-layout[data-theme='dark'] .empty-state {
   background: var(--color-surface-sunken);

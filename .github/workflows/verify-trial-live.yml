@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       grep:
-        description: Only run tests matching this pattern (e.g. @pr-229 or @pr-229|@pr-230)
+        description: Only run tests matching this pattern (e.g. @pr-229 or @pr-229|@pr-230). @seed runs the fixture seeds, which are skipped otherwise
         required: false
         type: string
         default: ""
@@ -84,8 +84,11 @@ jobs:
           # JSON keeps only test.step steps, never page URLs (the HTML report and
           # traces do). Screenshots and video are off in gateTrialLive().
           args=(e2e/trial-live --project=chromium --workers=1 --retries=0 --trace=off "--reporter=list,json")
+          # Seeds (@seed) create fixtures, so they run only when grep names @seed.
+          invert="$TRIAL_GREP_INVERT"
+          if [[ "$TRIAL_GREP" != *@seed* ]]; then invert="${invert:+$invert|}@seed"; fi
           if [[ -n "$TRIAL_GREP" ]]; then args+=(--grep "$TRIAL_GREP"); fi
-          if [[ -n "$TRIAL_GREP_INVERT" ]]; then args+=(--grep-invert "$TRIAL_GREP_INVERT"); fi
+          if [[ -n "$invert" ]]; then args+=(--grep-invert "$invert"); fi
           status=0
           pnpm exec playwright test "${args[@]}" || status=$?
           node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
