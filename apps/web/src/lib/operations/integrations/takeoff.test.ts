@@ -116,4 +116,22 @@ describe('structured takeoff importer', () => {
     expect(first).toBe(second)
     expect(first).not.toBe(different)
   })
+
+  it('reads a formula cell by its computed value instead of [object Object]', async () => {
+    const ExcelJS = await import('exceljs')
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Takeoff')
+    worksheet.addRow(['Description', 'Quantity', 'UOM'])
+    worksheet.addRow(['Floor slab', { formula: '5*2.5', result: 12.5 }, 'sqm'])
+    worksheet.addRow(['Brick wall', { formula: '1/0', result: { error: '#DIV/0!' } }, 'sqm'])
+
+    const result = await parseStructuredTakeoff(
+      Buffer.from(await workbook.xlsx.writeBuffer()),
+      'takeoff.xlsx',
+      { description: 'Description', quantity: 'Quantity', unit: 'UOM' },
+    )
+
+    expect(result.rows.map((row) => row.quantity)).toEqual([12.5, null])
+    expect(JSON.stringify(result.rows)).not.toContain('[object Object]')
+  })
 })

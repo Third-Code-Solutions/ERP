@@ -2,7 +2,9 @@
 .app-layout,
 .platform-layout {
   --sidebar-width: 260px;
-  --topbar-height: 58px;
+  /* One header height shared by the sidebar brand block and the top bar so
+     their bottom borders sit on the same line. The top bar controls are 40px. */
+  --topbar-height: 64px;
   --content-max: 1800px;
   --font-sans: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
   --font-display: var(--font-sans);
@@ -56,8 +58,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: var(--topbar-height);
-  padding: 10px 18px;
+  height: var(--topbar-height);
+  padding: 0 18px;
   border-bottom: 1px solid var(--color-border);
 }
 .workspace-brand-mark {
@@ -155,7 +157,7 @@
 
 /* Small, stable header and neutral surfaces across all three experiences. */
 .app-layout .app-topbar, .platform-layout .platform-topline {
-  min-height: var(--topbar-height); height: auto; padding: 12px 24px;
+  height: var(--topbar-height); padding: 0 24px;
   border-bottom: 1px solid var(--color-border); background: #fafafa;
   box-shadow: none; backdrop-filter: none; text-transform: none; letter-spacing: normal; font-size: 13px;
 }
@@ -229,7 +231,7 @@
 @media (max-width: 760px) {
   .app-layout, .platform-layout { display: flex; flex-direction: column; }
   .workspace-sidebar { position: sticky; top: 0; width: 100%; height: auto; border-right: 0; border-bottom: 1px solid var(--color-border); }
-  .workspace-brand { min-height: 54px; border-bottom: 0; }
+  .workspace-brand { height: auto; min-height: 54px; border-bottom: 0; }
   .workspace-mobile-toggle { display: flex; margin-left: auto; padding: 8px; }
   .workspace-navigation-body { display: none; max-height: calc(100dvh - 130px); }
   .workspace-sidebar[data-mobile-open='true'] .workspace-navigation-body { display: flex; }
@@ -246,7 +248,7 @@
   .workspace-sidebar .sidebar-user-avatar { display: grid; }
   .app-layout .app-main, .platform-layout .platform-main { margin-left: 0; width: 100%; }
   .app-layout .app-content, .platform-layout .platform-content { padding: 18px 16px 32px; }
-  .app-layout .app-topbar, .platform-layout .platform-topline { position: static; padding: 10px 16px; min-height: 48px; }
+  .app-layout .app-topbar, .platform-layout .platform-topline { position: static; height: auto; padding: 10px 16px; min-height: 48px; }
   .app-layout .app-topbar { flex-wrap: wrap; gap: 10px; }
   .app-layout .search-trigger { min-width: 32px; width: 32px; flex: 0 0 32px; padding: 8px; }
   .app-layout .search-trigger > span:not([aria-hidden]), .app-layout .search-trigger kbd { display: none; }
@@ -264,7 +266,7 @@
 }
 
 body:has(.app-layout[data-theme='dark'], .platform-layout[data-theme='dark']) {
-  background: #0d1b29;
+  background: #0a0a0a;
   background-image: none;
 }
 

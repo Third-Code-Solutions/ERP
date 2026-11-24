@@ -45,10 +45,26 @@ function findColumn(headers: string[], configured: string | undefined): number {
   return headers.indexOf(normalizeHeader(configured))
 }
 
+// ExcelJS hands back objects for formula, rich-text, hyperlink and error cells.
 function cellToString(value: unknown): string {
   if (value == null) return ''
-  if (typeof value === 'object' && 'text' in value && typeof value.text === 'string') {
-    return value.text
+  if (value instanceof Date) return String(value)
+  if (typeof value === 'object') {
+    // A formula cell is read by what it computed, never by its source text.
+    if ('formula' in value || 'sharedFormula' in value) {
+      return 'result' in value ? cellToString(value.result) : ''
+    }
+    if ('richText' in value && Array.isArray(value.richText)) {
+      return value.richText
+        .map((part: unknown) =>
+          typeof part === 'object' && part !== null && 'text' in part && typeof part.text === 'string'
+            ? part.text
+            : '',
+        )
+        .join('')
+    }
+    if ('text' in value && typeof value.text === 'string') return value.text
+    return ''
   }
   return String(value)
 }

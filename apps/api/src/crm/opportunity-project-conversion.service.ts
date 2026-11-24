@@ -43,6 +43,13 @@ import {
 } from '../database/database.service'
 
 const RECIPIENT_ROLES = ['sd_pm_pe', 'admin', 'owner'] as const
+// Labels for the Type options on the opportunity forms; free text falls through unchanged.
+const OPPORTUNITY_TYPE_NAMES: Record<string, string> = {
+  mep: 'MEP',
+  fit_out: 'Fit-out',
+  interior: 'Interior',
+  structural_civil: 'Structural and Civil',
+}
 const INVALID_LINKED_ACCOUNT_MESSAGE =
   'Opportunity Account is not available in this tenant'
 
@@ -335,7 +342,10 @@ export class OpportunityProjectConversionService {
       let createdProject = false
       if (!projectId) {
         const clientName = accountName ?? 'Unknown client'
-        const projectName = opportunity.opportunityType?.trim() || clientName
+        const typeName = opportunity.opportunityType?.trim()
+        const projectName = typeName
+          ? `${clientName} — ${OPPORTUNITY_TYPE_NAMES[typeName] ?? typeName}`.slice(0, 200)
+          : clientName
         const [created] = await transaction
           .insert(projects)
           .values({
