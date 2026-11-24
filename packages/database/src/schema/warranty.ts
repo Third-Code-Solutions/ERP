@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { pgTable, uuid, varchar, text, integer, timestamp, boolean, index, uniqueIndex, pgEnum } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { projects } from './projects'
@@ -107,6 +108,10 @@ export const cnpsSurveys = pgTable(
     tenantIdx: index('idx_cnps_tenant_id').on(table.tenant_id),
     ticketIdx: index('idx_cnps_ticket_id').on(table.ticket_id),
     accountIdx: index('idx_cnps_account_id').on(table.account_id),
+    // Unique like the other portal token hashes: a lookup by hash must find one survey.
+    responseTokenHashIdx: uniqueIndex('idx_cnps_response_token_hash')
+      .on(table.response_token_hash)
+      .where(sql`${table.response_token_hash} is not null`),
   })
 )
 

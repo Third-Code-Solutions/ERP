@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 191,
-    "pendingCount": 34,
+    "sourceCount": 192,
+    "pendingCount": 35,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261124150000",
+    "sourceHead": "20261124160000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -234,6 +234,16 @@
       "hostedApplyApproved": false,
       "risk": "Adds the validated check constraint rfq_quotes_unit_price_positive (unit_price_cents > 0) on public.rfq_quotes; no column, index, function, trigger, policy or grant changes and no data UPDATE. ALTER TABLE ADD CONSTRAINT CHECK takes ACCESS EXCLUSIVE on rfq_quotes and scans every row once while held, under a 5-second lock and 60-second statement timeout; any row with unit_price_cents <= 0 aborts the migration with 23514 and changes nothing. Idempotent: when a constraint of that name already exists it is validated instead (VALIDATE CONSTRAINT, SHARE UPDATE EXCLUSIVE, same 23514 abort).Preflight: count rfq_quotes rows with unit_price_cents <= 0 (must be 0) and the table row count.",
       "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback drops constraint rfq_quotes_unit_price_positive and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-cnps-response-token-hash-index",
+      "migrations": [
+        "20261124160000_cnps_response_token_hash_index.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds the partial unique btree index idx_cnps_response_token_hash on public.cnps_surveys (response_token_hash) where response_token_hash is not null, serving the unauthenticated CNPS survey lookup. No column, constraint, function, trigger, policy or grant changes and no data UPDATE. Two surveys sharing one non-null hash would make the build fail with 23505 and change nothing (production has 0 rows). Plain CREATE UNIQUE INDEX inside the transaction takes SHARE on cnps_surveys (reads continue, writes wait) for the build, under a 5-second lock and 60-second statement timeout; chosen because the table is small. Preflight: cnps_surveys row count and table size (switch to CREATE INDEX CONCURRENTLY outside a transaction if large) that the index name is free, and that no response_token_hash is shared.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback drops idx_cnps_response_token_hash and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
     }
   ]
 }
