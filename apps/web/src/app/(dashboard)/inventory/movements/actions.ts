@@ -107,10 +107,8 @@ function safeMovementError(error: unknown): string {
     message.includes(candidate)
   )
   if (known) return known
-  if (
-    message.includes('ux_stock_movement_lines_movement_item') ||
-    message.includes('duplicate key')
-  ) {
+  // Only the named constraint: another unique violation is not a repeated Item.
+  if (message.includes('ux_stock_movement_lines_movement_item')) {
     return 'Each Item may appear once per Stock Movement.'
   }
   return 'Stock Movement action failed. Existing stock evidence was unchanged.'

@@ -5,6 +5,9 @@
  * "Failed query: <sql>"; the database's rule text ("Fiscal period is already
  * closed") is on `.cause`. Matching only `error.message` hides every database
  * rule from the user behind a generic failure.
+ *
+ * Match known messages against the result; never return it to a user, because
+ * the chain carries the SQL text and its parameters.
  */
 export function errorChainMessage(error: unknown): string {
   const messages: string[] = []

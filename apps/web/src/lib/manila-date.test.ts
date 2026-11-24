@@ -1,9 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import {
   calendarDaysBetween,
+  formatManilaDate,
   formatManilaDateTime,
   manilaToday,
 } from './manila-date'
+
+describe('formatManilaDate', () => {
+  it('shows the Manila calendar day, not the UTC one', () => {
+    const lateUtc = new Date('2026-11-16T20:15:00Z')
+    expect(formatManilaDate(lateUtc)).toBe(
+      new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium', timeZone: 'UTC' }).format(
+        new Date('2026-11-17T00:00:00Z')
+      )
+    )
+  })
+})
 
 describe('manilaToday', () => {
   it('is already the next day at 16:00 UTC (00:00 Manila)', () => {

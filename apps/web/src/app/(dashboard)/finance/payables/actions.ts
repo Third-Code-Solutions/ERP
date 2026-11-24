@@ -171,10 +171,8 @@ function safeSupplierBillError(error: unknown): string {
     'Reversal date cannot precede supplier bill date',
   ]
 
-  if (
-    message.includes('ux_supplier_bills_vendor_number') ||
-    message.includes('duplicate key value')
-  ) {
+  // Only the named constraint: other unique keys (internal number, bill lines) mean something else.
+  if (message.includes('ux_supplier_bills_vendor_number')) {
     return 'That Vendor bill number already exists for this Vendor.'
   }
 

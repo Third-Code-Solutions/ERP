@@ -372,4 +372,47 @@ describe('supplier bill actions', () => {
       error: 'That Vendor bill number already exists for this Vendor.',
     })
   })
+
+  it.each([
+    [
+      'ux_supplier_bills_vendor_number',
+      'That Vendor bill number already exists for this Vendor.',
+    ],
+    [
+      'ux_supplier_bills_internal_number',
+      'Supplier bill action failed. No partial financial posting was saved.',
+    ],
+  ])(
+    'maps a wrapped unique violation on %s only by its constraint name',
+    async (constraint, expected) => {
+      mocks.transaction.mockRejectedValue(
+        new Error('Failed query: insert into "supplier_bills"', {
+          cause: new Error(
+            `duplicate key value violates unique constraint "${constraint}"`
+          ),
+        })
+      )
+
+      const result = await saveSupplierBillDraft({
+        purchaseOrderId: PO_ID,
+        vendorBillNumber: 'SI-100',
+        billDate: '2026-07-27',
+        dueDate: null,
+        currency: 'PHP',
+        subtotalCents: 100_000,
+        inputVatCents: 12_000,
+        withholdingTaxCents: 2_000,
+        lines: [
+          {
+            poLineItemId: PO_LINE_ID,
+            ledgerAccountId: '77777777-7777-4777-8777-777777777777',
+            description: 'Materials',
+            amountCents: 100_000,
+          },
+        ],
+      })
+
+      expect(result).toEqual({ ok: false, error: expected })
+    }
+  )
 })

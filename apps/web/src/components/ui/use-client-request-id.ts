@@ -31,6 +31,9 @@ export function nextClientRequestId(
 /**
  * One idempotency key per record being created. Empty until mounted so the
  * server and client markup match; callers disable submit while it is empty.
+ *
+ * Pass the state object from useActionState as is. The effect is keyed on its
+ * identity, so an inline object would mint a new key on every render.
  */
 export function useClientRequestId(outcome: SubmitOutcome): string {
   const [clientRequestId, setClientRequestId] = useState('')

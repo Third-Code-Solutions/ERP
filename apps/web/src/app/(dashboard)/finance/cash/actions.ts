@@ -122,10 +122,8 @@ function safeCashError(error: unknown): string {
     'Cash transaction reversal reason is required',
   ]
 
-  if (
-    message.includes('ux_cash_transactions_reference') ||
-    message.includes('duplicate key value')
-  ) {
+  // Only the named constraint: other unique keys (internal number, journal links) mean something else.
+  if (message.includes('ux_cash_transactions_reference')) {
     return 'That reference already exists for this Cash Account and direction.'
   }
 
