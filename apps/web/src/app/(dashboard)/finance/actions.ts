@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db, validateJournalLines } from '@third-code-erp/database'
 import {
@@ -125,7 +126,7 @@ function safeError(error: unknown): string {
     return error.issues[0]?.message ?? 'Check the finance form fields'
   }
 
-  const message = error instanceof Error ? error.message : ''
+  const message = errorChainMessage(error)
   const known = [
     'Fiscal periods cannot overlap',
     'Posting date is not in an open fiscal period',
@@ -230,7 +231,7 @@ export async function createCashAccount(
     revalidatePath('/finance/cash')
     return { ok: true, id: created?.id }
   } catch (error) {
-    const message = error instanceof Error ? error.message : ''
+    const message = errorChainMessage(error)
     if (
       message.includes('ux_cash_accounts_tenant_ledger') ||
       message.includes('ux_cash_accounts_tenant_name')

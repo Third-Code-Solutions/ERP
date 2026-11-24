@@ -1,11 +1,12 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState } from 'react'
 import type {
   SiteDiaryListResult,
   SiteDiaryRow,
   SiteDiaryStatus,
 } from '@third-code-erp/shared-types'
+import { useClientRequestId } from '@/components/ui/use-client-request-id'
 import {
   createSiteDiary,
   submitSiteDiary,
@@ -60,8 +61,7 @@ function statusClass(status: SiteDiaryStatus): string {
 
 function CreateDiaryForm({ projectId }: { projectId: string }) {
   const [state, action, pending] = useActionState<SiteDiaryActionState, FormData>(createSiteDiary, { ok: true })
-  const [clientRequestId, setClientRequestId] = useState('')
-  useEffect(() => setClientRequestId(globalThis.crypto.randomUUID()), [])
+  const clientRequestId = useClientRequestId(state)
 
   return (
     <details className="card" style={{ marginBottom: 16 }}>

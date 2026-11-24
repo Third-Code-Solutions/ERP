@@ -1,12 +1,13 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState } from 'react'
 import type {
   ProjectRfiListResult,
   ProjectRfiPriority,
   ProjectRfiRow,
   ProjectRfiStatus,
 } from '@third-code-erp/shared-types'
+import { useClientRequestId } from '@/components/ui/use-client-request-id'
 import {
   createProjectRfi,
   transitionProjectRfi,
@@ -78,11 +79,7 @@ function CreateProjectRfiForm({ projectId }: { projectId: string }) {
     ProjectRfiActionState,
     FormData
   >(createProjectRfi, { ok: true })
-  const [clientRequestId, setClientRequestId] = useState('')
-
-  useEffect(() => {
-    setClientRequestId(crypto.randomUUID())
-  }, [])
+  const clientRequestId = useClientRequestId(state)
 
   return (
     <details className="card" style={{ marginBottom: 16 }}>

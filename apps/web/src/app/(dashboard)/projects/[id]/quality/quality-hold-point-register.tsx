@@ -1,11 +1,12 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState } from 'react'
 import type {
   QualityHoldPointListResult,
   QualityHoldPointRow,
   QualityHoldPointStatus,
 } from '@third-code-erp/shared-types'
+import { useClientRequestId } from '@/components/ui/use-client-request-id'
 import {
   createQualityHoldPoint,
   transitionQualityHoldPoint,
@@ -58,8 +59,7 @@ function statusClass(status: QualityHoldPointStatus): string {
 
 function CreateQualityForm({ projectId }: { projectId: string }) {
   const [state, action, pending] = useActionState<QualityActionState, FormData>(createQualityHoldPoint, { ok: true })
-  const [clientRequestId, setClientRequestId] = useState('')
-  useEffect(() => setClientRequestId(globalThis.crypto.randomUUID()), [])
+  const clientRequestId = useClientRequestId(state)
   return (
     <details className="card" style={{ marginBottom: 16 }}>
       <summary className="card-header" style={{ cursor: 'pointer', listStylePosition: 'inside' }}>

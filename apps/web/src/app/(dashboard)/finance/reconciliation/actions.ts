@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { revalidatePath } from 'next/cache'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -84,7 +85,7 @@ function safeReconciliationError(error: unknown): string {
     return error.issues[0]?.message ?? 'Check the statement fields.'
   }
 
-  const message = error instanceof Error ? error.message : ''
+  const message = errorChainMessage(error)
   const known = [
     'CSV requires a header and at least one statement line',
     'CSV header must include date, reference, description, amount',

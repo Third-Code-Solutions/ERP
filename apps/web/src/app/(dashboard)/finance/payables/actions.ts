@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -133,7 +134,7 @@ function safeSupplierBillError(error: unknown): string {
     return error.issues[0]?.message ?? 'Check the supplier bill fields.'
   }
 
-  const message = error instanceof Error ? error.message : ''
+  const message = errorChainMessage(error)
   const known = [
     'Reverse allocated Vendor disbursements first',
     'Purchase Order must be approved and issued before billing',

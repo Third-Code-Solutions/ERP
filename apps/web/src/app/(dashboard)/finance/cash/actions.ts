@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -102,7 +103,7 @@ function safeCashError(error: unknown): string {
     return error.issues[0]?.message ?? 'Check the cash transaction fields.'
   }
 
-  const message = error instanceof Error ? error.message : ''
+  const message = errorChainMessage(error)
   const known = [
     'Cash allocations must equal transaction amount',
     'Receipt allocations must match open customer invoices',
