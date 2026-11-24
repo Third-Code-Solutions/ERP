@@ -34,12 +34,13 @@ function queueSelects(...results: unknown[][]) {
     const query = {
       from: vi.fn(),
       innerJoin: vi.fn(),
+      leftJoin: vi.fn(),
       where: vi.fn(),
       orderBy: vi.fn(),
       limit: vi.fn(),
       then: (resolve: (value: unknown[]) => unknown) => Promise.resolve(resolve(rows)),
     }
-    for (const method of [query.from, query.innerJoin, query.where, query.orderBy, query.limit]) {
+    for (const method of [query.from, query.innerJoin, query.leftJoin, query.where, query.orderBy, query.limit]) {
       method.mockReturnValue(query)
     }
     mocks.select.mockReturnValueOnce(query)
@@ -53,7 +54,7 @@ describe('loadOpenDeadlines', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  it('reads only this tenant\'s open clocks, oldest first, within a row limit', async () => {
+  it('reads only this tenant\'s open clocks, earliest due first, within a row limit', async () => {
     const [query] = queueSelects([clockRow(1)])
 
     const result = await loadOpenDeadlines(TENANT_ID, 'admin', NOW)
@@ -106,7 +107,10 @@ describe('loadOpenDeadlines', () => {
     for (const query of queries) {
       expect(params(query.where.mock.calls[0]?.[0])).toContain(TENANT_ID)
     }
+    // Checklist join, and the live-project joins that unlink retired projects.
     expect(params(queries[2]?.innerJoin.mock.calls[0]?.[1])).toContain(TENANT_ID)
+    expect(params(queries[1]?.leftJoin.mock.calls[0]?.[1])).toContain(TENANT_ID)
+    expect(params(queries[2]?.leftJoin.mock.calls[0]?.[1])).toContain(TENANT_ID)
   })
 
   it('lists the most urgent rows up to the display limit and reports the full count', async () => {
@@ -126,7 +130,7 @@ describe('loadOpenDeadlines', () => {
   })
 
   it('hides rows whose page the role cannot open', async () => {
-    queueSelects([
+    const [query] = queueSelects([
       clockRow(1),
       clockRow(2, { entity_type: 'punchlist_item', sla_label: 'punchlist.due_date' }),
     ])
@@ -134,16 +138,24 @@ describe('loadOpenDeadlines', () => {
     const result = await loadOpenDeadlines(TENANT_ID, 'sales', NOW)
 
     expect(result.ok && result.deadlines.map((deadline) => deadline.subject)).toEqual(['Opportunity'])
+    // The type filter is in SQL too, so the row cap counts only clocks the role may see.
+    const where = new PgDialect().sqlToQuery(query?.where.mock.calls[0]?.[0] as SQL).params
+    expect(where).toContain('opportunity')
+    expect(where).not.toContain('punchlist_item')
   })
 
-  it('reports a failure without leaking the cause', async () => {
+  it('returns a bare failure and logs the cause and SQLSTATE on the server only', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     mocks.select.mockImplementation(() => {
-      throw new Error('password authentication failed for user "postgres"')
+      throw new Error('Failed query: select ...', {
+        cause: Object.assign(new Error('relation "sla_logs" does not exist'), { code: '42P01' }),
+      })
     })
 
     expect(await loadOpenDeadlines(TENANT_ID, 'admin', NOW)).toEqual({ ok: false })
     expect(error).toHaveBeenCalledTimes(1)
-    expect(String(error.mock.calls[0]?.[0])).not.toContain('password')
+    const logged = JSON.parse(String(error.mock.calls[0]?.[0]))
+    expect(logged).toMatchObject({ action: 'process.open-deadlines', outcome: 'failure', code: '42P01' })
+    expect(logged.error).toContain('relation "sla_logs" does not exist')
   })
 })

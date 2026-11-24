@@ -130,6 +130,20 @@ describe('route QA workflow entry points', () => {
       : 'Automatic escalation is enabled for eligible internal deadlines.')
   })
 
+  it('shows a task queue failure instead of calling the engine not configured', async () => {
+    mocks.health.mockResolvedValue({ ok: true, data: { byBu: [], observeMode: true, generatedAt: '2026-09-07T03:00:00Z' } })
+    mocks.taskQueue.mockResolvedValue({ ok: false, status: 400, error: 'Invalid process task queue query.' })
+    const refused = renderToStaticMarkup(await ProcessPage({}))
+    expect(refused).toContain('Invalid process task queue query.')
+    expect(refused).not.toContain('Workflow engine, not configured')
+
+    mocks.taskQueue.mockResolvedValue({ ok: false, status: 503, error: 'upstream 10.0.0.1 refused' })
+    const failed = renderToStaticMarkup(await ProcessPage({}))
+    expect(failed).toContain('The task queue could not be loaded.')
+    expect(failed).not.toContain('10.0.0.1')
+    expect(failed).not.toContain('Workflow engine, not configured')
+  })
+
   describe('process open deadlines', () => {
     const OPPORTUNITY_ID = '11111111-1111-4111-8111-111111111111'
     const PUNCHLIST_ID = '22222222-2222-4222-8222-222222222222'

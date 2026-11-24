@@ -19,7 +19,8 @@ function deadline(overrides: Partial<OpenDeadline> = {}): OpenDeadline {
     status: 'overdue',
     unit: 'business_days',
     remaining: -2,
-    dueAt: new Date('2026-09-14T00:00:00+08:00'),
+    // Breaches at the midnight that ends Mon 14 Sep, its last business day.
+    dueAt: new Date('2026-09-15T00:00:00+08:00'),
     ...overrides,
   }
 }
@@ -40,7 +41,7 @@ describe('OpenDeadlinesPanel', () => {
       deadlines: [
         deadline(),
         deadline({ id: 'log-2', status: 'at_risk', remaining: 1, subject: 'Permit', subjectName: 'Building admin vetting', href: '/projects/p1/permits' }),
-        deadline({ id: 'log-3', status: 'on_track', remaining: 4, unit: 'calendar_hours', href: null }),
+        deadline({ id: 'log-3', status: 'on_track', remaining: 4, unit: 'calendar_hours', href: null, dueAt: new Date('2026-09-08T13:00:00+08:00') }),
       ],
     })
 
@@ -54,6 +55,7 @@ describe('OpenDeadlinesPanel', () => {
     expect(html).toContain('4 hours left')
     expect(html).toContain('Building admin vetting')
     expect(html).toMatch(/Sep(tember)? 14, 2026|14 Sep(tember)? 2026/)
+    expect(html).not.toMatch(/Sep(tember)? 15, 2026|15 Sep(tember)? 2026/)
     expect(html).toContain('href="/projects/p1/permits"')
     expect(html).toContain('Open<span class="sr-only"> Permit</span>')
     // A row with no link renders no link at all.
@@ -74,6 +76,13 @@ describe('OpenDeadlinesPanel', () => {
     expect(html).toContain('role="status"')
     expect(html).not.toContain('role="alert"')
     expect(html).not.toContain('<table')
+  })
+
+  it('keeps the truncation notice when none of the clocks read could be listed', () => {
+    const html = render({ ok: true, total: 0, truncated: true, deadlines: [] })
+
+    expect(html).toContain('More open deadlines exist than can be listed here')
+    expect(html).not.toContain('No open deadlines.')
   })
 
   it('reports a load failure as an alert with a retry and no table', () => {

@@ -8,6 +8,7 @@ import {
   formatDeadlineRemaining,
   subjectKey,
   summarizeDeadlines,
+  visibleDeadlineEntityTypes,
   type DeadlineSubjectLookup,
   type OpenSlaLogRow,
 } from './sla-clock-deadlines'
@@ -52,17 +53,43 @@ function build(rows: OpenSlaLogRow[], now: string, extra: Partial<Parameters<typ
 }
 
 describe('open deadlines status', () => {
+  // Started Monday 7 Sep with 5 business days: the window is Mon-Fri, so it breaches as Friday ends.
   it.each([
     ['2026-09-10T10:00:00+08:00', 'on_track', '2 business days left'],
     ['2026-09-11T10:00:00+08:00', 'at_risk', '1 business day left'],
-    ['2026-09-14T10:00:00+08:00', 'overdue', 'Deadline reached today'],
+    ['2026-09-12T10:00:00+08:00', 'overdue', 'Deadline passed'],
+    ['2026-09-14T10:00:00+08:00', 'overdue', 'Deadline passed'],
     ['2026-09-16T10:00:00+08:00', 'overdue', '2 business days overdue'],
   ])('computes a business-day clock at %s as %s', (now, status, text) => {
     const [deadline] = build([row()], now)
 
     expect(deadline?.status).toBe(status)
     expect(formatDeadlineRemaining(deadline!)).toBe(text)
-    expect(deadline?.dueAt.toISOString()).toBe(new Date('2026-09-14T00:00:00+08:00').toISOString())
+    expect(deadline?.dueAt.toISOString()).toBe(new Date('2026-09-12T00:00:00+08:00').toISOString())
+    expect(deadline!.status === 'overdue').toBe(new Date(now) >= deadline!.dueAt)
+  })
+
+  it('does not count the weekend a clock started on', () => {
+    const saturdayStart = row({ started_at: new Date('2026-09-05T10:00:00+08:00') })
+
+    const friday = build([saturdayStart], '2026-09-11T10:00:00+08:00')[0]!
+    expect(friday).toMatchObject({ status: 'at_risk' })
+    expect(formatDeadlineRemaining(friday)).toBe('1 business day left')
+    expect(friday.dueAt.toISOString()).toBe(new Date('2026-09-12T00:00:00+08:00').toISOString())
+    expect(build([saturdayStart], '2026-09-12T00:00:00+08:00')[0]?.status).toBe('overdue')
+  })
+
+  it('moves the due date past a national holiday', () => {
+    // Thu 26 Nov, 3 business days: Thu, Fri, then Tue 1 Dec (Mon 30 Nov is Bonifacio Day).
+    const holidayRow = row({ started_at: new Date('2026-11-26T09:00:00+08:00') })
+
+    const threeDays = { ...BUSINESS_5_DAYS, breach_business_days: 3 }
+
+    const tuesday = build([{ ...holidayRow, sla_seconds: threeDays }], '2026-12-01T15:00:00+08:00')[0]!
+    expect(tuesday.status).toBe('on_track')
+    expect(formatDeadlineRemaining(tuesday)).toBe('1 business day left')
+    expect(tuesday.dueAt.toISOString()).toBe(new Date('2026-12-02T00:00:00+08:00').toISOString())
+    expect(build([{ ...holidayRow, sla_seconds: threeDays }], '2026-12-02T08:00:00+08:00')[0]?.status).toBe('overdue')
   })
 
   it('computes a calendar-hour clock from the stored start and the request time', () => {
@@ -108,18 +135,33 @@ describe('open deadlines ordering and visibility', () => {
     expect(summarizeDeadlines(deadlines)).toEqual({ overdue: 2, at_risk: 1, on_track: 1 })
   })
 
-  it('hides a row whose link the viewer may not open but keeps rows with no link', () => {
+  it('hides a row whose subject the viewer may not open, and every type it has no gate for', () => {
     const rows = [
       row({ id: 'punch', entity_type: 'punchlist_item', sla_label: 'punchlist.due_date' }),
       row({ id: 'unknown', entity_type: 'purchase_order', sla_label: 'po.commercial_approval' }),
+      row({ id: 'opportunity' }),
     ]
 
     const deadlines = build(rows, '2026-09-08T10:00:00+08:00', {
       canView: (href) => !href.startsWith('/punchlist'),
     })
 
-    expect(deadlines.map((item) => item.id)).toEqual(['unknown'])
-    expect(deadlines[0]).toMatchObject({ href: null, subject: 'Purchase order', label: 'Purchase order commercial approval' })
+    expect(deadlines.map((item) => item.id)).toEqual(['opportunity'])
+  })
+
+  it('gates an unlinked permit by the permits page instead of showing it to everyone', () => {
+    const permit = row({ id: 'permit', entity_type: 'permit', sla_label: 'permit.status_update' })
+
+    expect(build([permit], '2026-09-08T10:00:00+08:00', { canView: (href) => href !== '/permits' })).toEqual([])
+    expect(build([permit], '2026-09-08T10:00:00+08:00')[0]).toMatchObject({ id: 'permit', href: null, subject: 'Permit' })
+  })
+
+  it('lists the subject types a role may read', () => {
+    expect(visibleDeadlineEntityTypes((href) => href === '/crm/opportunities' || href === '/tasks')).toEqual([
+      'opportunity',
+      'daily_task',
+    ])
+    expect(visibleDeadlineEntityTypes(() => false)).toEqual([])
   })
 
   it('carries the looked-up subject name and resolves project links', () => {

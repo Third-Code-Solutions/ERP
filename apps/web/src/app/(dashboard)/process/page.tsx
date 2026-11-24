@@ -11,6 +11,7 @@ import {
   getProcessTaskQueueThroughCoreApi,
 } from '@/lib/erp-core-client'
 import { IconActivity, IconArrowUpRight, IconClock } from '@/components/ui/icons'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import { loadOpenDeadlines } from './open-deadlines'
 import { OpenDeadlinesPanel } from './open-deadlines-panel'
 import { ProcessRetry } from './retry'
@@ -288,8 +289,8 @@ function ProcessTaskQueueSection({
 
           {error ? (
             <div className="card-empty" role="alert" style={{ marginTop: 16 }}>
-              <strong>The task queue could not be loaded.</strong> Try again;
-              if the problem continues, contact your workspace administrator.
+              <strong>{error}</strong> Try again; if the problem continues,
+              contact your workspace administrator.
             </div>
           ) : data?.rows.length === 0 ? (
             <>
@@ -437,6 +438,16 @@ function ProcessTaskQueueSection({
   )
 }
 
+/** The Core client returns ok:false for fetch and HTTP failures; only a bug throws, so log it. */
+function logCoreFailure(action: string) {
+  return (error: unknown) => {
+    console.error(
+      JSON.stringify({ action, outcome: 'failure', error: errorChainMessage(error) || 'unknown' })
+    )
+    return null
+  }
+}
+
 export default async function ProcessHealthPage({
   searchParams,
 }: ProcessHealthPageProps) {
@@ -453,7 +464,7 @@ export default async function ProcessHealthPage({
   // Deadlines come from this tenant's own sla_logs, so a Core outage can only
   // take away the workflow-engine sections, never the whole page.
   const [result, deadlines] = await Promise.all([
-    getProcessHealthThroughCoreApi().catch(() => null),
+    getProcessHealthThroughCoreApi().catch(logCoreFailure('process.health')),
     loadOpenDeadlines(profile.tenantId, profile.role),
   ])
   const health = result?.ok ? result.data : null
@@ -471,13 +482,15 @@ export default async function ProcessHealthPage({
   const canManageTaskQueue = can(profile.role, 'process.task.manage')
   const queueAttempted = canManageTaskQueue && health !== null
   const queueResult = queueAttempted
-    ? await getProcessTaskQueueThroughCoreApi(queueFilters).catch(() => null)
+    ? await getProcessTaskQueueThroughCoreApi(queueFilters).catch(logCoreFailure('process.task-queue'))
     : null
   const taskQueue = queueResult?.ok ? queueResult.data ?? null : null
-  const taskQueueError =
-    queueAttempted && !queueResult?.ok
-      ? 'The task queue could not be loaded.'
-      : null
+  // A 400 names the bad filter; any other failure stays generic.
+  const taskQueueError = !queueAttempted || queueResult?.ok
+    ? null
+    : queueResult?.status === 400 && queueResult.error
+      ? queueResult.error
+      : 'The task queue could not be loaded.'
   const requestedAmount = firstSearchParam(resolvedSearch.amountCentavos)
   const previewResult =
     requestedAmount === undefined
@@ -493,7 +506,8 @@ export default async function ProcessHealthPage({
   const previewData = previewResult?.ok ? previewResult.data : undefined
   const hasActivity = Boolean(health?.byBu.length)
   // No step, task or clock has ever been created by the engine: say so plainly.
-  const engineConfigured = hasActivity || (taskQueue?.total ?? 0) > 0
+  // A queue failure is shown as a failure, never as "not configured".
+  const engineConfigured = hasActivity || taskQueueError !== null || (taskQueue?.total ?? 0) > 0
   const totals = health?.byBu.reduce(
     (summary, bu) => ({
       openTasks: summary.openTasks + bu.openTasks,

@@ -22,8 +22,13 @@ const STATUS_MARK: Record<DeadlineStatus, string | undefined> = {
   on_track: styles.onTrackMark,
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 function dueText(deadline: OpenDeadline): string {
-  return deadline.dueAt.toLocaleString('en-PH', {
+  // A business-day clock breaches at the midnight that ends its last day: show that day.
+  const due =
+    deadline.unit === 'business_days' ? new Date(deadline.dueAt.getTime() - DAY_MS) : deadline.dueAt
+  return due.toLocaleString('en-PH', {
     dateStyle: 'medium',
     ...(deadline.unit === 'calendar_hours' ? { timeStyle: 'short' as const } : {}),
     timeZone: 'Asia/Manila',
@@ -55,9 +60,9 @@ export function OpenDeadlinesPanel({ result }: { result: OpenDeadlinesResult }) 
         </div>
       ) : result.total === 0 ? (
         <p className={styles.deadlineEmpty} role="status">
-          No open deadlines. A deadline starts when an opportunity changes
-          stage, a permit or checklist item is opened, a punchlist item is
-          raised or a warranty ticket comes in.
+          {result.truncated
+            ? 'More open deadlines exist than can be listed here, and none of those read could be shown. Contact your workspace administrator.'
+            : 'No open deadlines. A deadline starts when an opportunity changes stage, a permit or checklist item is opened, a punchlist item is raised or a warranty ticket comes in.'}
         </p>
       ) : (
         <>

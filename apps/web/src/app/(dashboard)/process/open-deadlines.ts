@@ -4,21 +4,24 @@ import {
   permits,
   preConChecklistItems,
   preConChecklists,
+  projects,
   slaLogs,
 } from '@third-code-erp/database/schema'
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql, type AnyColumn } from 'drizzle-orm'
+import { errorChainMessage, errorChainSqlState } from '@/lib/error-chain-message'
 import { resolveTenantBusinessDayService } from '@/lib/operations/business-calendar'
 import { canViewPath } from '@/lib/operations/nav-config'
 import {
   buildOpenDeadlines,
   humanizeCode,
   subjectKey,
+  visibleDeadlineEntityTypes,
   type DeadlineSubject,
   type OpenDeadline,
   type OpenSlaLogRow,
 } from '@/lib/operations/sla-clock-deadlines'
 
-/** Open clocks read per request; the oldest are read first because they are the likeliest to be late. */
+/** Open clocks read per request, earliest approximate due time first. */
 export const OPEN_CLOCK_ROW_LIMIT = 500
 /** Rows rendered, most urgent first. */
 export const DEADLINE_DISPLAY_LIMIT = 50
@@ -43,9 +46,26 @@ function entityIds(rows: readonly OpenSlaLogRow[], entityType: string): string[]
 }
 
 /**
- * Permits and checklist items only know their own id, but their links need the
- * project. Everything is tenant-scoped and one query per type.
+ * A lower bound of each clock's due time, for reading the likeliest-late clocks
+ * first: calendar hours exactly, business days as (days - 1) calendar days
+ * (the start day counts in full). An unreadable config sorts by its start.
  */
+const approximateDueAt = sql`${slaLogs.started_at} + make_interval(secs => coalesce(
+  case when jsonb_typeof(${slaLogs.sla_seconds} -> 'breach_at_seconds') = 'number'
+    then (${slaLogs.sla_seconds} ->> 'breach_at_seconds')::double precision end,
+  case when jsonb_typeof(${slaLogs.sla_seconds} -> 'breach_business_days') = 'number'
+    then ((${slaLogs.sla_seconds} ->> 'breach_business_days')::double precision - 1) * 86400 end,
+  0))`
+
+/**
+ * Permits and checklist items only know their own id, but their links need the
+ * project. A retired project gives no link (its pages are not found). Everything
+ * is tenant-scoped and one query per type.
+ */
+function liveProject(projectId: AnyColumn, tenantId: string) {
+  return and(eq(projects.id, projectId), eq(projects.tenant_id, tenantId), isNull(projects.deleted_at))
+}
+
 async function loadSubjects(
   tenantId: string,
   rows: readonly OpenSlaLogRow[]
@@ -60,11 +80,12 @@ async function loadSubjects(
       : db
           .select({
             id: permits.id,
-            projectId: permits.project_id,
+            projectId: projects.id,
             permitType: permits.permit_type,
             lguName: permits.lgu_name,
           })
           .from(permits)
+          .leftJoin(projects, liveProject(permits.project_id, tenantId))
           .where(and(eq(permits.tenant_id, tenantId), inArray(permits.id, permitIds))),
     itemIds.length === 0
       ? []
@@ -72,7 +93,7 @@ async function loadSubjects(
           .select({
             id: preConChecklistItems.id,
             title: preConChecklistItems.title,
-            projectId: preConChecklists.project_id,
+            projectId: projects.id,
           })
           .from(preConChecklistItems)
           .innerJoin(
@@ -82,6 +103,7 @@ async function loadSubjects(
               eq(preConChecklists.tenant_id, tenantId)
             )
           )
+          .leftJoin(projects, liveProject(preConChecklists.project_id, tenantId))
           .where(
             and(
               eq(preConChecklistItems.tenant_id, tenantId),
@@ -117,6 +139,12 @@ export async function loadOpenDeadlines(
   role: AppRole,
   now: Date = new Date()
 ): Promise<OpenDeadlinesResult> {
+  const canView = (href: string) => canViewPath(role, href)
+  // Filter by type in SQL so the row cap only counts clocks this role may see.
+  const entityTypes = visibleDeadlineEntityTypes(canView)
+  if (entityTypes.length === 0) {
+    return { ok: true, deadlines: [], total: 0, truncated: false }
+  }
   try {
     const rows: OpenSlaLogRow[] = await db
       .select({
@@ -128,8 +156,14 @@ export async function loadOpenDeadlines(
         sla_seconds: slaLogs.sla_seconds,
       })
       .from(slaLogs)
-      .where(and(eq(slaLogs.tenant_id, tenantId), isNull(slaLogs.completed_at)))
-      .orderBy(asc(slaLogs.started_at))
+      .where(
+        and(
+          eq(slaLogs.tenant_id, tenantId),
+          isNull(slaLogs.completed_at),
+          inArray(slaLogs.entity_type, entityTypes)
+        )
+      )
+      .orderBy(asc(approximateDueAt), asc(slaLogs.started_at))
       .limit(OPEN_CLOCK_ROW_LIMIT)
 
     if (rows.length === 0) {
@@ -145,7 +179,7 @@ export async function loadOpenDeadlines(
       now,
       businessDays,
       subjects,
-      canView: (href) => canViewPath(role, href),
+      canView,
     })
     return {
       ok: true,
@@ -158,7 +192,9 @@ export async function loadOpenDeadlines(
       JSON.stringify({
         action: 'process.open-deadlines',
         outcome: 'failure',
-        error: error instanceof Error ? error.name : 'unknown',
+        // Server log only: the chain carries SQL text, never returned to the page.
+        error: errorChainMessage(error) || 'unknown',
+        code: errorChainSqlState(error) ?? null,
       })
     )
     return { ok: false }

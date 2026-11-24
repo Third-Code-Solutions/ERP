@@ -336,9 +336,8 @@ test.describe('permission-aware dashboard', () => {
           await expect(
             page.getByRole('heading', { name: 'Process Health' })
           ).toBeVisible()
-          await expect(page.getByText('Observe mode active')).toBeVisible()
           await expect(
-            page.getByText(/Escalation remains suppressed during the initial BU observation period/)
+            page.getByRole('heading', { name: 'Open deadlines' })
           ).toBeVisible()
         }
       }

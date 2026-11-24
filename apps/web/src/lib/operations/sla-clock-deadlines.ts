@@ -11,9 +11,9 @@ import {
 } from '@third-code-erp/shared-types'
 import type { SlaLabel } from './sla-clock'
 import {
-  dateInPhilippines,
   getSlaProgress,
   parseSlaConfig,
+  slaBreachAt,
   type SlaProgress,
 } from './sla-clock-utils'
 
@@ -74,13 +74,25 @@ const SUBJECT_TEXT: Record<string, string> = {
   daily_task: 'Daily task',
 }
 
+/**
+ * The page that gates each subject type in the role filter, whether or not the
+ * row itself has a link. A type not listed here is never shown.
+ */
+const SUBJECT_GATE_PATH: Record<string, string> = {
+  opportunity: '/crm/opportunities',
+  pre_con_checklist_item: '/checklist',
+  permit: '/permits',
+  punchlist_item: '/punchlist',
+  warranty_ticket: '/warranty',
+  daily_task: '/tasks',
+}
+
 const STATUS_RANK: Record<DeadlineStatus, number> = {
   overdue: 0,
   at_risk: 1,
   on_track: 2,
 }
 
-const HOUR_MS = 60 * 60 * 1000
 const HOURS_PER_DAY = 24
 
 export function humanizeCode(value: string): string {
@@ -98,6 +110,13 @@ export function deadlineSubject(entityType: string): string {
 
 export function subjectKey(entityType: string, entityId: string): string {
   return `${entityType}:${entityId}`
+}
+
+/** Subject types whose gate page the viewer may open; only these are read. */
+export function visibleDeadlineEntityTypes(canView: (href: string) => boolean): string[] {
+  return Object.entries(SUBJECT_GATE_PATH)
+    .filter(([, gatePath]) => canView(gatePath))
+    .map(([entityType]) => entityType)
 }
 
 /**
@@ -128,23 +147,11 @@ export function deadlineHref(
   }
 }
 
-function classify(progress: SlaProgress): DeadlineStatus {
-  if (progress.elapsed >= progress.total) return 'overdue'
+// Overdue is judged by the same breach instant the Due column shows.
+function classify(progress: SlaProgress, now: Date, dueAt: Date): DeadlineStatus {
+  if (now.getTime() >= dueAt.getTime()) return 'overdue'
   if (progress.elapsed >= progress.warning_at) return 'at_risk'
   return 'on_track'
-}
-
-function dueAt(
-  progress: SlaProgress,
-  startedAt: Date,
-  businessDays: BusinessDayService
-): Date {
-  if (progress.unit === 'calendar_hours') {
-    return new Date(startedAt.getTime() + progress.total * HOUR_MS)
-  }
-  // The clock breaches on the business day that is `total` days after the start.
-  const dueDate = businessDays.add(dateInPhilippines(startedAt), progress.total)
-  return new Date(`${dueDate}T00:00:00+08:00`)
 }
 
 export interface BuildOpenDeadlinesInput {
@@ -153,7 +160,7 @@ export interface BuildOpenDeadlinesInput {
   /** Tenant calendar; the national calendar is used when omitted. */
   businessDays?: BusinessDayService
   subjects: DeadlineSubjectLookup
-  /** Role gate: a row whose link the viewer cannot open is not listed at all. */
+  /** Role gate: a row is listed only when the viewer may open its subject's gate page and its link. */
   canView: (href: string) => boolean
 }
 
@@ -170,22 +177,25 @@ export function buildOpenDeadlines(input: BuildOpenDeadlinesInput): OpenDeadline
     const config = parseSlaConfig(row.sla_seconds)
     if (!config) continue
 
+    const gatePath = SUBJECT_GATE_PATH[row.entity_type]
+    if (!gatePath || !input.canView(gatePath)) continue
     const subject = input.subjects.get(subjectKey(row.entity_type, row.entity_id))
     const href = deadlineHref(row.entity_type, row.entity_id, subject?.projectId ?? null)
     if (href !== null && !input.canView(href)) continue
 
     const startedAt = new Date(row.started_at)
     const progress = getSlaProgress(config, startedAt, input.now, calendar)
+    const dueAt = slaBreachAt(config, startedAt, calendar)
     deadlines.push({
       id: row.id,
       label: deadlineLabel(row.sla_label),
       subject: deadlineSubject(row.entity_type),
       subjectName: subject?.name ?? null,
       href,
-      status: classify(progress),
+      status: classify(progress, input.now, dueAt),
       unit: progress.unit,
       remaining: progress.total - progress.elapsed,
-      dueAt: dueAt(progress, startedAt, calendar),
+      dueAt,
     })
   }
 
@@ -208,14 +218,14 @@ function plural(count: number, unit: string): string {
   return `${count} ${unit}${count === 1 ? '' : 's'}`
 }
 
-/** "2 business days left", "3 business days overdue", "5 hours left", "Deadline reached today". */
+/** "2 business days left", "3 business days overdue", "5 hours left", "Deadline passed". */
 export function formatDeadlineRemaining(deadline: Pick<OpenDeadline, 'remaining' | 'unit'>): string {
-  // Zero remaining is the moment the checker would call the clock breached.
+  // Zero remaining means the clock has breached (see slaBreachAt).
   const pastDue = deadline.remaining <= 0
   const suffix = pastDue ? 'overdue' : 'left'
   if (deadline.unit === 'business_days') {
     const days = Math.round(Math.abs(deadline.remaining))
-    return days === 0 ? 'Deadline reached today' : `${plural(days, 'business day')} ${suffix}`
+    return days === 0 ? 'Deadline passed' : `${plural(days, 'business day')} ${suffix}`
   }
   const hours = Math.abs(deadline.remaining)
   if (hours < 1) return pastDue ? 'Less than an hour overdue' : 'Less than an hour left'
