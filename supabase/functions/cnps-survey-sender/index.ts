@@ -8,7 +8,7 @@
 import { handleOptions, jsonResponse } from '../_shared/cors.ts'
 import { rejectUnlessCronCaller } from '../_shared/cron-auth.ts'
 import { pgInsert, pgSelect, sendEmail } from '../_shared/email.ts'
-import { escapeHtml } from '../_shared/html.ts'
+import { buildSurveyEmail } from './survey-email.ts'
 
 interface TicketRow {
   id: string
@@ -23,6 +23,11 @@ interface TicketRow {
 
 interface ExistingSurveyRow {
   ticket_id: string
+}
+
+interface TenantRow {
+  id: string
+  name: string | null
 }
 
 interface RunSummary {
@@ -51,32 +56,6 @@ async function sha256Hex(input: string): Promise<string> {
   let hex = ''
   for (const b of bytes) hex += b.toString(16).padStart(2, '0')
   return hex
-}
-
-function buildSurveyEmail(args: {
-  ticketNumber: string
-  recipientName: string | null
-  surveyUrl: string
-}): { subject: string; html: string; text: string } {
-  const greeting = args.recipientName ? `Hi ${args.recipientName},` : 'Hi,'
-  const subject = `How did we do? — Service ticket ${args.ticketNumber}`
-  const text = [
-    greeting,
-    ``,
-    `Thanks for letting us close out service ticket ${args.ticketNumber}. We would love a quick rating on how the experience went — it takes under a minute.`,
-    ``,
-    `Open the survey: ${args.surveyUrl}`,
-    ``,
-    `Thank you,`,
-    `ABI OPS Customer Experience`,
-  ].join('\n')
-  const html = `
-    <p>${escapeHtml(greeting)}</p>
-    <p>Thanks for letting us close out service ticket <strong>${escapeHtml(args.ticketNumber)}</strong>. We would love a quick rating on how the experience went — it takes under a minute.</p>
-    <p><a href="${escapeHtml(args.surveyUrl)}">Open the survey</a></p>
-    <p>Thank you,<br/>ABI OPS Customer Experience</p>
-  `.trim()
-  return { subject, html, text }
 }
 
 Deno.serve(async (req) => {
@@ -120,6 +99,14 @@ Deno.serve(async (req) => {
       )
     }
 
+    // One read for every tenant in this run: each survey is signed by the tenant that closed the ticket.
+    const tenantIds = [...new Set(closedTickets.map((t) => t.tenant_id))]
+    const tenantRows = await pgSelect<TenantRow>(
+      'tenants',
+      `id=in.(${tenantIds.join(',')})&select=id,name`
+    )
+    const tenantNames = new Map(tenantRows.map((t) => [t.id, t.name]))
+
     for (const ticket of closedTickets) {
       summary.processed += 1
       if (alreadySent.has(ticket.id)) continue
@@ -146,6 +133,7 @@ Deno.serve(async (req) => {
           ticketNumber: ticket.ticket_number,
           recipientName: ticket.submitted_by_name,
           surveyUrl,
+          companyName: tenantNames.get(ticket.tenant_id),
         })
 
         await sendEmail({
