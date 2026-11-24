@@ -931,8 +931,7 @@ export class TakeoffImportService {
         source,
         sourceKey,
         linesUpserted,
-        // linesChanged stays out of the reply until the web that accepts it is
-        // live (the deployed web parses this reply strictly); it is in the audit.
+        linesChanged,
         unresolvedCount,
         bomId,
       })

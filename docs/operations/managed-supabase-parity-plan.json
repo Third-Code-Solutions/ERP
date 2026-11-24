@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 190,
-    "pendingCount": 33,
+    "sourceCount": 193,
+    "pendingCount": 36,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261124140100",
+    "sourceHead": "20261124170000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -224,6 +224,36 @@
       "hostedApplyApproved": false,
       "risk": "S1 expand-only link of Purchase Order lines to stock items and units, in two files applied in order. 20261124140000 (DDL only) creates public.unit_aliases (id, tenant_id, alias varchar(32), uom_id, created_by, created_at) with check unit_aliases_alias_nonempty, composite FKs unit_aliases_uom_tenant_fk (tenant_id, uom_id) -> units_of_measure and unit_aliases_created_by_tenant_fk (tenant_id, created_by) -> users, unique index ux_unit_aliases_tenant_alias (tenant_id, lower(alias)), indexes idx_unit_aliases_tenant_uom and idx_unit_aliases_tenant_created_by (tenant_id, created_by) where created_by is not null, enabled and forced RLS with a deny_direct_client_access policy, all table privileges revoked from anon and authenticated and granted to service_role, and the audit_unit_aliases audit trigger. It creates public.resolve_unit_of_measure(uuid, text) (stable, security definer, exact case-insensitive trimmed UOM code first, then a tenant alias, else NULL) and the trigger function public.link_po_line_item_and_unit() behind a new BEFORE INSERT row trigger link_po_line_item_and_unit on po_line_items that fills only a NULL material_item_id (same-tenant exact code) and a NULL uom_id; execute on both functions is revoked from public, anon and authenticated and granted to service_role. Its FKs take SHARE ROW EXCLUSIVE on tenants, units_of_measure and users (writes wait, reads continue), and the DROP TRIGGER IF EXISTS before CREATE TRIGGER takes ACCESS EXCLUSIVE on po_line_items, so its reads and writes wait too; all are held only for this short DDL transaction.20261124140100 (data only) runs one UPDATE of po_line_items that sets material_item_id = coalesce(material_item_id, same-tenant exact material_items.code match) and uom_id = coalesce(uom_id, resolve_unit_of_measure(tenant_id, unit)), only on lines where at least one value changes and not on an inactive Cost Code; it is idempotent and never overwrites a set value. It takes ROW EXCLUSIVE plus row locks on every updated line, firing the row triggers guard_po_line_stock_fields, guard_po_line_budget_dimension and audit_po_line_items (one audit row per updated line, holding each affected tenant's audit advisory lock until commit) and the statement trigger reset_stock_receipt_projection. App writes take a line row lock and the tenant audit lock in either order, so a lock wait over the timeout or a deadlock aborts the backfill with no change and it is re-run. Each file has a 5-second lock and 60-second statement timeout. Preflight: absence of unit_aliases, both functions and the trigger, valid prerequisite unique indexes, backfill rows per tenant (item, unit, skipped on an inactive Cost Code), zero receipted or orphaned lines the backfill would touch, in-flight POs whose newly linked tracked lines would block the delivered transition, write activity on the locked tables, and no long transaction holding po_line_items.",
       "recovery": "Take an encrypted backup first and save the id, material_item_id and uom_id of every po_line_items row with a NULL material_item_id or uom_id. Each file is transactional and aborts without changes on failure. Roll back in reverse order. 20261124140100: the backfilled material_item_id and uom_id values stay, because they are valid links the receipt guard already accepts; to undo them, set them back to NULL only for the saved ids and columns (a line received since is frozen by guard_po_line_stock_fields), then delete the 20261124140100 ledger row. 20261124140000: copy public.unit_aliases to public.unit_aliases_rollback_backup (revoke anon and authenticated, enable RLS), drop the trigger link_po_line_item_and_unit, the functions link_po_line_item_and_unit() and resolve_unit_of_measure(uuid, text) and the table unit_aliases, then delete the 20261124140000 ledger row. First roll back the web code that calls resolve_unit_of_measure() (purchase-orders/[id]/actions.ts) and the trial bootstrap that writes unit_aliases.This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-rfq-quotes-unit-price-positive",
+      "migrations": [
+        "20261124150000_rfq_quotes_unit_price_positive.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds the validated check constraint rfq_quotes_unit_price_positive (unit_price_cents > 0) on public.rfq_quotes; no column, index, function, trigger, policy or grant changes and no data UPDATE. ALTER TABLE ADD CONSTRAINT CHECK takes ACCESS EXCLUSIVE on rfq_quotes and scans every row once while held, under a 5-second lock and 60-second statement timeout; any row with unit_price_cents <= 0 aborts the migration with 23514 and changes nothing. Idempotent: when a constraint of that name already exists it is validated instead (VALIDATE CONSTRAINT, SHARE UPDATE EXCLUSIVE, same 23514 abort).Preflight: count rfq_quotes rows with unit_price_cents <= 0 (must be 0) and the table row count.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback drops constraint rfq_quotes_unit_price_positive and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-cnps-response-token-hash-index",
+      "migrations": [
+        "20261124160000_cnps_response_token_hash_index.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds the partial unique btree index idx_cnps_response_token_hash on public.cnps_surveys (response_token_hash) where response_token_hash is not null, serving the unauthenticated CNPS survey lookup. No column, constraint, function, trigger, policy or grant changes and no data UPDATE. Two surveys sharing one non-null hash would make the build fail with 23505 and change nothing (production has 0 rows). Plain CREATE UNIQUE INDEX inside the transaction takes SHARE on cnps_surveys (reads continue, writes wait) for the build, under a 5-second lock and 60-second statement timeout; chosen because the table is small. Preflight: cnps_surveys row count and table size (switch to CREATE INDEX CONCURRENTLY outside a transaction if large) that the index name is free, and that no response_token_hash is shared.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback drops idx_cnps_response_token_hash and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-cnps-surveys-one-per-ticket",
+      "migrations": [
+        "20261124170000_cnps_surveys_one_per_ticket.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Adds the unique btree index ux_cnps_surveys_tenant_ticket on public.cnps_surveys (tenant_id, ticket_id) so a warranty ticket has at most one CNPS survey; the cnps-survey-sender edge function and the Inngest sender insert with ON CONFLICT (tenant_id, ticket_id) DO NOTHING and email only when their insert created the row; the edge function inserts it with sent_at null and stamps sent_at only after delivery, and the Inngest sender re-sends a still-unsent row only after claiming it by compare-and-swap on response_token_hash once it is 15 minutes old. No column, constraint, function, trigger, policy or grant changes and no data UPDATE. A preflight raises 23505 and aborts, changing nothing, if a ticket already has two surveys. Plain CREATE UNIQUE INDEX inside the transaction takes SHARE on cnps_surveys (reads continue, writes wait) for the build, under a 5-second lock and 60-second statement timeout; chosen because the table is small. Deploy order: the senders' ON CONFLICT needs the index (42P10 without it), so the index must be live before the new web build and the edge function deploy. Preflight: duplicate (tenant_id, ticket_id) count must be 0, row count and size, index name free.",
+      "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: revert the senders first (their ON CONFLICT needs the index), then drop ux_cnps_surveys_tenant_ticket and the ledger row; no data to restore. This source-only batch does not authorize hosted application."
     }
   ]
 }
