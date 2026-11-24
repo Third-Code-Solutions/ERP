@@ -210,3 +210,84 @@ describe('requisition approval authority', () => {
     expect(h.inserts[0]).toMatchObject({ action: 'reject', reason: 'Over budget', actor_id: CHECKER.userId })
   })
 })
+
+const OTHER_REQUISITION_ID = '77777777-7777-4777-8777-777777777777'
+
+// Select order: principal, prior requisition event, requisition FOR UPDATE (or replay target), line count.
+function requisitionCommand(
+  command: { action: 'submit' | 'cancel' | 'approve' },
+  principal: ErpPrincipal,
+  row: Row,
+  priorEvent: Row[] = [],
+) {
+  const h = harness(
+    'ERP_ROADMAP_PROCUREMENT_LIFECYCLE_ENABLED',
+    [[{ id: principal.userId }], priorEvent, [row], [{ count: 1 }]],
+    (values) => ({ ...row, ...values }),
+  )
+  return { ...h, run: () => h.service.transitionRequisition(REQUISITION_ID, command, principal, 'req-key') }
+}
+
+describe('requisition retry keys', () => {
+  it.each([
+    ['another requisition', { requisitionId: OTHER_REQUISITION_ID, action: 'approve' }],
+    ['another action', { requisitionId: REQUISITION_ID, action: 'reject' }],
+  ])('refuses a key already used for %s instead of replaying it', async (_case, prior) => {
+    const h = requisitionCommand({ action: 'approve' }, CHECKER, requisition(), [prior])
+
+    const result = h.run()
+    await expect(result).rejects.toBeInstanceOf(ConflictException)
+    await expect(result).rejects.toThrow('Idempotency key was already used for another workflow command')
+    expect(h.select).toHaveBeenCalledTimes(2)
+    h.expectNothingWritten()
+  })
+
+  it('replays the same command on the same requisition without writing', async () => {
+    const h = requisitionCommand(
+      { action: 'approve' },
+      CHECKER,
+      requisition({ status: 'approved', approved_by: CHECKER.userId }),
+      [{ requisitionId: REQUISITION_ID, action: 'approve' }],
+    )
+
+    await expect(h.run()).resolves.toMatchObject({ requisitionId: REQUISITION_ID, status: 'approved', created: false })
+    h.expectNothingWritten()
+  })
+})
+
+describe('requisition ownership', () => {
+  it('refuses a submit by anyone but the requester', async () => {
+    const h = requisitionCommand({ action: 'submit' }, CHECKER, requisition({ status: 'draft' }))
+
+    const result = h.run()
+    await expect(result).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(result).rejects.toThrow('Only the requester can submit their requisition')
+    h.expectNothingWritten()
+  })
+
+  it('lets the requester submit a draft', async () => {
+    const requester = { ...CHECKER, userId: MAKER_ID, role: 'pm' as const }
+    const h = requisitionCommand({ action: 'submit' }, requester, requisition({ status: 'draft' }))
+
+    await expect(h.run()).resolves.toMatchObject({ status: 'pending_approval' })
+  })
+
+  it('refuses a cancel by a non-requester without PO approval', async () => {
+    const h = requisitionCommand({ action: 'cancel' }, { ...CHECKER, role: 'pm' }, requisition())
+
+    const result = h.run()
+    await expect(result).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(result).rejects.toThrow('Only the requester or a PO approver can cancel a requisition')
+    h.expectNothingWritten()
+  })
+
+  it.each([
+    ['the requester', { ...CHECKER, userId: MAKER_ID, role: 'pm' as const }],
+    ['a PO approver', CHECKER],
+  ])('lets %s cancel', async (_case, principal) => {
+    const h = requisitionCommand({ action: 'cancel' }, principal, requisition())
+
+    await expect(h.run()).resolves.toMatchObject({ status: 'cancelled' })
+    expect(h.inserts[0]).toMatchObject({ action: 'cancel', actor_id: principal.userId })
+  })
+})

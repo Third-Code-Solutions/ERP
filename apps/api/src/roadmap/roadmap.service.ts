@@ -413,11 +413,14 @@ export class RoadmapService {
       await this.audit.stampActor(transaction, principal)
 
       const [priorEvent] = await transaction
-        .select({ requisitionId: procurementRequisitionEvents.requisition_id })
+        .select({ requisitionId: procurementRequisitionEvents.requisition_id, action: procurementRequisitionEvents.action })
         .from(procurementRequisitionEvents)
         .where(and(eq(procurementRequisitionEvents.tenant_id, principal.tenantId), eq(procurementRequisitionEvents.idempotency_key, idempotencyKey)))
         .limit(1)
       if (priorEvent) {
+        if (priorEvent.requisitionId !== requisitionId || priorEvent.action !== command.action) {
+          throw new ConflictException('Idempotency key was already used for another workflow command')
+        }
         const [replayed] = await transaction.select().from(procurementRequisitions).where(and(eq(procurementRequisitions.id, priorEvent.requisitionId), eq(procurementRequisitions.tenant_id, principal.tenantId))).limit(1)
         if (!replayed) throw new InternalServerErrorException('Requisition workflow replay target is missing')
         return this.requisitionResult(transaction, replayed, false)
@@ -441,8 +444,15 @@ export class RoadmapService {
       if (!requisition) throw new NotFoundException('Requisition not found')
       const current = statusAsString(requisition.status)
       const next = this.nextRequisitionStatus(command.action, current)
-      if (command.action === 'approve' && requisition.requester_id === principal.userId) {
+      const isRequester = requisition.requester_id === principal.userId
+      if (command.action === 'approve' && isRequester) {
         throw new ForbiddenException('The requester cannot approve their own requisition')
+      }
+      if (command.action === 'submit' && !isRequester) {
+        throw new ForbiddenException('Only the requester can submit their requisition')
+      }
+      if (command.action === 'cancel' && !isRequester && !roleHasCapability(principal.role, 'po.approve')) {
+        throw new ForbiddenException('Only the requester or a PO approver can cancel a requisition')
       }
       if (command.action === 'reject' && !(command.reason?.trim())) throw new BadRequestException('Rejection reason is required')
       let convertedPurchaseOrderId: string | null = null
