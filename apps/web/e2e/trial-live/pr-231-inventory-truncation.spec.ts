@@ -1,6 +1,6 @@
 import { expect, test } from '../base-test'
 import { z } from 'zod'
-import { gateTrialLive, noteNeedsData, openRole, tenantRows, trialTarget, type TrialTarget } from '../helpers/trial-live'
+import { gateTrialLive, needsData, openRole, tenantRows, trialTarget, type TrialTarget } from '../helpers/trial-live'
 
 gateTrialLive()
 
@@ -29,7 +29,7 @@ async function nonZeroBalances(target: TrialTarget): Promise<number> {
   return [...sums.values()].filter((quantity) => quantity !== 0).length
 }
 
-test('the inventory list renders and flags truncation instead of failing', { tag: '@pr-231' }, async ({ browser }, testInfo) => {
+test('the inventory list renders and flags truncation instead of failing', { tag: ['@pr-231', '@needs-data'] }, async ({ browser }, testInfo) => {
   const target = await trialTarget(testInfo)
   const balances = await nonZeroBalances(target)
   const admin = await openRole(browser, target, 'admin')
@@ -43,8 +43,9 @@ test('the inventory list renders and flags truncation instead of failing', { tag
     if (balances > MAX_BALANCES) {
       await expect(notice).toBeVisible()
     } else {
+      // The pre-fix page passes here too, so only the truncated case proves the fix.
       await expect(notice).toHaveCount(0)
-      noteNeedsData(testInfo, `more than ${MAX_BALANCES} non-zero stock balances in the E2E tenant to show the truncation notice (it has ${balances})`)
+      needsData(`more than ${MAX_BALANCES} non-zero stock balances in the E2E tenant to show the truncation notice (it has ${balances})`)
     }
   } finally {
     await admin.close()
