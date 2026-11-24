@@ -229,6 +229,32 @@ async function lockCocInStatus(
   return locked ?? null
 }
 
+/**
+ * Move the certificate out of `from`. The status predicate repeats the lock's,
+ * so the write can never land on a certificate in another status; a miss throws
+ * and rolls the whole transaction back (no link survives it).
+ */
+async function moveCocFromStatus(
+  tx: Tx,
+  tenantId: string,
+  cocId: string,
+  from: 'draft' | 'pending_signature',
+  values: Partial<typeof certificatesOfCompletion.$inferInsert>
+): Promise<void> {
+  const moved = await tx
+    .update(certificatesOfCompletion)
+    .set(values)
+    .where(
+      and(
+        eq(certificatesOfCompletion.id, cocId),
+        eq(certificatesOfCompletion.tenant_id, tenantId),
+        eq(certificatesOfCompletion.status, from)
+      )
+    )
+    .returning({ id: certificatesOfCompletion.id })
+  if (moved.length !== 1) throw new Error(COC_CHANGED_ERROR)
+}
+
 // Shared by send (from draft) and resend (from pending_signature): mint the
 // link under the certificate lock, move the certificate, then email the signer.
 // The link is a bearer credential, so it only goes back to the caller and the
@@ -283,20 +309,12 @@ async function issueCocSigningLink(
       return { error: 'The signing link could not be created. Try again.' }
     }
 
-    await tx
-      .update(certificatesOfCompletion)
-      .set({
-        status: 'pending_signature',
-        // The submission id, never the signing slug: the slug is a credential.
-        docuseal_submission_id:
-          session.mechanism === 'docuseal' ? (session.submissionId ?? null) : null,
-      })
-      .where(
-        and(
-          eq(certificatesOfCompletion.id, coc.id),
-          eq(certificatesOfCompletion.tenant_id, profile.tenantId)
-        )
-      )
+    await moveCocFromStatus(tx, profile.tenantId, coc.id, from, {
+      status: 'pending_signature',
+      // The submission id, never the signing slug: the slug is a credential.
+      docuseal_submission_id:
+        session.mechanism === 'docuseal' ? (session.submissionId ?? null) : null,
+    })
 
     // Only the newest link may sign. A first send revokes too, so a link from
     // an earlier, cancelled request is never revived.
@@ -407,15 +425,10 @@ export async function cancelCocSigningRequest(
     const locked = await lockCocInStatus(tx, profile.tenantId, coc.id, 'pending_signature')
     if (!locked) return null
 
-    await tx
-      .update(certificatesOfCompletion)
-      .set({ status: 'draft', docuseal_submission_id: null })
-      .where(
-        and(
-          eq(certificatesOfCompletion.id, coc.id),
-          eq(certificatesOfCompletion.tenant_id, profile.tenantId)
-        )
-      )
+    await moveCocFromStatus(tx, profile.tenantId, coc.id, 'pending_signature', {
+      status: 'draft',
+      docuseal_submission_id: null,
+    })
     await revokeOpenSigningSessions(tx, profile.tenantId, 'coc', coc.id)
     await writeAuditLogInTransaction(tx, {
       tenantId: profile.tenantId,
@@ -472,11 +485,18 @@ export async function recordCocSigned(
   if (coc.status === 'signed') return {} // idempotent
   if (coc.status !== 'pending_signature') return { error: COC_NOT_PENDING_ERROR }
 
-  // Document must belong to this tenant.
+  // The signed file must be one of this certificate's project documents: it is
+  // the evidence behind the billing milestone.
   const [doc] = await db
     .select({ id: documents.id })
     .from(documents)
-    .where(and(eq(documents.id, signedDocumentId), eq(documents.tenant_id, profile.tenantId)))
+    .where(
+      and(
+        eq(documents.id, signedDocumentId),
+        eq(documents.tenant_id, profile.tenantId),
+        eq(documents.project_id, coc.project_id)
+      )
+    )
     .limit(1)
   if (!doc) return { error: 'Signed document not found' }
 
@@ -487,21 +507,13 @@ export async function recordCocSigned(
     const locked = await lockCocInStatus(tx, profile.tenantId, coc.id, 'pending_signature')
     if (!locked) return false
 
-    await tx
-      .update(certificatesOfCompletion)
-      .set({
-        status: 'signed',
-        signed_document_id: signedDocumentId,
-        signed_at: signedAt,
-        warranty_period_starts_at: signedAt,
-        warranty_period_ends_at: warrantyEndsAt,
-      })
-      .where(
-        and(
-          eq(certificatesOfCompletion.id, coc.id),
-          eq(certificatesOfCompletion.tenant_id, profile.tenantId)
-        )
-      )
+    await moveCocFromStatus(tx, profile.tenantId, coc.id, 'pending_signature', {
+      status: 'signed',
+      signed_document_id: signedDocumentId,
+      signed_at: signedAt,
+      warranty_period_starts_at: signedAt,
+      warranty_period_ends_at: warrantyEndsAt,
+    })
     // A signed certificate must not be signed again through a link still out.
     await revokeOpenSigningSessions(tx, profile.tenantId, 'coc', coc.id)
     await writeAuditLogInTransaction(tx, {

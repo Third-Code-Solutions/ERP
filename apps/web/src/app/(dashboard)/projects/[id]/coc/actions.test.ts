@@ -5,7 +5,9 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 const mocks = vi.hoisted(() => ({
   selectResults: [] as unknown[][],
   lockResults: [] as unknown[][],
+  updateResults: [] as unknown[][],
   select: vi.fn(),
+  selectWhere: vi.fn(),
   transaction: vi.fn(),
   txSelect: vi.fn(),
   lockWhere: vi.fn(),
@@ -77,8 +79,8 @@ function cocRow(status: 'draft' | 'pending_signature' | 'signed') {
   return [{ id: COC_ID, project_id: PROJECT_ID, status }]
 }
 
-function rendered(fn: ReturnType<typeof vi.fn>) {
-  return new PgDialect().sqlToQuery(fn.mock.calls[0]![0] as SQL)
+function rendered(fn: ReturnType<typeof vi.fn>, call = 0) {
+  return new PgDialect().sqlToQuery(fn.mock.calls[call]![0] as SQL)
 }
 
 const PROJECT_ROW = [{ name: 'Tower One', account_id: ACCOUNT_ID }]
@@ -88,18 +90,16 @@ describe('COC signing link lifecycle', () => {
     vi.clearAllMocks()
     mocks.selectResults.length = 0
     mocks.lockResults.length = 0
+    mocks.updateResults.length = 0
     mocks.requireUserProfile.mockResolvedValue({
       role: 'sd_pm_pe',
       tenantId: TENANT_ID,
       user: { id: '55555555-5555-4555-8555-555555555555' },
     })
     mocks.can.mockReturnValue(true)
-    mocks.select.mockImplementation(() => ({
-      from: () => ({
-        where: () => ({
-          limit: () => Promise.resolve(mocks.selectResults.shift() ?? []),
-        }),
-      }),
+    mocks.select.mockImplementation(() => ({ from: () => ({ where: mocks.selectWhere }) }))
+    mocks.selectWhere.mockImplementation(() => ({
+      limit: () => Promise.resolve(mocks.selectResults.shift() ?? []),
     }))
     mocks.transaction.mockImplementation(async (callback: (t: typeof tx) => unknown) => callback(tx))
     mocks.txSelect.mockImplementation(() => ({ from: () => ({ where: mocks.lockWhere }) }))
@@ -108,7 +108,9 @@ describe('COC signing link lifecycle', () => {
     }))
     mocks.txUpdate.mockImplementation(() => ({ set: mocks.set }))
     mocks.set.mockImplementation(() => ({ where: mocks.updateWhere }))
-    mocks.updateWhere.mockResolvedValue(undefined)
+    mocks.updateWhere.mockImplementation(() => ({
+      returning: () => Promise.resolve(mocks.updateResults.shift() ?? [{ id: COC_ID }]),
+    }))
     mocks.createSigningSession.mockResolvedValue({
       mechanism: 'canvas',
       token: 'secret-token',
@@ -189,8 +191,19 @@ describe('COC signing link lifecycle', () => {
       expect(mocks.lockWhere.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.createSigningSession.mock.invocationCallOrder[0]!
       )
+      // The move repeats the lock's status, so it cannot land on a moved certificate.
       const update = rendered(mocks.updateWhere)
-      expect(update.params).toEqual([COC_ID, TENANT_ID])
+      expect(update.params).toEqual([COC_ID, TENANT_ID, 'draft'])
+    })
+
+    it('rolls back and sends nothing when the status-bound move matches no row', async () => {
+      selectRows(cocRow('draft'), PROJECT_ROW)
+      mocks.updateResults.push([])
+
+      await expect(sendCocForSignature(PROJECT_ID)).rejects.toThrow(/changed while the link was being created/)
+      expect(mocks.revokeOpenSigningSessions).not.toHaveBeenCalled()
+      expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+      expect(mocks.notifyExternalEmail).not.toHaveBeenCalled()
     })
 
     it('emails only after the certificate and the audit row are committed', async () => {
@@ -322,6 +335,10 @@ describe('COC signing link lifecycle', () => {
       selectRows([])
 
       await expect(sendCocForSignature(PROJECT_ID)).resolves.toEqual({ error: 'COC not found' })
+      // The lookup binds the session tenant, so another tenant's certificate never matches.
+      const lookup = rendered(mocks.selectWhere)
+      expect(lookup.sql).toContain('"certificates_of_completion"."tenant_id" = $2')
+      expect(lookup.params).toEqual([PROJECT_ID, TENANT_ID])
       expect(mocks.transaction).not.toHaveBeenCalled()
     })
 
@@ -352,6 +369,7 @@ describe('COC signing link lifecycle', () => {
 
       expect(result).toMatchObject({ url: SIGN_URL, emailed: true, signerEmail: 'ana@client.test' })
       expect(rendered(mocks.lockWhere).params).toEqual([COC_ID, TENANT_ID, 'pending_signature'])
+      expect(rendered(mocks.updateWhere).params).toEqual([COC_ID, TENANT_ID, 'pending_signature'])
       expect(mocks.revokeOpenSigningSessions).toHaveBeenCalledWith(
         tx,
         TENANT_ID,
@@ -412,6 +430,7 @@ describe('COC signing link lifecycle', () => {
 
       expect(rendered(mocks.lockWhere).params).toEqual([COC_ID, TENANT_ID, 'pending_signature'])
       expect(mocks.set).toHaveBeenCalledWith({ status: 'draft', docuseal_submission_id: null })
+      expect(rendered(mocks.updateWhere).params).toEqual([COC_ID, TENANT_ID, 'pending_signature'])
       expect(mocks.revokeOpenSigningSessions).toHaveBeenCalledWith(tx, TENANT_ID, 'coc', COC_ID)
       expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
         tx,
@@ -460,6 +479,7 @@ describe('COC signing link lifecycle', () => {
       expect(mocks.set).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'signed', signed_document_id: DOCUMENT_ID })
       )
+      expect(rendered(mocks.updateWhere).params).toEqual([COC_ID, TENANT_ID, 'pending_signature'])
       expect(mocks.revokeOpenSigningSessions).toHaveBeenCalledWith(tx, TENANT_ID, 'coc', COC_ID)
       expect(mocks.writeAuditLogInTransaction).toHaveBeenCalledWith(
         tx,
@@ -496,12 +516,17 @@ describe('COC signing link lifecycle', () => {
       expect(mocks.transaction).not.toHaveBeenCalled()
     })
 
-    it('refuses a signed document of another tenant', async () => {
+    it('refuses a signed document of another tenant or another project', async () => {
       selectRows(cocRow('pending_signature'), [])
 
       await expect(recordCocSigned(COC_ID, DOCUMENT_ID)).resolves.toEqual({
         error: 'Signed document not found',
       })
+      // The document lookup binds the session tenant and the certificate's project.
+      const lookup = rendered(mocks.selectWhere, 1)
+      expect(lookup.sql).toContain('"documents"."tenant_id" = $2')
+      expect(lookup.sql).toContain('"documents"."project_id" = $3')
+      expect(lookup.params).toEqual([DOCUMENT_ID, TENANT_ID, PROJECT_ID])
       expect(mocks.transaction).not.toHaveBeenCalled()
     })
   })
