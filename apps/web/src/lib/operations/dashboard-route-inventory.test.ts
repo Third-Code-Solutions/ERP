@@ -336,7 +336,10 @@ const PRE_GATE_CALLS: ReadonlySet<string> = new Set([
   'redirect',
   'NextResponse.json',
 ])
-const CALL_LIKE_KEYWORDS: ReadonlySet<string> = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'await'])
+const CALL_LIKE_KEYWORDS: ReadonlySet<string> = new Set([
+  'if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'await',
+  'throw', 'case', 'else', 'do', 'in', 'of', 'void', 'delete', 'yield',
+])
 
 function readRouteFile(root: string, routeTemplate: string, file = 'page.tsx'): string {
   return readFileSync(join(root, ...routeTemplate.split('/').filter(Boolean), file), 'utf8')
@@ -351,15 +354,16 @@ function gatedRoutes(source: string, kind: GateKind = PAGE_GATE): string[] {
 }
 
 /**
- * Code only: string contents blanked, then comments dropped, so their words are
- * not read as calls or braces.
+ * Code only: comments dropped and string contents blanked, read left to right
+ * in one pass, so a quote inside a comment cannot open a string that hides
+ * code. A template stays a backtick pair, so a tagged template still reads as a call.
  * shortcut: a call inside a template literal's ${} is blanked too; move to a TypeScript parse if one ever hides a loader.
  */
 function codeOnly(text: string): string {
-  return text
-    .replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, "''")
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/[^\n]*/g, '')
+  return text.replace(
+    /\/\*[\s\S]*?\*\/|\/\/[^\n]*|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g,
+    (token) => (token.startsWith('/') ? '' : token.startsWith('`') ? '``' : "''"),
+  )
 }
 
 /** Index just past the `{` that opens the body of the function whose signature starts at `start`. */
@@ -387,11 +391,13 @@ function preGateProblems(source: string, kind: GateKind = PAGE_GATE): string[] {
   const problems = [...body.matchAll(/await\s+[\w.]+\(?/g)]
     .map((match) => match[0])
     .filter((expression) => !PRE_GATE_AWAIT.test(expression))
-  if (/\bdb\s*\./.test(body)) problems.push('db query')
-  for (const match of body.matchAll(/(?<![\w$.])((?:[A-Za-z_$][\w$]*\s*\.\s*)*[A-Za-z_$][\w$]*)\s*\(/g)) {
-    const name = (match[1] ?? '').replace(/\s+/g, '')
+  if (/\bdb\s*\??\./.test(body)) problems.push('db query')
+  // A call is a name chain (`.` or `?.`) followed by `(`, `?.(` or a tagged template.
+  for (const match of body.matchAll(/(?<![\w$.?])((?:[A-Za-z_$][\w$]*\s*\??\.\s*)*[A-Za-z_$][\w$]*)\s*(?:\?\.\s*)?[(`]/g)) {
+    const name = (match[1] ?? '').replace(/\s+/g, '').replace(/\?\./g, '.')
     if (!CALL_LIKE_KEYWORDS.has(name) && !PRE_GATE_CALLS.has(name)) problems.push(`${name}()`)
   }
+  if (/\]\s*(?:\?\.\s*)?[(`]/.test(body)) problems.push('computed call')
   if (!found) return [...problems, 'no gate']
 
   const before = codeOnly(source.slice(start, gateAt))
@@ -400,8 +406,8 @@ function preGateProblems(source: string, kind: GateKind = PAGE_GATE): string[] {
   const previous = lines.map((line) => line.trim()).filter((line) => line !== '').pop() ?? ''
   if (gateLinePrefix.trim() !== '') problems.push('gate does not start its own statement')
   const depth = (before.match(/\{/g)?.length ?? 0) - (before.match(/\}/g)?.length ?? 0)
-  // A previous line ending in an operator makes the gate part of its expression (`flag &&`, `x ?`, `=>`).
-  const continues = /(?:[=?:,([+\-*/!<>|&]|=>)$/.test(previous)
+  // A previous line ending in an operator makes the gate part of its expression (`flag &&`, `x ?`, `=>`, `obj.`).
+  const continues = /(?:[=?:,([+\-*/!<>|&.]|=>)$/.test(previous)
   if (depth !== 1 || continues || isBareConditionHeader(previous)) problems.push('gate inside a condition or block')
   return problems
 }
@@ -409,7 +415,7 @@ function preGateProblems(source: string, kind: GateKind = PAGE_GATE): string[] {
 /** `if (x)` or `else` with its body on the next line; `if (x) return y()` has its own body. */
 function isBareConditionHeader(line: string): boolean {
   if (/^(?:\}\s*)?else$/.test(line)) return true
-  const head = /^(?:\}\s*else\s+)?(?:if|for|while)\s*\(/.exec(line)
+  const head = /^(?:\}?\s*else\s+)?(?:if|for|while)\s*\(/.exec(line)
   if (!head) return false
   let open = 0
   for (let index = head[0].length - 1; index < line.length; index += 1) {
@@ -550,6 +556,19 @@ describe('dashboard route authorization inventory', () => {
     expect(preGateProblems(page(`  const ok = flag ? ${gate} : null`))).toContain('gate does not start its own statement')
     expect(preGateProblems(page(`  flag &&\n    ${gate}`))).toContain('gate inside a condition or block')
     expect(preGateProblems(page(`  const check = () =>\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  if (a) {\n    note = 1\n  }\n  else if (flag)\n    ${gate}`))).toContain('gate inside a condition or block')
+    expect(preGateProblems(page(`  profile.\n    ${gate}`))).toContain('gate inside a condition or block')
+
+    // Call forms that read past a plain `name(`.
+    expect(preGateProblems(page(`  const thing = core?.getThing()\n  ${gate}`))).toContain('core.getThing()')
+    expect(preGateProblems(page(`  const thing = getThing?.()\n  ${gate}`))).toContain('getThing()')
+    expect(preGateProblems(page(`  const rows = db?.select()\n  ${gate}`))).toContain('db query')
+    expect(preGateProblems(page(`  const thing = core['getThing']()\n  ${gate}`))).toContain('computed call')
+    expect(preGateProblems(page(`  const rows = loadRows\`select\`\n  ${gate}`))).toContain('loadRows()')
+    // A lone backtick in a comment does not open a template that hides the next lines.
+    expect(
+      preGateProblems(page(`  // never wrap ids in \` here\n  const rows = loadRows()\n  const note = \`done\`\n  ${gate}`))
+    ).toContain('loadRows()')
 
     // Allowed: request reads and role checks first, loads after; words in comments and strings are not calls.
     expect(preGateProblems(page(`  ${gate}\n  const rows = await db.select()`))).toEqual([])

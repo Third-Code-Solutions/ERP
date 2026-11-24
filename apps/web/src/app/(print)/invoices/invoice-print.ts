@@ -13,12 +13,13 @@ export function invoiceClientAccountJoin(tenantId: string) {
 
 interface TaxBaseAmounts {
   subtotal_cents: number
-  retention_cents: number
+  /** A purchase order has none. */
+  retention_cents?: number
 }
 
 /** VAT and EWT base: gross billing less retention, which the client still holds. */
 export function invoiceTaxBaseCents(inv: TaxBaseAmounts): number {
-  return Math.max(0, inv.subtotal_cents - inv.retention_cents)
+  return Math.max(0, inv.subtotal_cents - (inv.retention_cents ?? 0))
 }
 
 /** A stored tax amount over its base, as a rate rounded to whole basis points. */
@@ -37,10 +38,10 @@ export function withholdingRateLabel(inv: TaxBaseAmounts & { withholding_tax_cen
 }
 
 /**
- * VAT rate charged on this invoice, from its stored amounts. A zero VAT names
- * why, from the tenant's tax profile: a non-VAT tenant charges none, and a
- * VAT-registered one charged none on this sale. `vatRegistered` is null when
- * the profile could not be read.
+ * VAT rate charged, from the stored amounts. A zero VAT on a non-VAT tenant's
+ * invoice reads "Non-VAT"; any other zero prints "0%", because the schema
+ * cannot tell an exempt sale from a zero-rated one. `vatRegistered` is null
+ * when the profile was not read or could not be.
  */
 export function vatRateLabel(
   inv: TaxBaseAmounts & { vat_cents: number },
@@ -49,8 +50,7 @@ export function vatRateLabel(
   const base = invoiceTaxBaseCents(inv)
   if (inv.vat_cents > 0) return storedRateLabel(inv.vat_cents, base)
   if (vatRegistered === false) return 'Non-VAT'
-  if (base === 0) return '—'
-  return vatRegistered ? 'VAT-exempt' : '0%'
+  return base === 0 ? '—' : '0%'
 }
 
 /**

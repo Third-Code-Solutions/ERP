@@ -237,7 +237,7 @@ describe('invoice print page labels and stored amounts', () => {
     expect(mocks.resolveTaxRates).toHaveBeenCalledWith(expect.anything(), TENANT_ID, STORED.created_at)
 
     mocks.resolveTaxRates.mockResolvedValue({ vatRegistered: true })
-    expect(renderToStaticMarkup(await renderPage())).toContain('Add: Value Added Tax (VAT-exempt)')
+    expect(renderToStaticMarkup(await renderPage())).toContain('Add: Value Added Tax (0%)')
   })
 
   it('labels the withholding rate actually applied, from the stored amounts', async () => {
