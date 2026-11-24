@@ -2199,4 +2199,23 @@ describe('ERP API environment', () => {
       })
     ).toThrow('ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL')
   })
+
+  it('keeps Sentry optional and accepts only an https DSN', () => {
+    expect(validateEnvironment(REQUIRED).SENTRY_DSN).toBeUndefined()
+    expect(() =>
+      validateEnvironment({ ...REQUIRED, SENTRY_DSN: 'not-a-dsn' })
+    ).toThrow('SENTRY_DSN')
+    expect(() =>
+      validateEnvironment({
+        ...REQUIRED,
+        SENTRY_DSN: 'http://key@o1.ingest.us.sentry.io/2',
+      })
+    ).toThrow('SENTRY_DSN')
+    expect(
+      validateEnvironment({
+        ...REQUIRED,
+        SENTRY_DSN: 'https://key@o1.ingest.us.sentry.io/2',
+      }).SENTRY_DSN
+    ).toBe('https://key@o1.ingest.us.sentry.io/2')
+  })
 })

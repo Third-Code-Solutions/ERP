@@ -32,7 +32,7 @@ import { PriceComparisonTable } from '@/components/rfq/price-comparison-table'
 import { BidLevelingSummary } from '@/components/rfq/bid-leveling-summary'
 import { getRfqBidLevelingThroughCoreApi, rfqBidLevelingReadsUseCoreApi } from '@/lib/erp-core-client'
 import { requireRouteAccess } from '@/lib/require-route-access'
-import { completeRfq, cancelRfq } from '../actions'
+import { RfqTerminalActions } from '@/components/rfq/rfq-terminal-actions'
 
 export const metadata: Metadata = { title: 'RFQ Detail' }
 
@@ -369,11 +369,10 @@ export default async function RfqDetailPage({ params }: PageProps) {
                 <h2 className="card-title">Actions</h2>
               </div>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <CompleteRfqButton
+                <RfqTerminalActions
                   rfqId={rfq.id}
-                  enabled={allLinesCovered}
+                  canComplete={allLinesCovered}
                 />
-                <CancelRfqForm rfqId={rfq.id} />
                 {!allLinesCovered && (
                   <p style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', margin: 0 }}>
                     Complete unlocks once every line has at least one quote.
@@ -407,74 +406,5 @@ function Row({ label, value }: { label: string; value: string }) {
       <span style={{ color: 'var(--color-neutral-600)' }}>{label}</span>
       <span style={{ textAlign: 'right' }}>{value}</span>
     </div>
-  )
-}
-
-function CompleteRfqButton({ rfqId, enabled }: { rfqId: string; enabled: boolean }) {
-  // Plain server-action form — no JS needed.
-  const action = async () => {
-    'use server'
-    await completeRfq(rfqId)
-  }
-  return (
-    <form action={action}>
-      <button
-        type="submit"
-        disabled={!enabled}
-        style={{
-          background: enabled ? '#0F2D4A' : '#cbd5e1',
-          color: 'white',
-          border: 'none',
-          padding: '9px 14px',
-          borderRadius: 6,
-          fontSize: 13,
-          fontWeight: 500,
-          cursor: enabled ? 'pointer' : 'not-allowed',
-          width: '100%',
-        }}
-      >
-        Complete RFQ
-      </button>
-    </form>
-  )
-}
-
-function CancelRfqForm({ rfqId }: { rfqId: string }) {
-  const action = async (formData: FormData) => {
-    'use server'
-    const reason = String(formData.get('reason') ?? '')
-    await cancelRfq(rfqId, reason)
-  }
-  return (
-    <form action={action} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <input
-        name="reason"
-        placeholder="Cancellation reason"
-        required
-        style={{
-          width: '100%',
-          border: '1px solid #d0d5dd',
-          borderRadius: 6,
-          padding: '7px 10px',
-          fontSize: 13,
-          background: 'var(--color-surface)',
-        }}
-      />
-      <button
-        type="submit"
-        style={{
-          background: 'var(--color-surface)',
-          border: '1px solid #d0d5dd',
-          padding: '8px 14px',
-          borderRadius: 6,
-          fontSize: 13,
-          fontWeight: 500,
-          cursor: 'pointer',
-          color: '#b42318',
-        }}
-      >
-        Cancel RFQ
-      </button>
-    </form>
   )
 }

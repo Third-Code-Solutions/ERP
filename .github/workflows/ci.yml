@@ -116,6 +116,10 @@ jobs:
       - run: pnpm test:production-auth-proof
       - run: pnpm test:production-ci
       - run: node --test scripts/deploy-railway-service.test.mjs
+      - run: pnpm test:material-items-import
+      - run: pnpm test:bootstrap-trial-tenant
+      - run: pnpm test:trial-flags
+      - run: pnpm test:demo-tenant
       - run: pnpm test:workflow-action-refs
       - name: Test dated Supabase parity manifest
         run: pnpm test:managed-supabase-parity-plan
@@ -149,6 +153,11 @@ jobs:
       - run: pnpm test:app-router-boundaries
       - run: pnpm test:abi-ops-brand
       - run: pnpm test:production-surface
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.1
+      - name: Edge function tests (Deno)
+        run: deno test --no-prompt supabase/functions
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

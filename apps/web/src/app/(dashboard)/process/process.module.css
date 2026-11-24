@@ -164,6 +164,43 @@
 .riskMark { background: var(--color-gold-600); }
 .breachMark { background: var(--color-danger); }
 .externalMark { background: var(--color-navy-400); }
+.deadlines { margin-bottom: 28px; }
+
+.deadlineSummary {
+  margin: 0;
+  padding: 14px 24px;
+  color: var(--color-neutral-600);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+
+.deadlineEmpty {
+  margin: 0;
+  padding: 28px 24px;
+  max-width: 65ch;
+  color: var(--color-neutral-600);
+  font-size: 0.875rem;
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+
+.deadlineStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.onTrackMark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--color-success);
+}
+
 
 .projectLink {
   display: flex;

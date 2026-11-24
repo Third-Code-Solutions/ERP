@@ -228,6 +228,9 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/process',
         label: 'Planning & Controls',
         iconKey: 'Activity',
+        // Hidden until the workflow engine has producers; the page and its
+        // route policy stay reachable by direct link.
+        visible: false,
         description: 'BU-level SLA, breach, and escalation health',
       },
       {
