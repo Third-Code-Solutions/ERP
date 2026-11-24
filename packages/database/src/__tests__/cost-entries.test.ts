@@ -48,6 +48,8 @@ suite('cost_entries', () => {
           ? `insert into cost_entries(tenant_id, project_id, cost_code_id, cost_category, description, amount_cents) values('${tenantB}','${pB}','${codeB}','labour','COST_PROBE_B',2000)`
           : `insert into cost_entries(tenant_id, project_id, cost_category, description, amount_cents) values('${tenantB}','${pB}','labour','COST_PROBE_B',2000)`
       )
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.cost_entries to authenticated')
       await becomeAuthenticated(tx, userA)
       const rows = (await tx.unsafe(
         `select count(*)::int as n from cost_entries where description in ('COST_PROBE_A','COST_PROBE_B')`

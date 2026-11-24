@@ -119,16 +119,36 @@ suite('RLS tenant isolation', () => {
 
   it('authenticated user sees ONLY its own tenant rows', async () => {
     const visible = await inRollback(async (tx) => {
-      const { userA } = await seedProbes(tx)
+      const { userA, userB } = await seedProbes(tx)
       await becomeAuthenticated(tx, userA)
+      // S12A: `users` is one of the few tables the browser role may still read.
       const rows = await tx.unsafe(
-        `select count(*)::int as n from projects where name in ('PROBE_PA','PROBE_PB')`
+        `select id from users where id in ('${userA}','${userB}')`
       )
       await tx.unsafe(`reset role`)
-      return rows[0]!.n as number
+      return { userA, ids: rows.map((row) => row.id as string) }
     })
-    // A owns PROBE_PA only; PROBE_PB belongs to tenant B and must be invisible.
-    expect(visible).toBe(1)
+    // A sees itself only; B belongs to tenant B and must be invisible.
+    expect(visible.ids).toEqual([visible.userA])
+  })
+
+  it('authenticated browser role can no longer read a table the product does not read that way (S12A)', async () => {
+    const denied = await inRollback(async (tx) => {
+      const { userA } = await seedProbes(tx)
+      await becomeAuthenticated(tx, userA)
+      try {
+        await tx.unsafe(`select count(*)::int as n from projects`)
+        return false
+      } catch (error) {
+        return (
+          typeof error === 'object'
+          && error !== null
+          && 'code' in error
+          && (error as { code?: unknown }).code === '42501'
+        )
+      }
+    })
+    expect(denied).toBe(true)
   })
 
   it('anon (no JWT) has no direct table authority', async () => {

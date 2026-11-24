@@ -72,7 +72,7 @@ suite('Claim attachment direct database authority', () => {
     })
   })
 
-  it('denies direct mutation grants while preserving authenticated reads and service writes', async () => {
+  it('denies direct mutation grants and, since S12A, authenticated reads while preserving service writes', async () => {
     const roles = ['anon', 'authenticated']
     for (const role of roles) {
       for (const privilege of ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) {
@@ -85,7 +85,7 @@ suite('Claim attachment direct database authority', () => {
       }
     }
     const [row] = await sql<{ read: boolean }[]>`select has_table_privilege('authenticated','public.progress_claim_documents','SELECT') as read`
-    expect(row).toEqual({ read: true })
+    expect(row).toEqual({ read: false })
     for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
       const [service] = await sql<{ allowed: boolean }[]>`select has_table_privilege('service_role','public.progress_claim_documents',${privilege}) as allowed`
       expect(service!.allowed, `service_role ${privilege}`).toBe(true)
@@ -117,6 +117,8 @@ suite('Claim attachment direct database authority', () => {
       const tenants = await seedTwoTenants(tx)
       const own = await seedClaim(tx, tenants.tenantA, tenants.userA)
       const foreign = await seedClaim(tx, tenants.tenantB, tenants.userB)
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.progress_claim_documents to authenticated')
       await tx`select set_config('request.jwt.claims',${JSON.stringify({ sub: tenants.userA, role: 'authenticated' })},true)`
       await tx.unsafe('set local role authenticated')
       expect(await tx`select id from public.progress_claim_documents where id in (${own.attachmentId},${foreign.attachmentId})`).toEqual([{ id: own.attachmentId }])
@@ -150,6 +152,8 @@ suite('Claim attachment direct database authority', () => {
       const data = await seedClaim(tx, tenants.tenantA, tenants.userA)
       await tx.unsafe('grant insert, update, delete on public.progress_claim_documents to authenticated')
       await tx.unsafe('grant update(caption) on public.progress_claim_documents to authenticated')
+      // S12A revoked browser reads; the WHERE/RETURNING probes below need SELECT, so the accidental regrant includes it.
+      await tx.unsafe('grant select on public.progress_claim_documents to authenticated')
       await tx.unsafe('create policy synthetic_claim_write_grant on public.progress_claim_documents for all to authenticated using (true) with check (true)')
       await expect(tx.savepoint(async (probe) => {
         await probe`select set_config('request.jwt.claims',${JSON.stringify({ sub: tenants.userA, role: 'authenticated' })},true)`
@@ -231,6 +235,8 @@ suite('Claim attachment direct database authority', () => {
       const data = await seedClaim(tx, tenants.tenantA, tenants.userA)
       // Identifiers come only from the static test-case allowlist.
       await tx.unsafe(`grant delete on public.${table} to authenticated`)
+      // S12A revoked browser reads; the WHERE/RETURNING probes below need SELECT, so the accidental regrant includes it.
+      await tx.unsafe(`grant select on public.${table}, public.progress_claim_documents to authenticated`)
       await tx.unsafe(`create policy synthetic_parent_delete_grant on public.${table} for delete to authenticated using (true)`)
       await tx`select set_config('request.jwt.claims',${JSON.stringify({ sub: tenants.userA, role: 'authenticated' })},true)`
       await tx.unsafe('set local role authenticated')

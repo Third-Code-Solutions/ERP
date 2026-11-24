@@ -163,12 +163,12 @@ runtimeDescribe('client table write privileges (database)', () => {
     expect(counted!.tables).toBeGreaterThan(100)
   })
 
-  it('keeps authenticated RLS-scoped SELECT grants', async () => {
+  it('keeps authenticated RLS-scoped SELECT on the tables the browser reads (S12A retired the rest)', async () => {
     const [row] = await sql.unsafe<Array<{ users: boolean; projects: boolean }>>(`
       select has_table_privilege('authenticated', 'public.users', 'SELECT') as users,
              has_table_privilege('authenticated', 'public.projects', 'SELECT') as projects
     `)
-    expect(row).toEqual({ users: true, projects: true })
+    expect(row).toEqual({ users: true, projects: false })
   })
 
   it('leaves no client write privilege in the postgres default ACL for public or global tables', async () => {

@@ -11,10 +11,10 @@
     "databaseVersion": "17.6.1.121",
     "postgresMajor": 17,
     "appliedCount": 157,
-    "sourceCount": 195,
-    "pendingCount": 38,
+    "sourceCount": 196,
+    "pendingCount": 39,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261124190000",
+    "sourceHead": "20261124200000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -274,6 +274,16 @@
       "hostedApplyApproved": false,
       "risk": "Adds one nullable column, public.procurement_requisition_events.request_hash char(64), with no default and no backfill, so it is a catalog-only change; ALTER TABLE takes a brief ACCESS EXCLUSIVE lock on the table under a 5-second lock timeout and a 60-second statement timeout. No row, constraint, index, grant, policy or trigger changes; the existing audit trigger and the tenant SELECT policy cover the column. Core API writes the SHA-256 of the canonical command on every new requisition event and refuses (409) an idempotency key reused with another action, actor or payload. Existing create events keep their hash in reason ('request_hash:<sha256>'), which Core API still reads; existing transition events have NULL, so a retry of one of them is refused instead of replayed. The Core API release that writes the column must not deploy before this migration; the production migration ledger gate already blocks it. Preflight: count public.procurement_requisition_events rows and confirm no request_hash column exists.",
       "recovery": "Take an encrypted backup first. The migration is transactional and aborts without changes on failure. Rollback: roll the Core API release back first, then alter table public.procurement_requisition_events drop column if exists request_hash; this discards the stored hashes only, never an event. This source-only batch does not authorize hosted application."
+    },
+    {
+      "id": "20261124-revoke-client-table-reads",
+      "migrations": [
+        "20261124200000_revoke_client_table_reads.sql"
+      ],
+      "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
+      "hostedApplyApproved": false,
+      "risk": "Privilege-only, HIGH BLAST RADIUS. Revokes SELECT from authenticated and anon on 200 public tables (every replayed public table except users, read by the getUserProfile server client, and notifications, read by the bell and scoped to the recipient by 20261124210000; audit_log and the 12 cortex_* tables are left to the Cortex hardening) and removes SELECT from the postgres default ACL in public so later tables stay server-only. opportunities, purchase_orders, invoices and boms lose the browser read too: their only user-JWT readers are the Realtime subscriptions in realtime-refresher.tsx and pipeline-board.tsx, and the production supabase_realtime publication holds no public table, so those subscriptions already receive no events. No table, column, constraint, function, trigger, policy or data change. Drizzle SSR, the Core API, the service-role client and SECURITY DEFINER RPCs are unaffected. A direct PostgREST read of a revoked table by a signed-in user now returns 403 (42501) instead of tenant-filtered rows; production-cross-tenant-isolation.spec.ts asserts that denial and keeps a users RLS control, and complete-route-audit.spec.ts resolves record ids with a tenant-filtered service-role lookup. A listed table missing in production aborts the transaction, changing nothing. No table rewrite or data scan; each REVOKE waits only on concurrent DDL or GRANT on that table, under a 5-second lock and 60-second statement timeout. Preflight: ledger head, Realtime publication membership, and save the current SELECT grants as the rollback script.",
+      "recovery": "Take an encrypted backup first and save the output of the header's grant query (the exact rollback). The migration is transactional and aborts without changes on failure. Rollback: run the saved grant statements, re-grant SELECT in the postgres default ACL for public to authenticated only (anon held none), and delete the ledger row by name (revoke_client_table_reads); no data to restore. If login breaks, first grant select on public.users to authenticated. This source-only batch does not authorize hosted application."
     }
   ]
 }
