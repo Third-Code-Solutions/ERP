@@ -46,7 +46,7 @@ describe('bank statement storage upload handoff', () => {
         { ...file, size: 2_000_001 },
         { sign, upload }
       )
-    ).rejects.toThrow('Number must be less than or equal to 2000000')
+    ).rejects.toThrow('Too big: expected number to be <=2000000')
     expect(sign).not.toHaveBeenCalled()
   })
 

@@ -80,7 +80,7 @@ describe('inspection RFI transition action', () => {
   it('rejects a missing reason locally', async () => {
     await expect(transitionInspectionRfi({ ok: true }, rfiForm('   '))).resolves.toEqual({
       ok: false,
-      error: 'String must contain at least 1 character(s)',
+      error: 'Too small: expected string to have >=1 characters',
     })
     expect(mocks.transitionInspectionRfiThroughCoreApi).not.toHaveBeenCalled()
   })

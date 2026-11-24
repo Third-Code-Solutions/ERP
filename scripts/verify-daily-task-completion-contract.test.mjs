@@ -141,7 +141,7 @@ test('rejects permissive command and result schemas', () => {
 
   const result = replaceOnce(
     shared,
-    '    completedBy: z.string().uuid(),\n',
+    '    completedBy: z.string().guid(),\n',
     '',
     'completedBy result field'
   )

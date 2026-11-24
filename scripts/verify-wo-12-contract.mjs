@@ -449,7 +449,7 @@ function verifyPersistedNotificationReplay(unit) {
   const persistedRowsName = persistedRows.name.text
   const validatedRows = variableDeclaration(replay, (declaration) =>
     compact(declaration.initializer) ===
-      `z.array(z.string().uuid()).safeParse(${persistedRowsName})`,
+      `z.array(z.string().guid()).safeParse(${persistedRowsName})`,
   )
   invariant(validatedRows,
     'persisted notification replay must strictly validate every nullable row as a UUID')

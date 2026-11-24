@@ -474,7 +474,7 @@ mutation('makes inspection receipt permissive', FILES.service,
   /inspection receipt must reject/)
 
 mutation('stores a raw submission key in the RFI receipt', FILES.service,
-  (s) => replaceOnce(s, "submission_kind: z.literal('rfi_creation'),", "submission_kind: z.literal('rfi_creation'),\n    submission_id: z.string().uuid(),", 'raw receipt key'),
+  (s) => replaceOnce(s, "submission_kind: z.literal('rfi_creation'),", "submission_kind: z.literal('rfi_creation'),\n    submission_id: z.string().guid(),", 'raw receipt key'),
   /RFI receipt must not persist raw recipient identity, keys/)
 
 mutation('removes original notification recipient hash from the receipt schema', FILES.service,
@@ -490,7 +490,7 @@ mutation('removes original notification recipient count from the receipt schema'
   /inspection receipt must contain notification_recipient_count/)
 
 mutation('leaks raw notification recipient IDs into the receipt', FILES.service,
-  (s) => replaceOnce(s, '    notification_recipient_count:', '    notification_recipient_ids: z.array(z.string().uuid()),\n    notification_recipient_count:', 'raw recipient IDs'),
+  (s) => replaceOnce(s, '    notification_recipient_count:', '    notification_recipient_ids: z.array(z.string().guid()),\n    notification_recipient_count:', 'raw recipient IDs'),
   /receipt must not persist raw recipient/)
 
 mutation('omits original recipient hash from receipt construction', FILES.service,
@@ -548,7 +548,7 @@ mutation('filters null persisted-notification rows before mapping', FILES.servic
 mutation('weakens persisted notification UUID-array validation', FILES.service,
   (s) => replaceOnce(
     s,
-    '.array(z.string().uuid())\n      .safeParse(notified)',
+    '.array(z.string().guid())\n      .safeParse(notified)',
     '.array(z.string())\n      .safeParse(notified)',
     'persisted recipient UUID validation',
   ),
