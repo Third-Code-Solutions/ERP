@@ -149,6 +149,8 @@ runtimeSuite('WO-12 site inspection media runtime controls', () => {
          values ('${fixture.tenantB}', '${opportunity}', 'draft', '{}'::jsonb)`,
       )
 
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.site_inspections to authenticated')
       await becomeAuthenticated(tx, fixture.userA)
       const rows = (await tx.unsafe(
         `select id from site_inspections where tenant_id = '${fixture.tenantB}'`,

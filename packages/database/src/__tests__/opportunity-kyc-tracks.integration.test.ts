@@ -160,6 +160,8 @@ runtimeSuite('WO-11 opportunity KYC track runtime controls', () => {
          values ('${fixture.tenantB}', '${opportunity}', 'financial_evaluation', '2026-08-20T15:59:59Z')`,
       )
 
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.opportunity_kyc_tracks to authenticated')
       await becomeAuthenticated(tx, fixture.userA)
       const rows = (await tx.unsafe(
         `select id from opportunity_kyc_tracks where tenant_id = '${fixture.tenantB}'`,

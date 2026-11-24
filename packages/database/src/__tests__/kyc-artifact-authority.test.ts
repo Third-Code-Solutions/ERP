@@ -101,6 +101,8 @@ suite('KYC artifact direct database authority', () => {
         }
       }
       expect(await evidence(tx, f.tenantA)).toEqual(before)
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on account_kyc_artifacts to authenticated')
       await assume(tx, f.userA, 'authenticated')
       expect(await tx`select id from account_kyc_artifacts where id in (${own.artifactId},${other.artifactId})`).toEqual([{ id: own.artifactId }])
     })
@@ -118,6 +120,8 @@ suite('KYC artifact direct database authority', () => {
       const before = await evidence(tx, f.tenantA)
       await tx.unsafe('grant insert, update, delete on account_kyc_artifacts to authenticated')
       await tx.unsafe('grant update(notes) on account_kyc_artifacts to authenticated')
+      // S12A revoked browser reads; the WHERE/RETURNING probes below need SELECT, so the accidental regrant includes it.
+      await tx.unsafe('grant select on account_kyc_artifacts, accounts to authenticated')
       await tx.unsafe('create policy synthetic_kyc_write on account_kyc_artifacts for all to authenticated using(true) with check(true)')
       for (const table of ['accounts', 'opportunities']) {
         await tx.unsafe(`grant delete on public.${table} to authenticated`)

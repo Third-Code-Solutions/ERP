@@ -4,10 +4,13 @@ import { join, relative, resolve } from 'node:path'
 import { test, expect, type ConsoleMessage, type Page } from './base-test'
 import { z } from 'zod'
 import { authenticateRole } from './helpers/supabase-magic-link'
+import { tenantRows } from './helpers/trial-live'
 import { requireE2EBaseUrl } from './helpers/env'
 
 // Read-only page audit: no form submissions, business writes, or bearer-token
-// enumeration. Dynamic positive cases use only the controlled identity's RLS.
+// enumeration. Dynamic positive cases render as the controlled identity; their
+// record ids come from a read-only service-role lookup filtered to that
+// identity's tenant (the user JWT no longer reads these tables directly).
 const entities: Record<string, string> = {
   '/projects/': 'projects', '/crm/accounts/': 'accounts',
   '/crm/opportunities/': 'opportunities', '/admin/users/': 'users',
@@ -104,7 +107,7 @@ test('inventory every page with explicit live render and guard evidence', async 
     pageErrors: number
     pageErrorMessages: string[]
   }[] = []
-  const lookups: { table: string; status: number; available: boolean }[] = []
+  const lookups: { table: string; available: boolean }[] = []
   let authenticatedPage: Page | null = null
   let anonymousPage: Page | null = null
   let authenticatedRoutesInContext = 0
@@ -154,12 +157,10 @@ test('inventory every page with explicit live render and guard evidence', async 
 
   async function recordId(table: string): Promise<string | null> {
     if (cache.has(table)) return cache.get(table) ?? null
-    const response = await fetch(`${auth.supabaseUrl}/rest/v1/${table}?select=id&tenant_id=eq.${auth.tenantId}&limit=1`, {
-      headers: { apikey: auth.anonKey, Authorization: `Bearer ${auth.accessToken}` },
-    })
-    const parsed = response.ok ? z.array(z.object({ id: z.string().uuid() })).safeParse(await response.json()) : null
-    const id = parsed?.success ? parsed.data[0]?.id ?? null : null
-    lookups.push({ table, status: response.status, available: id !== null })
+    // tenantRows adds tenant_id=eq.<tenant> and throws (table and status only) when the lookup fails.
+    const rows = await tenantRows({ tenantId: auth.tenantId }, table, 'select=id&limit=1', z.object({ id: z.string().uuid() }))
+    const id = rows[0]?.id ?? null
+    lookups.push({ table, available: id !== null })
     cache.set(table, id)
     return id
   }

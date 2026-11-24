@@ -1756,8 +1756,13 @@ try {
       rows.map((row) => `${row.column_name}:${row.privilege}`).join(', ')
   )
 
+  // 20261124200000 (S12A) retired browser reads except the product's user-JWT
+  // reads and the Cortex/audit tables #147 owns; client-table-read-privileges
+  // proves the rest are revoked.
   const authenticatedReadableTables = requiredTables.filter(
-    (table) => !requiredDirectClientDenyTables.includes(table)
+    (table) =>
+      !requiredDirectClientDenyTables.includes(table)
+      && (table.startsWith('cortex_') || ['audit_log', 'invoices'].includes(table))
   )
 
   // 20261104055626 (SEC-01/SEC-02) retired every browser-role table DML grant;

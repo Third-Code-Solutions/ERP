@@ -648,6 +648,8 @@ runtimeSuite('Project Budget runtime controls', () => {
   it('denies budget reads to Viewer while permitting Commercial', async () => {
     const counts = await inRollback(sql, async (tx) => {
       const fixture = await seedBudgetFixture(tx)
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.project_budgets to authenticated')
       await becomeAuthenticated(tx, fixture.viewerId)
       const viewerRows = (await tx.unsafe(
         `select count(*)::int as count

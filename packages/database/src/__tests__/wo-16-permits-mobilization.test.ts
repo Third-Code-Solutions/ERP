@@ -212,6 +212,8 @@ runtimeSuite('WO-16 permit and mobilization database controls', () => {
       )) as unknown as Array<{ id: string; started_at: string }>
       expect(override?.id).toBeTruthy()
 
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.mobilization_readiness to authenticated')
       await becomeAuthenticated(tx, userA)
       const visible = (await tx.unsafe(
         `select count(*)::int as count from mobilization_readiness where tenant_id = '${tenantA}'`

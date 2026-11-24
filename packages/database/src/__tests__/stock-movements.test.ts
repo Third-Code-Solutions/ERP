@@ -821,6 +821,8 @@ runtimeSuite('Stock Movement runtime controls', () => {
     const visible = await inRollback(sqlClient, async (tx) => {
       const fixture = await seedMovementFixture(tx)
       await createMovement(tx, fixture, 'transfer', 1_000_000)
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.stock_movements to authenticated')
       await becomeAuthenticated(tx, fixture.viewerId)
       return (await tx.unsafe(
         `select count(*)::integer as count

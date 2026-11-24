@@ -1424,6 +1424,8 @@ runtimeSuite('inventory stock ledger runtime proof', () => {
   it('hides inventory records from Viewer RLS', async () => {
     const visible = await inRollback(sqlClient, async (tx) => {
       const fixture = await seedInventoryFixture(tx)
+      // S12A revoked browser reads; re-grant inside this rollback so RLS stays proven as defense in depth.
+      await tx.unsafe('grant select on public.stock_receipts to authenticated')
       await becomeAuthenticated(tx, fixture.viewerId)
       return (await tx.unsafe(
         `select count(*)::integer as count
