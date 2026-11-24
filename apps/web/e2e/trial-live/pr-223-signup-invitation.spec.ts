@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../base-test'
 import { gateTrialLive } from '../helpers/trial-live'
 
 gateTrialLive()

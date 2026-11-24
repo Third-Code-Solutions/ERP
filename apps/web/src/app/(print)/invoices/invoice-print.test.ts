@@ -15,8 +15,9 @@ import {
 const BASE = { subtotal_cents: 25_000_000, retention_cents: 2_500_000 }
 
 describe('withholding on a printed invoice', () => {
-  it('takes the base net of retention', () => {
+  it('takes the base net of retention, if any', () => {
     expect(invoiceTaxBaseCents(BASE)).toBe(22_500_000)
+    expect(invoiceTaxBaseCents({ subtotal_cents: 1_000_000 })).toBe(1_000_000)
     expect(invoiceTaxBaseCents({ subtotal_cents: 100, retention_cents: 500 })).toBe(0)
   })
 
@@ -41,10 +42,10 @@ describe('VAT on a printed invoice', () => {
     expect(vatRateLabel({ ...BASE, vat_cents: 2_250_000 }, false)).toBe('10%')
   })
 
-  it('names why no VAT was charged, from the tax profile', () => {
+  it('says Non-VAT for a non-VAT tenant and 0% for any other zero VAT', () => {
     expect(vatRateLabel({ ...BASE, vat_cents: 0 }, false)).toBe('Non-VAT')
-    expect(vatRateLabel({ ...BASE, vat_cents: 0 }, true)).toBe('VAT-exempt')
-    // Profiles could not be read: print the stored rate, nothing more.
+    // Exempt and zero-rated look the same in the schema, so neither is claimed.
+    expect(vatRateLabel({ ...BASE, vat_cents: 0 }, true)).toBe('0%')
     expect(vatRateLabel({ ...BASE, vat_cents: 0 }, null)).toBe('0%')
     expect(vatRateLabel({ subtotal_cents: 0, retention_cents: 0, vat_cents: 0 }, true)).toBe('—')
   })

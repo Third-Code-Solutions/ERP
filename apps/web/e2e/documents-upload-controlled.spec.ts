@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { expect, test } from '@playwright/test'
+import { expect, test } from './base-test'
 import { login } from './helpers/auth'
 
 const ENABLED = process.env.E2E_CONTROLLED_UPLOAD === '1'

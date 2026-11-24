@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { test, type Browser, type Page, type Route, type TestInfo } from '@playwright/test'
+import { test, type Browser, type Page, type Route, type TestInfo } from '../base-test'
 import { z } from 'zod'
 import { readE2EEnv } from './env'
 import {

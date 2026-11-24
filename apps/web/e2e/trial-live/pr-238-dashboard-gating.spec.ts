@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page } from '../base-test'
 import { roleHasCapability } from '@third-code-erp/shared-types/authorization'
 import { STAGE_LEGACY_MAP, type OpportunityStage } from '@third-code-erp/shared-types/opportunities'
 import { z } from 'zod'

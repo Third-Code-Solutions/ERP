@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../base-test'
 import { RUN_ID, gateTrialLive, needsData, openRole, tapServerActions, trialTarget } from '../helpers/trial-live'
 
 gateTrialLive()
