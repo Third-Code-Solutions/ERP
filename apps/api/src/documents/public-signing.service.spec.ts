@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 
 import { createHash } from 'node:crypto'
-import { ServiceUnavailableException } from '@nestjs/common'
+import { ConflictException, ServiceUnavailableException } from '@nestjs/common'
 import type { ConfigService } from '@nestjs/config'
 import { publicSigningRequests, signatureSessions } from '@third-code-erp/database/schema'
 import { PgDialect } from 'drizzle-orm/pg-core'
@@ -131,6 +131,41 @@ describe('PublicSigningService migration boundary', () => {
     expect(compiled.sql).toContain('"boms"."status"')
     expect(compiled.params).toContain('approved')
   })
+
+  it.each([
+    ['variation_order', 'variation_orders', 'pending_client_signature'],
+    ['coc', 'certificates_of_completion', 'pending_signature'],
+  ] as const)(
+    'refuses with 409 to stamp a %s that no longer waits for a signature',
+    async (entityType, table, pendingStatus) => {
+      const probe = service()
+      const returning = vi.fn().mockResolvedValue([])
+      const where = vi.fn().mockReturnValue({ returning })
+      const set = vi.fn().mockReturnValue({ where })
+      const update = vi.fn().mockReturnValue({ set })
+      const stamp = probe.service['stampSignedSource']
+      // This double exercises only the source update path of a much larger transaction interface.
+      const transaction = { update } as unknown as Parameters<typeof stamp>[0]
+      const session = {
+        entity_type: entityType,
+        entity_id: '33333333-3333-4333-8333-333333333333',
+        tenant_id: '22222222-2222-4222-8222-222222222222',
+      } as Parameters<typeof stamp>[1]
+
+      await expect(
+        stamp.call(probe.service, transaction, session, 'signature-document', new Date())
+      ).rejects.toBeInstanceOf(ConflictException)
+
+      const compiled = new PgDialect().sqlToQuery(where.mock.calls[0]?.[0])
+      expect(compiled.sql).toContain(`"${table}"."tenant_id"`)
+      expect(compiled.sql).toContain(`"${table}"."status"`)
+      expect(compiled.params).toEqual([
+        '33333333-3333-4333-8333-333333333333',
+        '22222222-2222-4222-8222-222222222222',
+        pendingStatus,
+      ])
+    }
+  )
 
   it('does not acknowledge a BOM signature when atomic award creation fails', async () => {
     awardMock.runSignedBomAward.mockReset()

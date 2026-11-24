@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { and, eq, isNull, ne } from 'drizzle-orm'
-import { db } from '@third-code-erp/database'
+import type { Database } from '@third-code-erp/database'
 import { signatureSessions } from '@third-code-erp/database/schema'
 import { hashToken, type SignableEntityType } from './integrations/canvas-sign'
 
@@ -12,14 +12,17 @@ import { hashToken, type SignableEntityType } from './integrations/canvas-sign'
  *
  * `keepToken` is the plaintext token of the freshly issued link, which must
  * stay valid. For DocuSeal no session row exists, so nothing matches it.
+ * `executor` is the caller's transaction, so the revoke commits or rolls back
+ * with the status change it belongs to.
  */
 export async function revokeOpenSigningSessions(
+  executor: Pick<Database, 'update'>,
   tenantId: string,
   entityType: SignableEntityType,
   entityId: string,
   keepToken?: string
 ): Promise<void> {
-  await db
+  await executor
     .update(signatureSessions)
     .set({ revoked_at: new Date() })
     .where(

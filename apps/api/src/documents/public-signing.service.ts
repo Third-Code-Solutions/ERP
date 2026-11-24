@@ -37,6 +37,8 @@ const SIGNATURE_DATA_URL_PREFIX = 'data:image/png;base64,'
 const MAX_SIGNATURE_BYTES = 512 * 1024
 const MAX_SIGNATURE_BASE64_LENGTH = Math.ceil(MAX_SIGNATURE_BYTES / 3) * 4
 const PNG_SIGNATURE = Buffer.from('89504e470d0a1a0a', 'hex')
+const NOT_AWAITING_SIGNATURE =
+  'This request is no longer waiting for a signature. Ask the sender for a new link.'
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
@@ -478,21 +480,33 @@ export class PublicSigningService {
         .returning({ id: contracts.id })
       return rows.length === 1
     }
+    // A VO or COC is signed only while it waits for the signature, so a link
+    // still open after a reject, withdrawal or manual signing cannot stamp it.
     if (session.entity_type === 'variation_order') {
       const rows = await transaction
         .update(variationOrders)
         .set({ status: 'signed', signed_at: now, signed_document_id: signatureDocumentId })
-        .where(and(eq(variationOrders.id, session.entity_id), eq(variationOrders.tenant_id, session.tenant_id)))
+        .where(and(
+          eq(variationOrders.id, session.entity_id),
+          eq(variationOrders.tenant_id, session.tenant_id),
+          eq(variationOrders.status, 'pending_client_signature')
+        ))
         .returning({ id: variationOrders.id })
-      return rows.length === 1
+      if (rows.length !== 1) throw new ConflictException(NOT_AWAITING_SIGNATURE)
+      return true
     }
     const warrantyEnd = new Date(now.getTime() + 365 * 86_400_000)
     const rows = await transaction
       .update(certificatesOfCompletion)
       .set({ status: 'signed', signed_at: now, signed_document_id: signatureDocumentId, warranty_period_starts_at: now, warranty_period_ends_at: warrantyEnd })
-      .where(and(eq(certificatesOfCompletion.id, session.entity_id), eq(certificatesOfCompletion.tenant_id, session.tenant_id)))
+      .where(and(
+        eq(certificatesOfCompletion.id, session.entity_id),
+        eq(certificatesOfCompletion.tenant_id, session.tenant_id),
+        eq(certificatesOfCompletion.status, 'pending_signature')
+      ))
       .returning({ id: certificatesOfCompletion.id })
-    return rows.length === 1
+    if (rows.length !== 1) throw new ConflictException(NOT_AWAITING_SIGNATURE)
+    return true
   }
 
   private async resolveProjectId(

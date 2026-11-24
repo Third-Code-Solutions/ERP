@@ -7,9 +7,9 @@ const mocks = vi.hoisted(() => ({
   where: vi.fn(),
 }))
 
-vi.mock('@third-code-erp/database', () => ({ db: { update: mocks.update } }))
-
 import { revokeOpenSigningSessions } from './signing-sessions'
+
+const executor = { update: mocks.update } as unknown as Parameters<typeof revokeOpenSigningSessions>[0]
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111'
 const ENTITY_ID = '22222222-2222-4222-8222-222222222222'
@@ -27,7 +27,7 @@ describe('revokeOpenSigningSessions', () => {
   })
 
   it('stamps revoked_at only on unsigned, unrevoked sessions of one tenant entity', async () => {
-    await revokeOpenSigningSessions(TENANT_ID, 'coc', ENTITY_ID)
+    await revokeOpenSigningSessions(executor, TENANT_ID, 'coc', ENTITY_ID)
 
     expect(mocks.set).toHaveBeenCalledWith({ revoked_at: expect.any(Date) })
     const query = renderedWhere()
@@ -43,7 +43,7 @@ describe('revokeOpenSigningSessions', () => {
   })
 
   it('spares the freshly issued link by token hash', async () => {
-    await revokeOpenSigningSessions(TENANT_ID, 'coc', ENTITY_ID, 'a'.repeat(64))
+    await revokeOpenSigningSessions(executor, TENANT_ID, 'coc', ENTITY_ID, 'a'.repeat(64))
 
     const query = renderedWhere()
     expect(query.sql).toContain('"token_hash" <> $')

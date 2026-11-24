@@ -183,9 +183,8 @@ export default async function VoDetailPage({ params }: PageProps) {
                   })}
                 />
               )}
-              {vo.docuseal_submission_id && (
-                <Meta label="DocuSeal submission" value={vo.docuseal_submission_id} mono />
-              )}
+              {/* Older rows hold the DocuSeal signing slug, a bearer credential: never render it. */}
+              {vo.docuseal_submission_id && <Meta label="Signing" value="Sent through DocuSeal" />}
               {vo.signed_document_id && (
                 <Meta label="Signed document" value={vo.signed_document_id} mono />
               )}

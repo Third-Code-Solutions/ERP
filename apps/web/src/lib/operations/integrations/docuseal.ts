@@ -116,6 +116,8 @@ interface SigningSessionResult {
   token: string
   is_dev_stub: boolean
   mechanism: 'canvas' | 'docuseal'
+  /** DocuSeal only: the submission id, which is not a signing credential. */
+  submissionId?: string
 }
 
 /**
@@ -161,6 +163,7 @@ export async function createSigningSession(
       token: submission.slug,
       is_dev_stub: submission.is_dev_stub,
       mechanism: 'docuseal',
+      submissionId: submission.submission_id,
     }
   }
 
@@ -178,6 +181,28 @@ export async function createSigningSession(
     // DocuSeal fallback stub.
     is_dev_stub: false,
     mechanism: 'canvas',
+  }
+}
+
+/**
+ * Archive a superseded DocuSeal submission so its link can no longer be signed.
+ * Best effort: a failure is logged and the caller carries on, because the
+ * signing request has already moved on in the database.
+ */
+export async function archiveDocuSealSubmission(
+  submissionId: string | null | undefined,
+): Promise<void> {
+  if (!submissionId || isDevelopmentStubSubmissionId(submissionId) || !hasDocuSealConfig()) {
+    return
+  }
+  try {
+    const res = await fetch(
+      `${process.env.DOCUSEAL_API_URL}/api/v1/submissions/${encodeURIComponent(submissionId)}`,
+      { method: 'DELETE', headers: { 'X-Auth-Token': process.env.DOCUSEAL_API_TOKEN! } },
+    )
+    if (!res.ok) console.warn(`[docuseal] archiving a superseded submission failed (${res.status})`)
+  } catch {
+    console.warn('[docuseal] archiving a superseded submission failed')
   }
 }
 

@@ -23,9 +23,12 @@ import {
   users,
   variationOrders,
 } from '@third-code-erp/database/schema'
-import { writeAuditLog } from '@/lib/audit'
+import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
-import { createSigningSession } from '@/lib/operations/integrations/docuseal'
+import {
+  archiveDocuSealSubmission,
+  createSigningSession,
+} from '@/lib/operations/integrations/docuseal'
 import { revokeOpenSigningSessions } from '@/lib/operations/signing-sessions'
 import { loadVo } from './queries'
 
@@ -196,6 +199,35 @@ export interface VoSigningLinkResult {
 // Matches the createCanvasSignSession default; shown to the sender.
 const SIGNING_LINK_HOURS = 48
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+const VO_CHANGED_ERROR =
+  'The variation order changed while the link was being created. Refresh the page and check its status.'
+
+/**
+ * Lock the VO row while it is still in `status`. Sends, resends, cancels and
+ * rejections of one VO then run one after another instead of racing.
+ */
+async function lockVoInStatus(
+  tx: Tx,
+  ctx: TenantCtx,
+  voId: string,
+  status: VoStatus,
+): Promise<{ docusealSubmissionId: string | null } | null> {
+  const [locked] = await tx
+    .select({ docusealSubmissionId: variationOrders.docuseal_submission_id })
+    .from(variationOrders)
+    .where(
+      and(
+        eq(variationOrders.id, voId),
+        eq(variationOrders.tenant_id, ctx.tenantId),
+        eq(variationOrders.status, status),
+      ),
+    )
+    .for('update')
+  return locked ?? null
+}
+
 // Shared by send (from pending_commercial_pricing) and resend (from
 // pending_client_signature). The link is a bearer credential: it only goes
 // back to the caller, never into the audit log.
@@ -217,67 +249,66 @@ async function issueVoSigningLink(
     if (creator?.email) signerEmail = creator.email
   }
 
-  let session: Awaited<ReturnType<typeof createSigningSession>>
-  try {
-    session = await createSigningSession({
+  type Issued = { url: string; previousSubmissionId: string | null } | { error: string }
+  const issued = await db.transaction(async (tx): Promise<Issued> => {
+    // The link is minted under the lock, so a second request waits and its
+    // link becomes the only one; a request that finds the VO moved mints none.
+    const locked = await lockVoInStatus(tx, ctx, vo.id, from)
+    if (!locked) return { error: VO_CHANGED_ERROR }
+
+    let session: Awaited<ReturnType<typeof createSigningSession>>
+    try {
+      session = await createSigningSession({
+        tenantId: ctx.tenantId,
+        entityType: 'variation_order',
+        entityId: vo.id,
+        signerEmail,
+      })
+    } catch {
+      console.error('[vo] signing session creation failed')
+      return { error: 'The signing link could not be created. Try again.' }
+    }
+
+    await tx
+      .update(variationOrders)
+      .set({
+        status: 'pending_client_signature',
+        docuseal_submission_id:
+          session.mechanism === 'docuseal' ? (session.submissionId ?? null) : null,
+      })
+      .where(and(eq(variationOrders.id, vo.id), eq(variationOrders.tenant_id, ctx.tenantId)))
+
+    // Only the newest link may sign. A first send revokes too, so a link from
+    // an earlier, cancelled request is never revived.
+    await revokeOpenSigningSessions(tx, ctx.tenantId, 'variation_order', vo.id, session.token)
+
+    await writeAuditLogInTransaction(tx, {
       tenantId: ctx.tenantId,
+      actorId: ctx.userId,
       entityType: 'variation_order',
       entityId: vo.id,
-      signerEmail,
+      action: 'status_change',
+      diff: {
+        from,
+        to: 'pending_client_signature',
+        ...(from === 'pending_client_signature'
+          ? { signing_link: 'reissued', previous_links_revoked: true }
+          : {}),
+        // The signing link is a bearer credential; audit rows are tenant-readable.
+        mechanism: session.mechanism,
+        is_dev_stub: session.is_dev_stub,
+      },
     })
-  } catch {
-    console.error('[vo] signing session creation failed')
-    return { error: 'The signing link could not be created. Try again.' }
-  }
-
-  const moved = await db
-    .update(variationOrders)
-    .set({
-      status: 'pending_client_signature',
-      docuseal_submission_id:
-        session.mechanism === 'docuseal' ? session.token : null,
-    })
-    .where(
-      and(
-        eq(variationOrders.id, vo.id),
-        eq(variationOrders.tenant_id, ctx.tenantId),
-        eq(variationOrders.status, from),
-      ),
-    )
-    .returning({ id: variationOrders.id })
-  if (moved.length !== 1) {
-    return {
-      error: 'The variation order changed while the link was being created. Refresh the page and check its status.',
-    }
-  }
-
-  // Only the newest link may sign; kept after the update so a failed reissue
-  // never leaves the variation order without a working link. A first send
-  // revokes too: a link minted by a request that lost a race is never reused.
-  await revokeOpenSigningSessions(ctx.tenantId, 'variation_order', vo.id, session.token)
-
-  await writeAuditLog({
-    tenantId: ctx.tenantId,
-    actorId: ctx.userId,
-    entityType: 'variation_order',
-    entityId: vo.id,
-    action: 'status_change',
-    diff: {
-      from,
-      to: 'pending_client_signature',
-      ...(from === 'pending_client_signature'
-        ? { signing_link: 'reissued', previous_links_revoked: true }
-        : {}),
-      // The signing link is a bearer credential; audit rows are tenant-readable.
-      mechanism: session.mechanism,
-      is_dev_stub: session.is_dev_stub,
-    },
+    return { url: session.url, previousSubmissionId: locked.docusealSubmissionId }
   })
+  if ('error' in issued) return { error: issued.error }
+
+  await archiveDocuSealSubmission(issued.previousSubmissionId)
 
   revalidatePath(`/projects/${vo.project_id}/vos`)
   revalidatePath(`/projects/${vo.project_id}/vos/${vo.id}`)
   return {
-    url: session.url,
+    url: issued.url,
     expiresAt: new Date(Date.now() + SIGNING_LINK_HOURS * 60 * 60 * 1000).toISOString(),
   }
 }
@@ -336,36 +367,35 @@ export async function cancelVoSigningRequest(
     return { error: 'Only a VO that is waiting for client signature can have its request cancelled.' }
   }
 
-  // The status guard makes a signature that lands first win over the cancel.
-  const reverted = await db
-    .update(variationOrders)
-    .set({ status: 'pending_commercial_pricing', docuseal_submission_id: null })
-    .where(
-      and(
-        eq(variationOrders.id, voId),
-        eq(variationOrders.tenant_id, ctx.tenantId),
-        eq(variationOrders.status, 'pending_client_signature'),
-      ),
-    )
-    .returning({ id: variationOrders.id })
-  if (reverted.length !== 1) {
+  // The status lock makes a signature that lands first win over the cancel.
+  const cancelled = await db.transaction(async (tx) => {
+    const locked = await lockVoInStatus(tx, ctx, voId, 'pending_client_signature')
+    if (!locked) return null
+
+    await tx
+      .update(variationOrders)
+      .set({ status: 'pending_commercial_pricing', docuseal_submission_id: null })
+      .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
+    await revokeOpenSigningSessions(tx, ctx.tenantId, 'variation_order', voId)
+    await writeAuditLogInTransaction(tx, {
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      entityType: 'variation_order',
+      entityId: voId,
+      action: 'status_change',
+      diff: {
+        from: 'pending_client_signature',
+        to: 'pending_commercial_pricing',
+        signing_link: 'revoked',
+      },
+    })
+    return locked
+  })
+  if (!cancelled) {
     return { error: 'The VO is no longer waiting for client signature. Refresh the page.' }
   }
 
-  await revokeOpenSigningSessions(ctx.tenantId, 'variation_order', voId)
-
-  await writeAuditLog({
-    tenantId: ctx.tenantId,
-    actorId: ctx.userId,
-    entityType: 'variation_order',
-    entityId: voId,
-    action: 'status_change',
-    diff: {
-      from: 'pending_client_signature',
-      to: 'pending_commercial_pricing',
-      signing_link: 'revoked',
-    },
-  })
+  await archiveDocuSealSubmission(cancelled.docusealSubmissionId)
 
   revalidatePath(`/projects/${vo.project_id}/vos`)
   revalidatePath(`/projects/${vo.project_id}/vos/${voId}`)
@@ -398,27 +428,37 @@ export async function recordVoSigned(
     if (!document) return { error: 'Signed document not found in this tenant' }
   }
 
-  await db
-    .update(variationOrders)
-    .set({
-      status: 'signed',
-      signed_at: new Date(),
-      signed_document_id: signedDocumentId,
-    })
-    .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
+  const recorded = await db.transaction(async (tx) => {
+    const locked = await lockVoInStatus(tx, ctx, voId, 'pending_client_signature')
+    if (!locked) return false
 
-  await writeAuditLog({
-    tenantId: ctx.tenantId,
-    actorId: ctx.userId,
-    entityType: 'variation_order',
-    entityId: voId,
-    action: 'status_change',
-    diff: {
-      from: vo.status,
-      to: 'signed',
-      signed_document_id: signedDocumentId,
-    },
+    await tx
+      .update(variationOrders)
+      .set({
+        status: 'signed',
+        signed_at: new Date(),
+        signed_document_id: signedDocumentId,
+      })
+      .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
+    // A signed VO must not be signed again through a link that is still out.
+    await revokeOpenSigningSessions(tx, ctx.tenantId, 'variation_order', voId)
+    await writeAuditLogInTransaction(tx, {
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      entityType: 'variation_order',
+      entityId: voId,
+      action: 'status_change',
+      diff: {
+        from: 'pending_client_signature',
+        to: 'signed',
+        signed_document_id: signedDocumentId,
+      },
+    })
+    return true
   })
+  if (!recorded) {
+    return { error: 'VO must be awaiting client signature before it can be signed' }
+  }
 
   revalidatePath(`/projects/${vo.project_id}/vos`)
   revalidatePath(`/projects/${vo.project_id}/vos/${voId}`)
@@ -444,22 +484,33 @@ export async function rejectVo(
   const trimmed = reason.trim()
   if (!trimmed) return { error: 'Rejection reason is required' }
 
-  await db
-    .update(variationOrders)
-    .set({ status: 'rejected' })
-    .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
+  // Locked in the status that was read, so a signature that lands first wins
+  // and the audit row records the real previous status.
+  const rejected = await db.transaction(async (tx) => {
+    const locked = await lockVoInStatus(tx, ctx, voId, vo.status as VoStatus)
+    if (!locked) return null
 
-  // A rejected VO must not stay signable through a link that is already out.
-  await revokeOpenSigningSessions(ctx.tenantId, 'variation_order', voId)
-
-  await writeAuditLog({
-    tenantId: ctx.tenantId,
-    actorId: ctx.userId,
-    entityType: 'variation_order',
-    entityId: voId,
-    action: 'status_change',
-    diff: { from: vo.status, to: 'rejected', reason: trimmed },
+    await tx
+      .update(variationOrders)
+      .set({ status: 'rejected' })
+      .where(and(eq(variationOrders.id, voId), eq(variationOrders.tenant_id, ctx.tenantId)))
+    // A rejected VO must not stay signable through a link that is already out.
+    await revokeOpenSigningSessions(tx, ctx.tenantId, 'variation_order', voId)
+    await writeAuditLogInTransaction(tx, {
+      tenantId: ctx.tenantId,
+      actorId: ctx.userId,
+      entityType: 'variation_order',
+      entityId: voId,
+      action: 'status_change',
+      diff: { from: vo.status, to: 'rejected', reason: trimmed },
+    })
+    return locked
   })
+  if (!rejected) {
+    return { error: 'The VO changed while you were rejecting it. Refresh the page and check its status.' }
+  }
+
+  await archiveDocuSealSubmission(rejected.docusealSubmissionId)
 
   revalidatePath(`/projects/${vo.project_id}/vos`)
   revalidatePath(`/projects/${vo.project_id}/vos/${voId}`)
