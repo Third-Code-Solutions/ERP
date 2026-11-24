@@ -7,13 +7,15 @@
 //   - sendCocForSignature: creates a signing session, emails the link to the
 //     signer and returns it so the sender can also copy it.
 //   - resendCocSigningLink: replaces the link while pending (links expire).
+//     A send or resend waits 10 minutes after the last link sent, even one
+//     since cancelled, so the signer cannot be emailed in a loop.
 //   - cancelCocSigningRequest: pending_signature → draft, link revoked.
 //   - recordCocSigned: manual record of a DocuSeal signature, only while
 //     pending; sets signed_at + warranty window and pings CX to start M7
 //     onboarding. Canvas signatures are recorded by the public signing path.
 
 import { revalidatePath } from 'next/cache'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import {
   requireUserProfile,
@@ -23,6 +25,7 @@ import {
 } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
+  auditLog,
   certificatesOfCompletion,
   documents,
   projects,
@@ -34,10 +37,7 @@ import {
   archiveDocuSealSubmission,
   createSigningSession,
 } from '@/lib/operations/integrations/docuseal'
-import {
-  newestOpenSigningSessionAt,
-  revokeOpenSigningSessions,
-} from '@/lib/operations/signing-sessions'
+import { revokeOpenSigningSessions } from '@/lib/operations/signing-sessions'
 import { findDefaultCocSigner } from './queries'
 
 const DEFAULT_WARRANTY_DAYS = 365
@@ -209,12 +209,32 @@ const COC_CHANGED_ERROR =
 
 /** Least time between two signing links for one certificate, so resends cannot flood the signer. */
 const COC_RESEND_COOLDOWN_MS = 10 * 60_000
+const COC_AUDIT_ENTITY_TYPE = 'certificate_of_completion'
+/**
+ * Only the audit row of a sent link (send or resend, canvas or DocuSeal) carries
+ * this diff key. The writer and the wait below share it; cancelling never
+ * removes the row, so a send/cancel loop still waits.
+ */
+const COC_LINK_SENT_AUDIT_KEY = 'signer_email'
 
 /** Whole minutes until another link may be sent; 0 when it may go now. */
 async function cocResendWaitMinutes(tx: Tx, tenantId: string, cocId: string): Promise<number> {
-  const issuedAt = await newestOpenSigningSessionAt(tx, tenantId, 'coc', cocId)
-  if (!issuedAt) return 0
-  const remainingMs = issuedAt.getTime() + COC_RESEND_COOLDOWN_MS - Date.now()
+  const [lastSent] = await tx
+    .select({ createdAt: auditLog.created_at })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.tenant_id, tenantId),
+        eq(auditLog.entity_type, COC_AUDIT_ENTITY_TYPE),
+        eq(auditLog.entity_id, cocId),
+        isNotNull(sql`${auditLog.diff} ->> ${COC_LINK_SENT_AUDIT_KEY}`)
+      )
+    )
+    .orderBy(desc(auditLog.created_at))
+    .limit(1)
+  if (!lastSent) return 0
+  // Both times are this server's clock: the audit writer stamps created_at itself.
+  const remainingMs = lastSent.createdAt.getTime() + COC_RESEND_COOLDOWN_MS - Date.now()
   return remainingMs > 0 ? Math.ceil(remainingMs / 60_000) : 0
 }
 
@@ -313,12 +333,10 @@ async function issueCocSigningLink(
     // that finds the certificate moved mints no link at all.
     const locked = await lockCocInStatus(tx, profile.tenantId, coc.id, from)
     if (!locked) return { error: COC_CHANGED_ERROR }
-    // Read under the certificate lock, so a resend racing this one waits and then
-    // sees the link this one issued. A refusal mints, revokes, emails and audits nothing.
-    if (from === 'pending_signature') {
-      const waitMinutes = await cocResendWaitMinutes(tx, profile.tenantId, coc.id)
-      if (waitMinutes > 0) return { error: cocResendThrottledMessage(waitMinutes) }
-    }
+    // Read under the certificate lock, so a send or resend racing this one waits and
+    // then sees the link this one issued. A refusal mints, revokes, emails and audits nothing.
+    const waitMinutes = await cocResendWaitMinutes(tx, profile.tenantId, coc.id)
+    if (waitMinutes > 0) return { error: cocResendThrottledMessage(waitMinutes) }
 
     let session: Awaited<ReturnType<typeof createSigningSession>>
     try {
@@ -353,14 +371,14 @@ async function issueCocSigningLink(
     await writeAuditLogInTransaction(tx, {
       tenantId: profile.tenantId,
       actorId: profile.user.id,
-      entityType: 'certificate_of_completion',
+      entityType: COC_AUDIT_ENTITY_TYPE,
       entityId: coc.id,
       action: from === 'draft' ? 'status_change' : 'update',
       diff: {
         ...(from === 'draft'
           ? { status: { before: 'draft', after: 'pending_signature' } }
           : { signing_link: 'reissued', previous_links_revoked: true }),
-        signer_email: signer.email,
+        [COC_LINK_SENT_AUDIT_KEY]: signer.email,
         // Never log the signing link: it is a bearer credential and audit rows are tenant-readable.
         mechanism: session.mechanism,
         is_dev_stub: session.is_dev_stub,
