@@ -43,19 +43,19 @@ const PRIORITY_VALUES = ['low', 'medium', 'high', 'critical'] as const
 const STATUS_VALUES = ['open', 'in_progress', 'for_inspection', 'closed'] as const
 
 const createSchema = z.object({
-  project_id: z.string().uuid(),
+  project_id: z.string().guid(),
   description: z.string().min(3, 'Description must be at least 3 characters'),
   location: z.string().max(255).optional(),
   trade: z.string().max(120).optional(),
   priority: z.enum(PRIORITY_VALUES).default('medium'),
   due_date: z.string().optional(),
-  assigned_to_user_id: z.string().uuid().optional(),
+  assigned_to_user_id: z.string().guid().optional(),
   assigned_to_text: z.string().max(255).optional(),
 })
 
 const photoSchema = z.object({
-  punchlist_item_id: z.string().uuid(),
-  document_id: z.string().uuid(),
+  punchlist_item_id: z.string().guid(),
+  document_id: z.string().guid(),
   caption: z.string().max(255).optional(),
   is_before: z.enum(['true', 'false']).default('true'),
 })

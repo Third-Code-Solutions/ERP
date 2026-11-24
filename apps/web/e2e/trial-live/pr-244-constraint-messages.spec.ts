@@ -4,7 +4,7 @@ import { RUN_ID, gateTrialLive, needsData, openRole, tenantRows, trialTarget } f
 
 gateTrialLive()
 
-const uomRow = z.object({ id: z.string().uuid(), code: z.string() })
+const uomRow = z.object({ id: z.string().guid(), code: z.string() })
 
 // The Cash and Supplier Bill duplicate messages of this PR are checked by pr-241 (also tagged @pr-244).
 test('a duplicate UOM code shows the constraint message, not a generic failure', { tag: '@pr-244' }, async ({ browser }, testInfo) => {

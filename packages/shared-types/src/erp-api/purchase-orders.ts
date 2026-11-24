@@ -8,14 +8,14 @@ const purchaseOrderLineSchema = z
     unit: z.string().trim().max(20).optional(),
     quantity: z.number().int().positive().max(2_147_483_647),
     unitCostCents: z.number().int().nonnegative().safe(),
-    costCodeId: z.string().uuid(),
+    costCodeId: z.string().guid(),
   })
   .strict()
 
 export const createPurchaseOrderCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
-    vendorId: z.string().uuid().nullable().optional(),
+    projectId: z.string().guid(),
+    vendorId: z.string().guid().nullable().optional(),
     deliveryDate: z.string().datetime({ offset: true }).nullable().optional(),
     notes: z.string().trim().max(2_000).nullable().optional(),
     lines: z.array(purchaseOrderLineSchema).min(1).max(500),
@@ -24,8 +24,8 @@ export const createPurchaseOrderCommandSchema = z
 
 export const purchaseOrderCreationResultSchema = z
   .object({
-    purchaseOrderId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    purchaseOrderId: z.string().guid(),
+    tenantId: z.string().guid(),
     poNumber: z.string().min(1).max(50),
     status: z.literal('draft'),
   })
@@ -33,9 +33,9 @@ export const purchaseOrderCreationResultSchema = z
 
 export const createPurchaseOrderFromBomCommandSchema = z
   .object({
-    bomId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    vendorId: z.string().uuid().nullable().optional(),
+    bomId: z.string().guid(),
+    projectId: z.string().guid(),
+    vendorId: z.string().guid().nullable().optional(),
     deliveryDate: z.string().datetime({ offset: true }).nullable().optional(),
     notes: z.string().trim().max(2_000).nullable().optional(),
   })
@@ -43,9 +43,9 @@ export const createPurchaseOrderFromBomCommandSchema = z
 
 export const purchaseOrderBomCreationResultSchema = z
   .object({
-    purchaseOrderId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    bomId: z.string().uuid(),
+    purchaseOrderId: z.string().guid(),
+    tenantId: z.string().guid(),
+    bomId: z.string().guid(),
     poNumber: z.string().min(1).max(50),
     status: z.literal('draft'),
   })
@@ -53,7 +53,7 @@ export const purchaseOrderBomCreationResultSchema = z
 
 const purchaseOrderSupplierGroupSchema = z
   .object({
-    vendorId: z.string().uuid().nullable(),
+    vendorId: z.string().guid().nullable(),
     vendorName: z.string().min(1).max(255),
     lineCount: z.number().int().positive().max(500),
     subtotalCents: z.number().int().nonnegative().safe(),
@@ -62,15 +62,15 @@ const purchaseOrderSupplierGroupSchema = z
 
 export const createPurchaseOrdersGroupedFromBomCommandSchema = z
   .object({
-    bomId: z.string().uuid(),
+    bomId: z.string().guid(),
   })
   .strict()
 
 export const purchaseOrdersGroupedFromBomResultSchema = z
   .object({
-    tenantId: z.string().uuid(),
-    bomId: z.string().uuid(),
-    purchaseOrderIds: z.array(z.string().uuid()).max(500),
+    tenantId: z.string().guid(),
+    bomId: z.string().guid(),
+    purchaseOrderIds: z.array(z.string().guid()).max(500),
     groups: z.array(purchaseOrderSupplierGroupSchema).max(500),
   })
   .strict()
@@ -142,8 +142,8 @@ export const purchaseOrderWorkflowStatusSchema = z.enum([
 
 export const purchaseOrderWorkflowResultSchema = z
   .object({
-    purchaseOrderId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    purchaseOrderId: z.string().guid(),
+    tenantId: z.string().guid(),
     action: purchaseOrderWorkflowActionSchema,
     fromStatus: purchaseOrderWorkflowStatusSchema,
     status: purchaseOrderWorkflowStatusSchema,
@@ -153,11 +153,11 @@ export const purchaseOrderWorkflowResultSchema = z
 export const purchaseOrderSupplierIssuedPayloadSchema = z
   .object({
     schemaVersion: z.literal(1),
-    purchase_order_id: z.string().uuid(),
+    purchase_order_id: z.string().guid(),
     // Source-only session association. The raw public token is never placed
     // in an outbox payload; the email path remains unchanged until link
     // delivery is explicitly enabled in a later slice.
-    vendor_confirmation_session_id: z.string().uuid().nullable().optional(),
+    vendor_confirmation_session_id: z.string().guid().nullable().optional(),
   })
   .strict()
 

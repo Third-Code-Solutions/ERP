@@ -4,7 +4,7 @@ import { gateTrialLive, needsData, openRole, tapServerActions, tenantRows, trial
 
 gateTrialLive()
 
-const packageRow = z.object({ compiled_at: z.string().nullable(), as_built_document_id: z.string().uuid().nullable() })
+const packageRow = z.object({ compiled_at: z.string().nullable(), as_built_document_id: z.string().guid().nullable() })
 
 test('turnover attaches only documents of its own project', { tag: '@pr-234' }, async ({ browser }, testInfo) => {
   const target = await trialTarget(testInfo)
@@ -15,7 +15,7 @@ test('turnover attaches only documents of its own project', { tag: '@pr-234' }, 
     target,
     'documents',
     `project_id=neq.${target.projectId}&select=id&limit=1`,
-    z.object({ id: z.string().uuid() })
+    z.object({ id: z.string().guid() })
   )
   if (!foreign) needsData('a document on another project of the E2E tenant')
   const attachedBefore = before?.as_built_document_id ?? null

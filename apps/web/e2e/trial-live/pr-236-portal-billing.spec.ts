@@ -18,7 +18,7 @@ gateTrialLive()
 const PORTAL_INVOICE_STATUSES = 'issued,partial_payment,paid,overdue'
 const PORTAL_CLAIM_STATUSES = 'submitted,certificate_pending,certified,handed_over_finance,invoiced,paid'
 
-const uuid = z.string().uuid()
+const uuid = z.string().guid()
 const cents = z.coerce.number()
 
 async function firstColumn(page: Page, header: string): Promise<string[]> {

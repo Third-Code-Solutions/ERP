@@ -44,13 +44,13 @@ export const projectBillingMilestoneEvidenceSchema = z.object({
 }).strict()
 
 export const projectBillingMilestoneRowSchema = z.object({
-  claimId: z.string().uuid(),
+  claimId: z.string().guid(),
   claimNumber: z.string().min(1).max(32),
   milestonePct: z.number().int().min(0).max(100),
   amountCents: z.number().int().nonnegative(),
   claimStatus: claimStatusSchema,
-  certificateDocumentId: z.string().uuid().nullable(),
-  invoiceId: z.string().uuid().nullable(),
+  certificateDocumentId: z.string().guid().nullable(),
+  invoiceId: z.string().guid().nullable(),
   invoiceNumber: z.string().max(50).nullable(),
   invoiceStatus: invoiceStatusSchema.nullable(),
   cocStatus: cocStatusSchema.nullable(),
@@ -60,13 +60,13 @@ export const projectBillingMilestoneRowSchema = z.object({
 }).strict()
 
 export const projectBillingMilestoneCocSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   status: cocStatusSchema,
   signedAt: z.string().datetime({ offset: true }).nullable(),
 }).strict()
 
 export const projectBillingMilestoneListResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   coc: projectBillingMilestoneCocSchema.nullable(),
   rows: z.array(projectBillingMilestoneRowSchema),
   total: z.number().int().nonnegative(),

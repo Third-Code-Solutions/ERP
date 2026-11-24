@@ -24,7 +24,7 @@ export async function transitionClaimThroughCoreApi(
 ): Promise<ClaimTransitionCoreResult> {
   const parsedClaimId = typeof claimId === 'string' ? claimId.toLowerCase() : claimId
   const parsedCommand = claimTransitionCommandSchema.safeParse(command)
-  if (!z.string().uuid().safeParse(parsedClaimId).success || !parsedCommand.success) {
+  if (!z.string().guid().safeParse(parsedClaimId).success || !parsedCommand.success) {
     return { ok: false, status: 400, outcomeUnknown: false, error: 'Invalid claim transition command.' }
   }
   const access = await getCoreApiAccess().catch(() => null)

@@ -45,7 +45,7 @@ export class KycArtifactService {
   ) {}
 
   async list(accountIdInput: string, input: AccountKycDocumentQuery, principal: ErpPrincipal): Promise<AccountKycDocumentResult> {
-    const accountId = z.string().uuid().parse(accountIdInput).toLowerCase()
+    const accountId = z.string().guid().parse(accountIdInput).toLowerCase()
     const query = accountKycDocumentQuerySchema.parse(input)
     // One snapshot keeps count, page and selected resolution coherent.
     return this.database.client.transaction(async (tx) => {
@@ -65,7 +65,7 @@ export class KycArtifactService {
   }
 
   async create(accountIdInput: string, input: KycArtifactCreateCommand, principal: ErpPrincipal): Promise<KycArtifactCreateResult> {
-    const accountId = z.string().uuid().parse(accountIdInput).toLowerCase()
+    const accountId = z.string().guid().parse(accountIdInput).toLowerCase()
     const command = kycArtifactCreateCommandSchema.parse(input)
     return this.database.client.transaction(async (tx) => {
       const actor = await this.authorize(tx, principal, true)

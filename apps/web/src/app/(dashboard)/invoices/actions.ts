@@ -24,7 +24,7 @@ export interface InvoiceActionResult {
 }
 
 const issueInputSchema = z.object({
-  invoiceId: z.string().uuid(),
+  invoiceId: z.string().guid(),
   postingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
 
@@ -159,7 +159,7 @@ export async function cancelDraftInvoice(
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.issue_invoice')
-    const parsedId = z.string().uuid().parse(invoiceId)
+    const parsedId = z.string().guid().parse(invoiceId)
     const invoice = await requireTenantInvoice(parsedId, profile.tenantId)
     if (!invoice) return { ok: false, error: 'Invoice not found' }
 
@@ -213,7 +213,7 @@ export async function reverseCustomerInvoice(input: {
     requireCapability(profile, 'finance.issue_invoice')
     const parsed = z
       .object({
-        invoiceId: z.string().uuid(),
+        invoiceId: z.string().guid(),
         postingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         reason: z.string().trim().min(3).max(500),
       })

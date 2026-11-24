@@ -9,7 +9,7 @@ export const auditActivityQuerySchema = z
         if (value === undefined) return undefined
         return Array.isArray(value) ? value : [value]
       },
-      z.array(z.string().uuid()).max(500).optional()
+      z.array(z.string().guid()).max(500).optional()
     ),
     page: z.coerce.number().int().min(1).max(100_000).default(1),
     limit: z.coerce.number().int().min(1).max(200).default(25),
@@ -20,10 +20,10 @@ export type AuditActivityQuery = z.infer<typeof auditActivityQuerySchema>
 
 export const auditActivityRowSchema = z.object({
   id: z.string().regex(/^\d+$/),
-  tenantId: z.string().uuid(),
-  actorId: z.string().uuid().nullable(),
+  tenantId: z.string().guid(),
+  actorId: z.string().guid().nullable(),
   entityType: z.string().min(1).max(100),
-  entityId: z.string().uuid(),
+  entityId: z.string().guid(),
   action: z.string().min(1).max(50),
   prevHash: z.string().regex(/^[a-f0-9]{64}$|^genesis$/),
   hash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -33,7 +33,7 @@ export const auditActivityRowSchema = z.object({
 export type AuditActivityRow = z.infer<typeof auditActivityRowSchema>
 
 export const auditActivityResultSchema = z.object({
-  tenantId: z.string().uuid(),
+  tenantId: z.string().guid(),
   rows: z.array(auditActivityRowSchema),
   total: z.number().int().nonnegative(),
   page: z.number().int().min(1),

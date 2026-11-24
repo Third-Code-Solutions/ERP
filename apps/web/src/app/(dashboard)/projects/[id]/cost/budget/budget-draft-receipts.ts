@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const uuid = z.string().uuid().transform(value => value.toLowerCase())
+const uuid = z.string().guid().transform(value => value.toLowerCase())
 const version = z.string().regex(/^\d+:-?\d+(?:\.\d{1,6})?$/).max(80)
 const line = z.object({ id: uuid, costCodeId: uuid, clientKey: uuid.optional() })
 const receiptSchema = z.object({

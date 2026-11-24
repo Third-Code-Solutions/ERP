@@ -4,7 +4,7 @@ import { z } from 'zod'
 // shows Core's message for this code as is.
 export const CLAIM_CAP_EXCEEDED_CODE = 'claim_cap_exceeded'
 
-const uuid = z.string().uuid().transform(value => value.toLowerCase())
+const uuid = z.string().guid().transform(value => value.toLowerCase())
 const amount = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 const milestone = z.number().int().min(0).max(100)
 const description = z.string().max(5000).nullable().default(null).transform(value => value === '' ? null : value)

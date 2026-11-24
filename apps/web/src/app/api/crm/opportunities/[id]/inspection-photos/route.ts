@@ -7,8 +7,8 @@ import { inspectionPhotoResultSchema } from '@third-code-erp/shared-types'
 import { createInspectionPhotoThroughCoreApi, getOpportunityThroughCoreApi } from '@/lib/erp-core-client'
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024
-const opportunityIdSchema = z.string().uuid().transform(value => value.toLowerCase())
-const opportunityScopeSchema = z.object({ id: z.string().uuid(), tenantId: z.string().uuid() })
+const opportunityIdSchema = z.string().guid().transform(value => value.toLowerCase())
+const opportunityScopeSchema = z.object({ id: z.string().guid(), tenantId: z.string().guid() })
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -97,7 +97,7 @@ export async function POST(request: Request, context: RouteContext) {
   const expectedActors = formData.getAll('expected_actor_id')
   const expectedTenants = formData.getAll('expected_tenant_id')
   if (expectedActors.length > 0 || expectedTenants.length > 0) {
-    const owner = z.object({ actorId: z.string().uuid(), tenantId: z.string().uuid() }).strict().safeParse({ actorId: expectedActors[0], tenantId: expectedTenants[0] })
+    const owner = z.object({ actorId: z.string().guid(), tenantId: z.string().guid() }).strict().safeParse({ actorId: expectedActors[0], tenantId: expectedTenants[0] })
     if (expectedActors.length !== 1 || expectedTenants.length !== 1 || !owner.success) {
       return NextResponse.json({ error: 'Invalid expected inspection owner.' }, { status: 400 })
     }

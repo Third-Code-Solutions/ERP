@@ -20,7 +20,7 @@ const PORTAL_TOKEN_BYTES = 32
 const PORTAL_VALIDITY_HOURS = 48
 
 const mintSchema = z.object({
-  bom_id: z.string().uuid(),
+  bom_id: z.string().guid(),
   client_email: z.string().email('valid client email required'),
 })
 

@@ -10,7 +10,7 @@ export const projectHandoverReadinessQuerySchema = z.object({}).strict()
 
 export const projectHandoverReadinessResultSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     asOf: z.string().datetime({ offset: true }),
     status: projectHandoverReadinessStatusSchema,
     turnoverPackageExists: z.boolean(),

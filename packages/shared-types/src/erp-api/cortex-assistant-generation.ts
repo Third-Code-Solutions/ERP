@@ -7,7 +7,7 @@ const completionContentSchema = z
   .string()
   .max(100_000)
   .refine((value) => value.trim().length > 0, 'Content is required')
-const completionCitationNodeIdsSchema = z.array(z.string().uuid()).max(12)
+const completionCitationNodeIdsSchema = z.array(z.string().guid()).max(12)
 const providerModelSchema = z
   .string()
   .min(1)
@@ -20,8 +20,8 @@ function citationsAreUnique(value: { citationNodeIds: string[] }): boolean {
 
 export const cortexAssistantGenerationStartCommandSchema = z
   .object({
-    requestId: z.string().uuid(),
-    claimToken: z.string().uuid(),
+    requestId: z.string().guid(),
+    claimToken: z.string().guid(),
   })
   .strict()
 
@@ -35,8 +35,8 @@ export const cortexAssistantGenerationStatusValueSchema = z.enum([
 
 export const cortexAssistantGenerationStatusSchema = z
   .object({
-    jobId: z.string().uuid(),
-    requestId: z.string().uuid(),
+    jobId: z.string().guid(),
+    requestId: z.string().guid(),
     status: cortexAssistantGenerationStatusValueSchema,
     attemptCount: z
       .number()
@@ -53,8 +53,8 @@ export const cortexAssistantGenerationStatusSchema = z
 export const cortexAssistantGenerationAcceptedSchema = z
   .object({
     status: z.literal('accepted'),
-    jobId: z.string().uuid(),
-    conversationId: z.string().uuid(),
+    jobId: z.string().guid(),
+    conversationId: z.string().guid(),
     retryAfterMs: z.number().int().min(500).max(5_000),
   })
   .strict()
@@ -78,7 +78,7 @@ export const cortexAssistantGenerationResultSchema = z
 export const cortexAssistantGenerationQueueJobSchema = z
   .object({
     schemaVersion: z.literal(1),
-    jobId: z.string().uuid(),
+    jobId: z.string().guid(),
   })
   .strict()
 
@@ -112,7 +112,7 @@ export const cortexAssistantGenerationCommitCompletionSchema = z
     z
       .object({
         outcome: z.literal('provider_grounded'),
-        providerAttemptId: z.string().uuid(),
+        providerAttemptId: z.string().guid(),
         content: completionContentSchema,
         citationNodeIds: completionCitationNodeIdsSchema,
         model: providerModelSchema,

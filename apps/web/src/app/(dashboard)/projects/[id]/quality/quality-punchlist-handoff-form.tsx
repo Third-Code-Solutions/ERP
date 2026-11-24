@@ -11,7 +11,7 @@ export interface QualityPunchlistHandoffFormProps {
   row: QualityHoldPointRow
   owner: { actorId: string; tenantId: string }
 }
-const receiptSchema = z.object({ projectId: z.string().uuid(), entryId: z.string().uuid(), clientRequestId: z.string().uuid(), actorId: z.string().uuid(), tenantId: z.string().uuid() }).strict()
+const receiptSchema = z.object({ projectId: z.string().guid(), entryId: z.string().guid(), clientRequestId: z.string().guid(), actorId: z.string().guid(), tenantId: z.string().guid() }).strict()
 type Receipt = z.infer<typeof receiptSchema>
 const responseSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), outcome: z.literal('confirmed'), success: z.string().min(1), receipt: receiptSchema, refreshWarning: z.string().optional() }).strict(),

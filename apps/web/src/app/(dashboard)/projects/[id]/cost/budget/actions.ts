@@ -40,7 +40,7 @@ type SaveBudgetResult =
     }
   | { ok?: false; error: string; unconfirmed?: true }
 
-const canonicalUuid = z.string().uuid().transform(value => value.toLowerCase())
+const canonicalUuid = z.string().guid().transform(value => value.toLowerCase())
 const budgetVersionSchema = z.string().regex(/^\d+:-?\d+(?:\.\d{1,6})?$/).max(80)
 const draftReceiptSchema = z.object({
   operation: z.enum(['create_cost_code', 'create_budget', 'save_draft']),
@@ -857,11 +857,11 @@ async function runWorkflow(
   let outcome = 'rejected'
   try {
     const parsed = z.object({
-      projectId: z.string().uuid().transform(value => value.toLowerCase()),
-      budgetId: z.string().uuid().transform(value => value.toLowerCase()),
+      projectId: z.string().guid().transform(value => value.toLowerCase()),
+      budgetId: z.string().guid().transform(value => value.toLowerCase()),
       operation: z.enum(['submit', 'commercial', 'finance', 'reject', 'revise']),
       reason: z.string().trim().max(operation === 'revise' ? 500 : 1000).optional(),
-      requestId: z.string().uuid().transform(value => value.toLowerCase()).optional(),
+      requestId: z.string().guid().transform(value => value.toLowerCase()).optional(),
     }).safeParse({ projectId, budgetId, operation, reason, requestId })
     if (!parsed.success) return { error: 'A valid project, budget, workflow and bounded reason are required.' }
     const command = parsed.data

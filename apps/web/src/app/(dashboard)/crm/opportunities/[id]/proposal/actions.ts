@@ -308,8 +308,8 @@ function logSiteInspectionOutcome(input: {
 
 
 const inspectionExpectedOwnerSchema = z.object({
-  actorId: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  actorId: z.string().guid(),
+  tenantId: z.string().guid(),
 }).strict()
 
 export type InspectionSubmissionActionResult =
@@ -334,7 +334,7 @@ export async function repairInspectionReport(opportunityId: string, inspectionId
       return { ok: false, error: 'The signed-in account changed. Reload before repairing this report.' }
     }
     if (!can(profile.role, 'site_inspection.submit')) return { ok: false, error: 'You cannot archive inspection reports.' }
-    if (!z.string().uuid().safeParse(opportunityId).success || !z.string().uuid().safeParse(inspectionId).success) return { ok: false, error: 'Invalid inspection report request.' }
+    if (!z.string().guid().safeParse(opportunityId).success || !z.string().guid().safeParse(inspectionId).success) return { ok: false, error: 'Invalid inspection report request.' }
     const result = await archiveInspectionReportThroughCoreApi({ opportunityId, inspectionId })
     if (!result.ok || !result.data || result.data.tenantId.toLowerCase() !== tenantId.toLowerCase() || result.data.opportunityId.toLowerCase() !== opportunityId.toLowerCase() || result.data.inspectionId.toLowerCase() !== inspectionId.toLowerCase()) {
       outcome = 'unconfirmed'
@@ -614,12 +614,12 @@ export async function addInspectionRfi(
 // US-008 — Append a version to an editable design, or create a design when
 // no existing design ID is supplied.
 const uploadDesignFileSchema = z.object({
-  opportunity_id: z.string().uuid(),
+  opportunity_id: z.string().guid(),
   file_type: z.enum(DESIGN_FILE_TYPE_VALUES),
   name: z.string().min(1).max(255),
-  document_id: z.string().uuid(),
+  document_id: z.string().guid(),
   notes: z.string().max(2000).optional().default(''),
-  design_file_id: z.string().uuid().optional(),
+  design_file_id: z.string().guid().optional(),
 })
 
 export async function uploadDesignFile(formData: FormData): Promise<{ error?: string; design_file_id?: string; version?: number }> {
@@ -743,7 +743,7 @@ export async function uploadDesignFile(formData: FormData): Promise<{ error?: st
 }
 
 const designIdSchema = z.object({
-  design_file_id: z.string().uuid(),
+  design_file_id: z.string().guid(),
 })
 
 async function loadDesignFile(tenantId: string, designFileId: string) {
@@ -857,11 +857,11 @@ export async function markDesignApproved(designFileId: string): Promise<{ error?
 // the browser form so retries cannot create duplicate requests or duplicate
 // change-log entries.
 const logCrSchema = z.object({
-  opportunity_id: z.string().uuid(),
+  opportunity_id: z.string().guid(),
   requested_by_name: z.string().trim().min(1).max(255),
   description: z.string().trim().min(2).max(5000),
   priority: z.enum(PRIORITY_VALUES).default('minor'),
-  affected_design_file_id: z.string().uuid().optional(),
+  affected_design_file_id: z.string().guid().optional(),
   idempotency_key: z.string().trim().min(1).max(256).optional(),
 })
 
@@ -968,7 +968,7 @@ export async function logChangeRequest(formData: FormData): Promise<{ error?: st
 // US-009 — Design resolves a request. Resolution is append-only in the
 // domain log; the summary row is updated only to make open-count queries fast.
 const resolveCrSchema = z.object({
-  change_request_id: z.string().uuid(),
+  change_request_id: z.string().guid(),
   resolution_note: z.string().trim().max(2000).optional().default(''),
 })
 

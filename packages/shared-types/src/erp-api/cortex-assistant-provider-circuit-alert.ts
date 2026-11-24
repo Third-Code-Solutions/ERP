@@ -12,9 +12,9 @@ export const cortexAssistantProviderCircuitAlertEventTypeSchema = z.enum([
 
 export const cortexAssistantProviderCircuitAlertEventSchema = z
   .object({
-    id: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    policyId: z.string().uuid(),
+    id: z.string().guid(),
+    tenantId: z.string().guid(),
+    policyId: z.string().guid(),
     eventKey: cortexAssistantProviderHashSchema,
     eventType: cortexAssistantProviderCircuitAlertEventTypeSchema,
     provider: cortexAssistantProviderKeySchema,

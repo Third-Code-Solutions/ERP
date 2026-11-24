@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const uuid = z.string().uuid().transform((value) => value.toLowerCase())
+const uuid = z.string().guid().transform((value) => value.toLowerCase())
 const revisionSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const scopeSchema = z.object({ actorId: uuid, tenantId: uuid, opportunityId: uuid }).strict()
 const fieldsSchema = z.object({

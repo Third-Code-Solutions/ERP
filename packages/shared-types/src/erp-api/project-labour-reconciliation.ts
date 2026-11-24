@@ -16,7 +16,7 @@ export const projectLabourReconciliationQuerySchema = z.object({}).strict()
 
 export const projectLabourReconciliationRowSchema = z
   .object({
-    taskId: z.string().uuid(),
+    taskId: z.string().guid(),
     level: z.enum(['l1', 'l2', 'l3', 'l4']),
     taskCode: z.string().trim().min(1).max(80),
     name: z.string().trim().min(1).max(200),
@@ -43,7 +43,7 @@ export const projectLabourReconciliationTotalsSchema = z
 
 export const projectLabourReconciliationResultSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     asOf: z.string().datetime({ offset: true }),
     status: projectLabourReconciliationStatusSchema,
     rows: z.array(projectLabourReconciliationRowSchema),

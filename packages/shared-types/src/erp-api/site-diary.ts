@@ -33,8 +33,8 @@ export const siteDiaryListQuerySchema = z
 
 export const createSiteDiaryCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
-    clientRequestId: z.string().uuid(),
+    projectId: z.string().guid(),
+    clientRequestId: z.string().guid(),
     diaryDate: calendarDateSchema,
     weather: z.string().trim().max(160).default(''),
     manpowerCount: z.number().int().min(0).max(100000),
@@ -61,8 +61,8 @@ export const submitSiteDiaryCommandSchema = z
 
 export const siteDiaryRowSchema = z
   .object({
-    id: z.string().uuid(),
-    projectId: z.string().uuid(),
+    id: z.string().guid(),
+    projectId: z.string().guid(),
     diaryDate: calendarDateSchema,
     status: siteDiaryStatusSchema,
     weather: z.string().max(160),
@@ -70,9 +70,9 @@ export const siteDiaryRowSchema = z
     workCompleted: z.string().max(20000),
     constraints: z.string().max(20000),
     safetyNotes: z.string().max(20000),
-    createdBy: z.string().uuid(),
+    createdBy: z.string().guid(),
     submittedAt: z.string().datetime({ offset: true }).nullable(),
-    submittedBy: z.string().uuid().nullable(),
+    submittedBy: z.string().guid().nullable(),
     version: z.number().int().min(1),
     createdAt: z.string().datetime({ offset: true }),
     updatedAt: z.string().datetime({ offset: true }),
@@ -81,7 +81,7 @@ export const siteDiaryRowSchema = z
 
 export const siteDiaryListResultSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     rows: z.array(siteDiaryRowSchema),
     total: z.number().int().nonnegative(),
     page: z.number().int().positive(),
@@ -92,7 +92,7 @@ export const siteDiaryListResultSchema = z
 
 export const siteDiaryMutationResultSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     changed: z.boolean(),
     entry: siteDiaryRowSchema,
   })

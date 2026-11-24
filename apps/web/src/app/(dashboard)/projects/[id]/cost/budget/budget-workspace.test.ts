@@ -35,7 +35,7 @@ describe('BudgetWorkspace saved-line reconciliation', () => {
       'not-a-uuid',
     ]) {
       expect(normalizeBudgetWorkflowUuid(value)).toBe(
-        z.string().uuid().safeParse(value).success ? value.toLowerCase() : null
+        z.string().guid().safeParse(value).success ? value.toLowerCase() : null
       )
     }
   })

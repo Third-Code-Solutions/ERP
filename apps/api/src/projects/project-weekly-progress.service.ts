@@ -337,8 +337,8 @@ export class ProjectWeeklyProgressService {
     principal: ErpPrincipal,
   ): Promise<ProjectWeeklyProgressLockResult> {
     const input = lockProjectWeeklyProgressCommandSchema.parse(command)
-    projectId = z.string().uuid().parse(projectId).toLowerCase()
-    periodId = z.string().uuid().parse(periodId).toLowerCase()
+    projectId = z.string().guid().parse(projectId).toLowerCase()
+    periodId = z.string().guid().parse(periodId).toLowerCase()
     const requestId = input.clientRequestId?.toLowerCase()
     const payloadHash = createHash('sha256').update(weeklyProgressLockPayload(projectId, periodId, input)).digest('hex')
     return this.mutationTransaction(async (transaction) => {

@@ -19,14 +19,14 @@ export const dailyTaskCompletionCommandSchema = z
 export const dailyTaskCompletionResultSchema = z
   .object({
     ok: z.literal(true),
-    taskId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    assigneeId: z.string().uuid().nullable(),
+    taskId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
+    assigneeId: z.string().guid().nullable(),
     status: z.literal('done'),
     completionNotes: z.string().max(2000).nullable(),
     completedAt: z.string().datetime({ offset: true }),
-    completedBy: z.string().uuid(),
+    completedBy: z.string().guid(),
   })
   .strict()
 

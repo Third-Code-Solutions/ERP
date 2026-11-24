@@ -11,7 +11,7 @@ export type ScheduleDependencyActionResult = { ok: true; data: ProjectScheduleDe
 export async function loadProjectScheduleDependencies(projectId: string, query: unknown): Promise<ScheduleDependencyActionResult> {
   const profile = await requireUserProfile().catch(() => null)
   if (!profile || !can(profile.role, 'project.schedule.manage')) return { ok: false, error: 'You do not have permission to manage schedules.' }
-  const project = z.string().uuid().safeParse(projectId)
+  const project = z.string().guid().safeParse(projectId)
   const input = projectScheduleDependencyQuerySchema.safeParse(query)
   if (!project.success || !input.success) return { ok: false, error: 'Invalid schedule dependency filters.' }
   const result = await getProjectScheduleDependenciesThroughCoreApi(project.data, input.data)

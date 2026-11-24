@@ -19,7 +19,7 @@ export interface ProjectRfiActionState {
   success?: string
 }
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const targetSchema = z.enum(['answer', 'close', 'reopen'])
 
 function text(value: FormDataEntryValue | null): string | undefined {

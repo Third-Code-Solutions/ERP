@@ -5,8 +5,8 @@ export const RECOVERY_MARKER_MAX_AGE_SECONDS = 10 * 60
 const RECOVERY_EVENT_MAX_AGE_SECONDS = 60 * 60
 
 const recoveryBindingSchema = z.object({
-  userId: z.string().uuid(),
-  sessionId: z.string().uuid(),
+  userId: z.string().guid(),
+  sessionId: z.string().guid(),
   accessToken: z.string().min(1),
   recoverySentAt: z.string().datetime({ offset: true }),
 })

@@ -67,7 +67,7 @@ function guard(role: AppRole, capability: ErpCapability): string | null {
 }
 
 function isUuid(value: string): boolean {
-  return z.string().uuid().safeParse(value).success
+  return z.string().guid().safeParse(value).success
 }
 
 export async function draftCoc(

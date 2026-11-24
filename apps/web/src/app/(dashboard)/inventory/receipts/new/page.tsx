@@ -33,7 +33,7 @@ export default async function NewStockReceiptPage({
   requireRouteAccess(profile.role, '/inventory/receipts/new')
   const { po } = await searchParams
   // The PO page's Receive link. Sorted first so the picker and line caps keep it.
-  const defaultPoId = z.string().uuid().safeParse(po).success
+  const defaultPoId = z.string().guid().safeParse(po).success
     ? (po as string)
     : undefined
   const itemUom = alias(unitsOfMeasure, 'item_uom')

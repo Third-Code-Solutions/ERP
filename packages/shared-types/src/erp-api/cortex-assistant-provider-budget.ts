@@ -55,12 +55,12 @@ export const cortexAssistantProviderHashSchema = z
   .regex(/^[0-9a-f]{64}$/, 'Provider fingerprint must be SHA-256 hex')
 
 export const cortexAssistantProviderAttemptIdentitySchema = z
-  .object({ reservationId: z.string().uuid() })
+  .object({ reservationId: z.string().guid() })
   .strict()
 
 export const cortexAssistantProviderReservationCommandSchema = z
   .object({
-    jobId: z.string().uuid(),
+    jobId: z.string().guid(),
     attemptNumber: z.number().int().min(1).max(3),
     provider: cortexAssistantProviderKeySchema,
     model: cortexAssistantProviderModelKeySchema,
@@ -70,7 +70,7 @@ export const cortexAssistantProviderReservationCommandSchema = z
 
 export const cortexAssistantProviderDispatchCommandSchema = z
   .object({
-    reservationId: z.string().uuid(),
+    reservationId: z.string().guid(),
     protocolVersion: z.literal(1),
     dispatchKey: cortexAssistantProviderHashSchema,
     requestFingerprint: cortexAssistantProviderHashSchema,
@@ -79,7 +79,7 @@ export const cortexAssistantProviderDispatchCommandSchema = z
 
 export const cortexAssistantProviderSettlementCommandSchema = z
   .object({
-    reservationId: z.string().uuid(),
+    reservationId: z.string().guid(),
     protocolVersion: z.literal(1),
     consumedCostMicros: cortexAssistantProviderNonNegativeCostMicrosSchema,
     outcomeCode: z.literal('provider_succeeded'),
@@ -90,7 +90,7 @@ export const cortexAssistantProviderSettlementCommandSchema = z
 
 export const cortexAssistantProviderReleaseCommandSchema = z
   .object({
-    reservationId: z.string().uuid(),
+    reservationId: z.string().guid(),
     outcomeCode: outcomeCodeSchema,
   })
   .strict()
@@ -104,8 +104,8 @@ export const cortexAssistantProviderAttemptStatusSchema = z.enum([
 
 export const cortexAssistantProviderAttemptResultSchema = z
   .object({
-    reservationId: z.string().uuid(),
-    jobId: z.string().uuid(),
+    reservationId: z.string().guid(),
+    jobId: z.string().guid(),
     attemptNumber: z.number().int().min(1).max(3),
     provider: cortexAssistantProviderKeySchema,
     model: cortexAssistantProviderModelKeySchema,

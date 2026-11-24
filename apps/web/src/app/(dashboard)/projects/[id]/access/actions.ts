@@ -19,7 +19,7 @@ export interface MintAccessResult {
 }
 
 const mintSchema = z.object({
-  project_id: z.string().uuid('Project id is required'),
+  project_id: z.string().guid('Project id is required'),
   viewer_email: z
     .string()
     .email('Valid email is required')

@@ -7,10 +7,10 @@ export const opportunityProjectConversionCommandSchema = z
 
 export const opportunityProjectConversionResultSchema = z.object({
   ok: z.literal(true),
-  opportunityId: z.string().uuid(),
-  projectId: z.string().uuid(),
-  checklistId: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  opportunityId: z.string().guid(),
+  projectId: z.string().guid(),
+  checklistId: z.string().guid(),
+  tenantId: z.string().guid(),
   createdProject: z.boolean(),
 })
 

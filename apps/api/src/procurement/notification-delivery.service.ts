@@ -47,7 +47,7 @@ import type { ErpRole } from '../auth/current-principal.decorator'
 const outboxPayloadSchema = z
   .object({
     schemaVersion: z.literal(1),
-    project_id: z.string().uuid(),
+    project_id: z.string().guid(),
     line_count: z.number().int().positive(),
   })
   .strict()

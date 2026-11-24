@@ -24,8 +24,8 @@ export type AwardActionResult =
   | { ok: false; error: string }
 
 const awardFormSchema = z.object({
-  projectId: z.string().uuid(),
-  bomId: z.string().uuid(),
+  projectId: z.string().guid(),
+  bomId: z.string().guid(),
   downPaymentPercent: z.string()
     .trim()
     .regex(/^\d+(?:\.\d{1,2})?$/, 'Use a non-negative percentage with at most two decimals')
@@ -36,8 +36,8 @@ const awardFormSchema = z.object({
 })
 
 const reverseFormSchema = z.object({
-  projectId: z.string().uuid(),
-  handoffId: z.string().uuid(),
+  projectId: z.string().guid(),
+  handoffId: z.string().guid(),
   reason: z.string().trim().min(3).max(500),
 })
 

@@ -5,15 +5,15 @@ export const bomStatusValues = ['draft', 'approved', 'locked', 'archived'] as co
 export type BomStatus = typeof bomStatusValues[number]
 
 export const createBomSchema = z.object({
-  project_id: z.string().uuid(),
-  opportunity_id: z.string().uuid().optional(),
+  project_id: z.string().guid(),
+  opportunity_id: z.string().guid().optional(),
   label: z.string().max(255).optional(),
   notes: z.string().max(5000).optional(),
 })
 
 export const createBomLineItemSchema = z.object({
-  bom_id: z.string().uuid(),
-  parent_id: z.string().uuid().optional(),
+  bom_id: z.string().guid(),
+  parent_id: z.string().guid().optional(),
   sort_order: z.number().int().min(0).default(0),
   is_group: z.boolean().default(false),
   code: z.string().max(50).optional(),

@@ -11,7 +11,7 @@ export const costCategoryValues = [
 
 export const createCostEntryCommandSchema = z
   .object({
-    costCodeId: z.string().uuid(),
+    costCodeId: z.string().guid(),
     costCategory: z.enum(costCategoryValues),
     description: z.string().trim().min(1).max(500),
     amountCents: z.number().int().positive().max(100_000_000_000),
@@ -24,10 +24,10 @@ export const createCostEntryCommandSchema = z
   .strict()
 
 export const costEntryCreationResultSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
-  projectId: z.string().uuid(),
-  costCodeId: z.string().uuid(),
+  id: z.string().guid(),
+  tenantId: z.string().guid(),
+  projectId: z.string().guid(),
+  costCodeId: z.string().guid(),
   costCategory: z.enum(costCategoryValues),
   costSource: z.literal('manual'),
   description: z.string(),
@@ -48,17 +48,17 @@ export const deleteCostEntryBodySchema = z
 
 export const deleteCostEntryCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
-    costEntryId: z.string().uuid(),
+    projectId: z.string().guid(),
+    costEntryId: z.string().guid(),
     reason: z.string().trim().min(1).max(500),
   })
   .strict()
 
 export const costEntryDeletionResultSchema = z
   .object({
-    costEntryId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    costEntryId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
     costSource: z.literal('manual'),
     status: z.literal('voided'),
     voidedAt: z.string().datetime({ offset: true }),
@@ -74,17 +74,17 @@ export const restoreCostEntryBodySchema = z
 
 export const restoreCostEntryCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
-    costEntryId: z.string().uuid(),
+    projectId: z.string().guid(),
+    costEntryId: z.string().guid(),
     reason: z.string().trim().min(1).max(500),
   })
   .strict()
 
 export const costEntryRestoreResultSchema = z
   .object({
-    costEntryId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    costEntryId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
     costSource: z.literal('manual'),
     status: z.literal('restored'),
     restoredAt: z.string().datetime({ offset: true }),

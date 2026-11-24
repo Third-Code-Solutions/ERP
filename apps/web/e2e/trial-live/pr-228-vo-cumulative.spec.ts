@@ -13,7 +13,7 @@ import {
 gateTrialLive()
 
 const voRow = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   description: z.string(),
   status: z.string(),
   cost_impact_cents: z.coerce.number(),

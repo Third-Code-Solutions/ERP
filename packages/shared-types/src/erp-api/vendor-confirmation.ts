@@ -53,10 +53,10 @@ export const vendorConfirmationCommandSchema = z
 
 export const vendorConfirmationResultSchema = z
   .object({
-    sessionId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    purchaseOrderId: z.string().uuid(),
-    vendorId: z.string().uuid(),
+    sessionId: z.string().guid(),
+    tenantId: z.string().guid(),
+    purchaseOrderId: z.string().guid(),
+    vendorId: z.string().guid(),
     decision: vendorConfirmationDecisionSchema,
     respondedAt: z.string().datetime({ offset: true }),
   })
@@ -68,8 +68,8 @@ export const vendorConfirmationResultSchema = z
  */
 export const vendorConfirmationViewSchema = z
   .object({
-    sessionId: z.string().uuid(),
-    purchaseOrderId: z.string().uuid(),
+    sessionId: z.string().guid(),
+    purchaseOrderId: z.string().guid(),
     poNumber: z.string().min(1).max(50),
     vendorName: z.string().min(1).max(255),
     projectName: z.string().min(1).max(255),
@@ -86,7 +86,7 @@ export const vendorConfirmationViewSchema = z
       .array(
         z
           .object({
-            id: z.string().uuid(),
+            id: z.string().guid(),
             description: z.string().min(1).max(4_000),
             unit: z.string().max(20).nullable(),
             quantity: z.number().int().nonnegative(),

@@ -1256,7 +1256,7 @@ export async function resendSupplierPoEmail(
   } catch {
     return { error: 'You do not have permission to email Purchase Orders to suppliers.' }
   }
-  if (!z.string().uuid().safeParse(poId).success) {
+  if (!z.string().guid().safeParse(poId).success) {
     return { error: 'Purchase Order not found.' }
   }
   // Core issues the PO and delivers the supplier email from its own outbox; a

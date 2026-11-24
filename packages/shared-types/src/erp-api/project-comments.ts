@@ -3,19 +3,19 @@ import { z } from 'zod'
 /** Server-authorized project discussion entry. */
 export const createProjectCommentCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     body: z.string().trim().min(1).max(10_000),
   })
   .strict()
 
 export const projectCommentCreationResultSchema = z
   .object({
-    commentId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    authorId: z.string().uuid(),
+    commentId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
+    authorId: z.string().guid(),
     body: z.string().trim().min(1).max(10_000),
-    mentions: z.array(z.string().uuid()),
+    mentions: z.array(z.string().guid()),
     created: z.literal(true),
   })
   .strict()
@@ -30,16 +30,16 @@ export type ProjectCommentCreationResult = z.infer<
 /** Server-authorized project discussion deletion. */
 export const deleteProjectCommentCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
-    commentId: z.string().uuid(),
+    projectId: z.string().guid(),
+    commentId: z.string().guid(),
   })
   .strict()
 
 export const projectCommentDeletionResultSchema = z
   .object({
-    commentId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    commentId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
     deleted: z.literal(true),
   })
   .strict()
@@ -60,14 +60,14 @@ export const projectCommentListQuerySchema = z
 
 export const projectCommentListItemSchema = z
   .object({
-    id: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    authorId: z.string().uuid().nullable(),
+    id: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
+    authorId: z.string().guid().nullable(),
     authorName: z.string().nullable(),
     authorEmail: z.string().email().nullable(),
     body: z.string().min(1).max(10_000),
-    mentions: z.array(z.string().uuid()),
+    mentions: z.array(z.string().guid()),
     createdAt: z.string().datetime({ offset: true }),
     updatedAt: z.string().datetime({ offset: true }),
   })
@@ -75,8 +75,8 @@ export const projectCommentListItemSchema = z
 
 export const projectCommentListResultSchema = z
   .object({
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
     limit: z.number().int().min(1).max(100),
     hasMore: z.boolean(),
     items: z.array(projectCommentListItemSchema).max(100),

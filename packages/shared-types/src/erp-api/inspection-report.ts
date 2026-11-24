@@ -1,15 +1,15 @@
 import { z } from 'zod'
 
 export const inspectionReportArchiveCommandSchema = z.object({
-  opportunityId: z.string().uuid(),
-  inspectionId: z.string().uuid(),
+  opportunityId: z.string().guid(),
+  inspectionId: z.string().guid(),
 }).strict()
 
 export const inspectionReportArchiveResultSchema = z.object({
-  tenantId: z.string().uuid(),
-  opportunityId: z.string().uuid(),
-  inspectionId: z.string().uuid(),
-  documentId: z.string().uuid(),
+  tenantId: z.string().guid(),
+  opportunityId: z.string().guid(),
+  inspectionId: z.string().guid(),
+  documentId: z.string().guid(),
   status: z.literal('archived'),
   replayed: z.boolean(),
 }).strict()

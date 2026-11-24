@@ -26,8 +26,8 @@ type ActionResult = { error?: string; projectId?: string }
 type UserProfile = Awaited<ReturnType<typeof requireUserProfile>>
 
 const transitionSchema = z.object({
-  opportunity_id: z.string().uuid(),
-  project_id: z.string().uuid(),
+  opportunity_id: z.string().guid(),
+  project_id: z.string().guid(),
   new_stage: z.enum(opportunityStageValues),
   reason: z.string().trim().max(1000).optional(),
   tcv_cents: safeNonNegativeCentavosStringSchema.optional(),

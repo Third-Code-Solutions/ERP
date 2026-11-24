@@ -40,12 +40,12 @@ export default async function CortexPage({ searchParams }: CortexPageProps) {
     : null
   const parsedConversationId = z
     .string()
-    .uuid()
+    .guid()
     .safeParse(params.conversationId)
   const initialConversationId = parsedConversationId.success
     ? parsedConversationId.data
     : null
-  const parsedHandoffId = z.string().uuid().safeParse(params.handoff)
+  const parsedHandoffId = z.string().guid().safeParse(params.handoff)
   const initialDraftId =
     !focus && !initialConversationId && parsedHandoffId.success
       ? parsedHandoffId.data

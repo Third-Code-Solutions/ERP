@@ -15,12 +15,12 @@ export const projectRfiListQuerySchema = z
 
 export const createProjectRfiCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
-    clientRequestId: z.string().uuid(),
+    projectId: z.string().guid(),
+    clientRequestId: z.string().guid(),
     subject: z.string().trim().min(1).max(200),
     question: z.string().trim().min(1).max(10000),
     priority: projectRfiPrioritySchema,
-    assignedTo: z.string().uuid().nullable(),
+    assignedTo: z.string().guid().nullable(),
     dueAt: isoDateTime.nullable(),
   })
   .strict()
@@ -43,21 +43,21 @@ export const projectRfiReopenCommandSchema = projectRfiCloseCommandSchema
 
 export const projectRfiRowSchema = z
   .object({
-    id: z.string().uuid(),
-    projectId: z.string().uuid(),
+    id: z.string().guid(),
+    projectId: z.string().guid(),
     rfiNumber: z.string().trim().min(1).max(40),
     subject: z.string().trim().min(1).max(200),
     question: z.string().trim().min(1).max(10000),
     priority: projectRfiPrioritySchema,
     status: projectRfiStatusSchema,
-    requestedBy: z.string().uuid(),
-    assignedTo: z.string().uuid().nullable(),
+    requestedBy: z.string().guid(),
+    assignedTo: z.string().guid().nullable(),
     dueAt: isoDateTime.nullable(),
     response: z.string().trim().min(1).max(10000).nullable(),
     respondedAt: isoDateTime.nullable(),
-    respondedBy: z.string().uuid().nullable(),
+    respondedBy: z.string().guid().nullable(),
     closedAt: isoDateTime.nullable(),
-    closedBy: z.string().uuid().nullable(),
+    closedBy: z.string().guid().nullable(),
     version: z.number().int().min(1),
     createdAt: isoDateTime,
     updatedAt: isoDateTime,
@@ -66,7 +66,7 @@ export const projectRfiRowSchema = z
 
 export const projectRfiListResultSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     rows: z.array(projectRfiRowSchema),
     total: z.number().int().nonnegative(),
     page: z.number().int().positive(),
@@ -77,7 +77,7 @@ export const projectRfiListResultSchema = z
 
 export const projectRfiCreateResultSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     created: z.boolean(),
     rfi: projectRfiRowSchema,
   })
@@ -85,7 +85,7 @@ export const projectRfiCreateResultSchema = z
 
 export const projectRfiTransitionResultSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     changed: z.boolean(),
     rfi: projectRfiRowSchema,
   })

@@ -66,7 +66,7 @@ type ImportAction = (input: {
 const previewAction: PreviewAction = previewMsProjectXmlAction
 const importAction: ImportAction = importMsProjectXmlAction
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const previewActionSuccessSchema = z.object({
   ok: z.literal(true),
   data: msProjectXmlPreviewResultSchema,

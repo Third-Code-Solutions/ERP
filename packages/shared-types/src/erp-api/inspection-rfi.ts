@@ -13,18 +13,18 @@ export const inspectionRfiTransitionCommandSchema = z.object({
 }).strict()
 
 export const inspectionRfiRowSchema = z.object({
-  id: z.string().uuid(),
-  inspectionId: z.string().uuid(),
+  id: z.string().guid(),
+  inspectionId: z.string().guid(),
   inspectionStatus: z.enum(['draft', 'submitted', 'archived']),
   description: z.string(),
   priority: z.enum(['minor', 'major']),
   createdAt: z.string().datetime(),
   resolvedAt: z.string().datetime().nullable(),
-  resolvedBy: z.string().uuid().nullable(),
+  resolvedBy: z.string().guid().nullable(),
 }).strict()
 
 export const inspectionRfiListResultSchema = z.object({
-  opportunityId: z.string().uuid(),
+  opportunityId: z.string().guid(),
   rows: z.array(inspectionRfiRowSchema),
   total: z.number().int().nonnegative(),
   page: z.number().int().positive(),
@@ -33,7 +33,7 @@ export const inspectionRfiListResultSchema = z.object({
 }).strict()
 
 export const inspectionRfiTransitionResultSchema = z.object({
-  opportunityId: z.string().uuid(),
+  opportunityId: z.string().guid(),
   changed: z.boolean(),
   rfi: inspectionRfiRowSchema,
 }).strict()

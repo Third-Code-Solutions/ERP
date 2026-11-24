@@ -10,7 +10,7 @@ export const cortexConversationContextRefSchema = z
     // Keep the transport as permissive as the existing chat request. Core
     // maps unsupported tables to the same non-enumerating 404 as legacy chat.
     refTable: z.string().trim().min(1).max(100),
-    refId: z.string().uuid(),
+    refId: z.string().guid(),
   })
   .strict()
 

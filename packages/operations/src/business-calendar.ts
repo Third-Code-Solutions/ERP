@@ -24,7 +24,7 @@ export async function resolveAwardBusinessDayService(
   tx: DatabaseTransaction,
   tenantId: string
 ): Promise<BusinessDayService> {
-  const parsedTenantId = z.string().uuid().parse(tenantId)
+  const parsedTenantId = z.string().guid().parse(tenantId)
   const rows: HolidayEntry[] = []
   if (process.env.BUSINESS_CALENDAR_DB_ENABLED === '1') {
     const persisted = await tx

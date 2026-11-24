@@ -18,12 +18,12 @@ export const opportunityStageTransitionCommandSchema = z
 
 export const opportunityStageTransitionResultSchema = z.object({
   ok: z.literal(true),
-  opportunityId: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  opportunityId: z.string().guid(),
+  tenantId: z.string().guid(),
   fromStage: z.enum(opportunityStageValues),
   toStage: z.enum(opportunityStageValues),
-  projectId: z.string().uuid().nullable(),
-  checklistId: z.string().uuid().nullable(),
+  projectId: z.string().guid().nullable(),
+  checklistId: z.string().guid().nullable(),
   convertedToProject: z.boolean(),
 }).strict()
 

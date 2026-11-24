@@ -17,7 +17,7 @@ import { cortexSearchFreshnessValues } from './cortex-search'
 export const cortexChatRetrievalFocusSchema = z
   .object({
     refTable: cortexGraphRefTableSchema,
-    refId: z.string().uuid(),
+    refId: z.string().guid(),
   })
   .strict()
 
@@ -51,13 +51,13 @@ export type CortexChatRetrievalQuery = z.infer<
 
 export const cortexChatRetrievalItemSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     nodeType: z.string().trim().min(1).max(64),
     title: z.string().trim().max(500).nullable(),
     summary: z.string().nullable(),
     refTable: cortexGraphRefTableSchema,
-    refId: z.string().uuid(),
-    projectId: z.string().uuid().nullable(),
+    refId: z.string().guid(),
+    projectId: z.string().guid().nullable(),
     freshness: z.enum(cortexSearchFreshnessValues),
     recordedAt: z.string().datetime({ offset: true }),
     source: z.literal('cortex'),

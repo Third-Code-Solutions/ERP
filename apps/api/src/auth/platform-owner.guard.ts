@@ -99,7 +99,7 @@ export class PlatformOwnerGuard implements CanActivate {
       throw new ForbiddenException()
     }
 
-    const supportSessionId = z.string().uuid().safeParse(request.headers?.['x-platform-support-session'])
+    const supportSessionId = z.string().guid().safeParse(request.headers?.['x-platform-support-session'])
     if (
       request.method &&
       !['GET', 'HEAD', 'OPTIONS'].includes(request.method) &&

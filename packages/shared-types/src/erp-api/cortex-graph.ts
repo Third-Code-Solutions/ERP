@@ -78,7 +78,7 @@ export const cortexGraphRefTableSchema = z
 export const cortexGraphQuerySchema = z
   .object({
     refTable: cortexGraphRefTableSchema.optional(),
-    refId: z.string().uuid().optional(),
+    refId: z.string().guid().optional(),
   })
   .strict()
   .refine(
@@ -92,12 +92,12 @@ export type CortexGraphQuery = z.infer<typeof cortexGraphQuerySchema>
 
 export const cortexGraphNodeSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     type: z.string().trim().min(1).max(64),
     title: z.string().max(500).nullable(),
     refTable: cortexGraphRefTableSchema,
-    refId: z.string().uuid(),
-    projectId: z.string().uuid().nullable(),
+    refId: z.string().guid(),
+    projectId: z.string().guid().nullable(),
   })
   .strict()
   .superRefine((node, ctx) => {
@@ -112,8 +112,8 @@ export const cortexGraphNodeSchema = z
 
 export const cortexGraphLinkSchema = z
   .object({
-    source: z.string().uuid(),
-    target: z.string().uuid(),
+    source: z.string().guid(),
+    target: z.string().guid(),
     type: z.string().trim().min(1).max(128),
   })
   .strict()
@@ -126,7 +126,7 @@ export const cortexGraphResultSchema = z
   .strict()
 
 export const cortexFocusedGraphResultSchema = cortexGraphResultSchema.extend({
-  focusNodeId: z.string().uuid(),
+  focusNodeId: z.string().guid(),
 })
 
 export const cortexGraphResponseSchema = z.union([
@@ -184,7 +184,7 @@ export function cortexGraphResultFromRows(
 export function cortexFocusedGraphResultFromRows(
   input: (CortexGraphRows & { focusNodeId?: unknown }) | null | undefined
 ): CortexFocusedGraphResult | null {
-  const focusNode = z.string().uuid().safeParse(input?.focusNodeId)
+  const focusNode = z.string().guid().safeParse(input?.focusNodeId)
   if (!focusNode.success) return null
 
   const graph = cortexGraphResultFromRows(input)

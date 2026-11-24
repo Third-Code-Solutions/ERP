@@ -23,7 +23,7 @@ export interface LegacyScheduleActionState extends ProjectScheduleActionState { 
 export async function previewLegacySchedule(_previous: LegacyScheduleActionState, form: FormData): Promise<LegacyScheduleActionState> {
   const profile = await requireUserProfile().catch(() => null)
   if (!profile || !can(profile.role, 'project.schedule.manage')) return { ok: false, error: 'You do not have permission to import schedules.' }
-  const projectId = z.string().uuid().safeParse(form.get('projectId'))
+  const projectId = z.string().guid().safeParse(form.get('projectId'))
   if (!projectId.success) return { ok: false, error: 'Invalid project identifier.' }
   const result = await previewLegacyProjectScheduleThroughCoreApi(projectId.data)
   if (!result.ok || !result.data) return { ok: false, error: result.error ?? 'Preview unavailable.' }
@@ -34,7 +34,7 @@ export async function previewLegacySchedule(_previous: LegacyScheduleActionState
 export async function importLegacySchedule(_previous: ProjectScheduleActionState, form: FormData): Promise<ProjectScheduleActionState> {
   const profile = await requireUserProfile().catch(() => null)
   if (!profile || !can(profile.role, 'project.schedule.manage')) return { ok: false, error: 'You do not have permission to import schedules.' }
-  const projectId = z.string().uuid().safeParse(form.get('projectId'))
+  const projectId = z.string().guid().safeParse(form.get('projectId'))
   const command = importLegacyProjectScheduleCommandSchema.safeParse({ sourceScheduleId: form.get('sourceScheduleId'), sourceHash: form.get('sourceHash') })
   if (!projectId.success || !command.success) return { ok: false, error: 'Preview the stored schedule before importing.' }
   const result = await importLegacyProjectScheduleThroughCoreApi(projectId.data, command.data)
@@ -43,7 +43,7 @@ export async function importLegacySchedule(_previous: ProjectScheduleActionState
   refresh(projectId.data)
   return { ok: true, success: result.data.created ? `${result.data.rows.length} L1 tasks imported.` : 'This schedule was already imported. Existing task edits were preserved.' }
 }
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const text = (form: FormData, name: string): string => { const value = form.get(name); return typeof value === 'string' ? value : '' }
 const optional = (form: FormData, name: string): string | null => text(form, name).trim() || null
 function refresh(projectId: string): void { revalidatePath(`/projects/${projectId}/schedule`); revalidatePath(`/projects/${projectId}/progress`); revalidatePath(`/projects/${projectId}`) }

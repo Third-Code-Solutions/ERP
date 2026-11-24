@@ -19,7 +19,7 @@ export interface SiteDiaryActionState {
   success?: string
 }
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 
 function refresh(projectId: string): void {
   revalidatePath(`/projects/${projectId}/diary`)

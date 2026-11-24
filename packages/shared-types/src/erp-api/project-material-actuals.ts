@@ -10,7 +10,7 @@ export const projectMaterialActualsQuerySchema = z.object({}).strict()
 
 export const projectMaterialActualsRowSchema = z
   .object({
-    materialItemId: z.string().uuid(),
+    materialItemId: z.string().guid(),
     code: z.string().trim().min(1).max(64),
     description: z.string().trim().min(1).max(500),
     unit: z.string().trim().min(1).max(32),
@@ -43,7 +43,7 @@ export const projectMaterialActualsTotalsSchema = z
 
 export const projectMaterialActualsResultSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     asOf: z.string().datetime({ offset: true }),
     currency: z.string().regex(/^[A-Z]{3}$/),
     status: projectMaterialActualsStatusSchema,

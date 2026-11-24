@@ -20,7 +20,7 @@ import {
 } from '@/lib/erp-core-client'
 
 export interface ProjectSubmittalActionState { ok: boolean; error?: string; success?: string }
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const text = (form: FormData, name: string): string => { const value = form.get(name); return typeof value === 'string' ? value : '' }
 const optional = (form: FormData, name: string): string | null => text(form, name).trim() || null
 function refresh(projectId: string): void { revalidatePath(`/projects/${projectId}/submittals`); revalidatePath(`/projects/${projectId}`) }

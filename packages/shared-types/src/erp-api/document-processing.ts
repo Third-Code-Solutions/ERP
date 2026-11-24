@@ -18,7 +18,7 @@ export const documentProcessingRequestSchema = z
 export const documentProcessingQueueJobSchema = z
   .object({
     schemaVersion: z.literal(1),
-    jobId: z.string().uuid(),
+    jobId: z.string().guid(),
   })
   .strict()
 
@@ -31,12 +31,12 @@ export const documentProcessingRecoveryJobSchema = z
 
 export const documentProcessingStatusSchema = z
   .object({
-    jobId: z.string().uuid(),
-    documentId: z.string().uuid(),
+    jobId: z.string().guid(),
+    documentId: z.string().guid(),
     status: z.enum(['queued', 'processing', 'succeeded', 'failed']),
     attempts: z.number().int().nonnegative(),
     scopeItemsCreated: z.number().int().nonnegative(),
-    draftBomId: z.string().uuid().nullable(),
+    draftBomId: z.string().guid().nullable(),
     warnings: z
       .array(z.string().max(500))
       .max(DOCUMENT_PROCESSING_MAX_WARNINGS),
@@ -53,9 +53,9 @@ export const documentProcessingStatusSchema = z
 
 export const documentProcessingAcceptedSchema = z
   .object({
-    jobId: z.string().uuid(),
+    jobId: z.string().guid(),
     status: z.literal('queued'),
-    documentId: z.string().uuid(),
+    documentId: z.string().guid(),
     createdAt: z.string().datetime({ offset: true }),
   })
   .strict()
@@ -67,7 +67,7 @@ export const documentProcessingAcceptedSchema = z
  */
 export const documentProcessingWorkerRequestSchema = z
   .object({
-    job_id: z.string().uuid(),
+    job_id: z.string().guid(),
     attempt: z.number().int().min(1).max(DOCUMENT_PROCESSING_MAX_ATTEMPTS),
     source_url: z
       .string()
@@ -116,7 +116,7 @@ export const documentProcessingWorkerEvidenceItemSchema = z
 export const documentProcessingWorkerResponseSchema = z
   .object({
     schema_version: z.literal(1),
-    job_id: z.string().uuid(),
+    job_id: z.string().guid(),
     attempt: z.number().int().min(1).max(DOCUMENT_PROCESSING_MAX_ATTEMPTS),
     source_sha256: z.string().regex(/^[0-9a-f]{64}$/),
     producer: z

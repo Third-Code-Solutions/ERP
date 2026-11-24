@@ -19,8 +19,8 @@ export interface DeleteResult {
 }
 
 const DeleteDocumentSchema = z.object({
-  documentId: z.string().uuid(),
-  projectId: z.string().uuid(),
+  documentId: z.string().guid(),
+  projectId: z.string().guid(),
   idempotencyKey: z.string().trim().min(1).max(256).optional(),
 })
 

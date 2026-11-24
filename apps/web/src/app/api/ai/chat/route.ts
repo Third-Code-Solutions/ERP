@@ -41,7 +41,7 @@ const requestSchema = z
       )
       .min(1)
       .max(MAX_MESSAGES),
-    projectId: z.string().uuid().optional(),
+    projectId: z.string().guid().optional(),
   })
   .strict()
 

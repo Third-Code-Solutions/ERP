@@ -12,7 +12,7 @@ import {
 import { asc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
-const tenantIdSchema = z.string().uuid()
+const tenantIdSchema = z.string().guid()
 const BUSINESS_CALENDAR_DB_ENABLED = '1'
 
 const holidayRowSchema = z.object({

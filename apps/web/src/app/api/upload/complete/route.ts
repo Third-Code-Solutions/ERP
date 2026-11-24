@@ -21,7 +21,7 @@ export const runtime = 'nodejs'
 
 const CompleteSchema = z.object({
   storagePath: z.string().min(1),
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   fileName: z.string().min(1).max(255),
   // documents.mime_type column is varchar(127); cap at the column limit
   mimeType: z.string().max(127).default('application/octet-stream'),

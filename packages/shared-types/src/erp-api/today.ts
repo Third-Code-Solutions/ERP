@@ -10,9 +10,9 @@ const todaySummarySchema = z
 
 const todayTaskSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     title: z.string().trim().min(1).max(255),
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     projectName: z.string().trim().min(1).max(255),
     dueDate: z.string().datetime({ offset: true }),
     dueState: z.enum(['overdue', 'today', 'upcoming']),
@@ -21,7 +21,7 @@ const todayTaskSchema = z
 
 const todayProjectSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     name: z.string().trim().min(1).max(255),
     client: z.string().trim().min(1).max(255),
     status: z.string().trim().min(1).max(64),

@@ -315,10 +315,10 @@ export async function createUser(
 }
 
 const updateRoleSchema = z.object({
-  user_id: z.string().uuid(),
+  user_id: z.string().guid(),
   role: z.enum(ASSIGNABLE_ROLES),
   expected_role: z.enum(ASSIGNABLE_ROLES),
-  client_request_id: z.string().uuid(),
+  client_request_id: z.string().guid(),
 })
 
 type UpdateUserRoleResult =
@@ -399,7 +399,7 @@ export async function updateUserRole(
 }
 
 const resetPasswordSchema = z.object({
-  user_id: z.string().uuid(),
+  user_id: z.string().guid(),
   password: z.string().min(12).max(128),
 })
 
@@ -498,7 +498,7 @@ export async function resetUserPassword(
 }
 
 const suspendUserSchema = z.object({
-  user_id: z.string().uuid().transform((value) => value.toLowerCase()),
+  user_id: z.string().guid().transform((value) => value.toLowerCase()),
   reason: z.string().trim().min(3).max(500).optional().default('Access suspended; retained history preserved.'),
 })
 

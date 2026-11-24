@@ -62,10 +62,10 @@ const terminalPermitStatuses: PermitStatus[] = [
 ]
 
 const permitFormSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   permitType: permitTypeSchema,
   lguName: z.string().trim().max(160).optional(),
-  responsibleUserId: z.string().uuid().optional(),
+  responsibleUserId: z.string().guid().optional(),
   submittedAt: z.string().trim().max(40).optional(),
   expectedReturnAt: z.string().trim().max(40).optional(),
   notes: z.string().trim().max(10_000).optional(),
@@ -328,7 +328,7 @@ export async function updatePermitStatus(
   newStatus: PermitStatus
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  const parsedPermitId = z.string().uuid().safeParse(permitId)
+  const parsedPermitId = z.string().guid().safeParse(permitId)
   const parsedStatus = permitStatusSchema.safeParse(newStatus)
   if (!parsedPermitId.success || !parsedStatus.success) return { error: 'Invalid permit update.' }
 
@@ -578,7 +578,7 @@ export async function recordMobilizationInput(
   const traceId = randomUUID()
   let actorId: string | null = null, tenantId: string | null = null, outcome = 'rejected'
   try {
-    const parsed = z.object({ projectId: z.string().uuid(), inputType: mobilizationInputSchema, receivedAt: receiptDateSchema })
+    const parsed = z.object({ projectId: z.string().guid(), inputType: mobilizationInputSchema, receivedAt: receiptDateSchema })
       .safeParse({ projectId, inputType, receivedAt: receivedAtRaw })
     if (!parsed.success) return { error: 'A valid project, return type and calendar date are required.' }
     const receivedAt = parsed.data.receivedAt === undefined ? new Date() : new Date(parsed.data.receivedAt)
@@ -658,7 +658,7 @@ export async function startMobilization(
   const traceId = randomUUID()
   let actorId: string | null = null, tenantId: string | null = null, outcome = 'rejected'
   try {
-    const parsed = z.object({ projectId: z.string().uuid(), overrideReason: z.string().trim().max(500).optional().default('') })
+    const parsed = z.object({ projectId: z.string().guid(), overrideReason: z.string().trim().max(500).optional().default('') })
       .safeParse({ projectId, overrideReason: overrideReasonRaw })
     if (!parsed.success) return { error: 'A valid project and override reason of at most 500 characters are required.' }
     const overrideReason = parsed.data.overrideReason
@@ -760,7 +760,7 @@ export async function escalatePermit(
   reasonRaw: string
 ): Promise<{ error?: string }> {
   const profile = await requireUserProfile()
-  const parsedPermitId = z.string().uuid().safeParse(permitId)
+  const parsedPermitId = z.string().guid().safeParse(permitId)
   const reason = reasonRaw.trim()
   if (!parsedPermitId.success || reason.length < 3 || reason.length > 500) {
     return { error: 'Provide a clear escalation reason.' }

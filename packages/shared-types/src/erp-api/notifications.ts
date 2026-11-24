@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const uuid = z.string().uuid()
+const uuid = z.string().guid()
 const nonNegativeCount = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
 
 export const notificationItemSchema = z

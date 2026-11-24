@@ -12,7 +12,7 @@ export interface InspectionRfiTransitionActionState {
   success?: string
 }
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const targetSchema = z.enum(['resolve', 'reopen'])
 
 export async function transitionInspectionRfi(

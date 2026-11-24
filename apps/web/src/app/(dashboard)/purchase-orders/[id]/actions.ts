@@ -19,7 +19,7 @@ import {
   uomForNewItem,
 } from '@/lib/procurement/po-line-stock-link'
 
-const uuid = z.string().uuid()
+const uuid = z.string().guid()
 
 const linkPoLineInputSchema = z.discriminatedUnion('mode', [
   z.object({

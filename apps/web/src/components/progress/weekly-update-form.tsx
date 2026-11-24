@@ -70,7 +70,7 @@ const rows: Array<{ label: string; field: Field }> = [
   { label: 'Overall', field: 'overall_pct' },
 ]
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const captureSuccessSchema = z
   .object({
     ok: z.literal(true),

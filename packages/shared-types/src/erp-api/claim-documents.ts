@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const uuid = z.string().uuid().transform((value) => value.toLowerCase())
+const uuid = z.string().guid().transform((value) => value.toLowerCase())
 
 export const claimDocumentAttachCommandSchema = z.object({
   clientRequestId: uuid,

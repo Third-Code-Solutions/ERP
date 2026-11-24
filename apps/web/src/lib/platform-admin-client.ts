@@ -108,7 +108,7 @@ async function requestPlatform<T>(
   const access = await getCoreApiAccess()
   if (!access.ok) return access
   try {
-    const supportSession = z.string().uuid().safeParse((await cookies()).get(PLATFORM_SUPPORT_COOKIE)?.value)
+    const supportSession = z.string().guid().safeParse((await cookies()).get(PLATFORM_SUPPORT_COOKIE)?.value)
     const response = await fetch(`${access.baseUrl}/v1/platform-admin${path}`, {
       ...init,
       headers: {

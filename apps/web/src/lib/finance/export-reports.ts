@@ -58,7 +58,7 @@ const AGING_TOO_LARGE: FinanceExportResult = {
 
 const ledgerParamsSchema = z
   .object({
-    account: z.string().uuid().optional(),
+    account: z.string().guid().optional(),
     from: isoDateSchema.optional(),
     to: isoDateSchema.optional(),
   })

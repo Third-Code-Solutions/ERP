@@ -10,10 +10,10 @@ export class InspectionPhotoUploadGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>()
     const principal = requireCurrentPrincipal(request)
-    const opportunity = z.string().uuid().safeParse(request.params.opportunityId)
+    const opportunity = z.string().guid().safeParse(request.params.opportunityId)
     if (!opportunity.success) throw new BadRequestException('Invalid opportunity id')
-    const actor = z.string().uuid().safeParse(request.headers['x-expected-actor-id'])
-    const tenant = z.string().uuid().safeParse(request.headers['x-expected-tenant-id'])
+    const actor = z.string().guid().safeParse(request.headers['x-expected-actor-id'])
+    const tenant = z.string().guid().safeParse(request.headers['x-expected-tenant-id'])
     if (!actor.success || !tenant.success || actor.data.toLowerCase() !== principal.userId.toLowerCase() || tenant.data.toLowerCase() !== principal.tenantId.toLowerCase()) {
       throw new ForbiddenException('The signed-in account changed; reload before uploading')
     }

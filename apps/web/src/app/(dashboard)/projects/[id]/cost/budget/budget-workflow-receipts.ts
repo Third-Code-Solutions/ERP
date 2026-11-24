@@ -60,7 +60,7 @@ function isBudgetWorkflowStatus(value: string): value is BudgetWorkflowStatus {
   return WORKFLOW_STATUSES.some((status) => status === value)
 }
 
-const budgetWorkflowUuidSchema = z.string().uuid()
+const budgetWorkflowUuidSchema = z.string().guid()
 
 export function normalizeBudgetWorkflowUuid(value: string): string | null {
   const parsed = budgetWorkflowUuidSchema.safeParse(value)

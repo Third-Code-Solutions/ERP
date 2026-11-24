@@ -262,7 +262,7 @@ export async function addKycArtifact(
 
   const parsedAccountId = z
     .string()
-    .uuid('accountId must be a UUID')
+    .guid('accountId must be a UUID')
     .transform((value) => value.toLowerCase())
     .safeParse(accountId)
   const parsedCommand = kycArtifactCreateCommandSchema.safeParse(command)
@@ -331,7 +331,7 @@ export async function listAccountKycDocuments(
 
   const parsedAccountId = z
     .string()
-    .uuid('accountId must be a UUID')
+    .guid('accountId must be a UUID')
     .transform((value) => value.toLowerCase())
     .safeParse(accountId)
   const parsedQuery = accountKycDocumentQuerySchema.safeParse(query)

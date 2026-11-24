@@ -17,7 +17,7 @@ export function isDeliverySchedulablePoStatus(
 
 export const createDeliveryScheduleCommandSchema = z
   .object({
-    purchaseOrderId: z.string().uuid(),
+    purchaseOrderId: z.string().guid(),
     scheduledDate: z.string().datetime({ offset: true }),
     siteAddress: z.string().trim().min(3).max(5_000),
     siteContactName: z.string().trim().min(1).max(255),
@@ -28,9 +28,9 @@ export const createDeliveryScheduleCommandSchema = z
 
 export const deliveryScheduleCreationResultSchema = z
   .object({
-    id: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    purchaseOrderId: z.string().uuid(),
+    id: z.string().guid(),
+    tenantId: z.string().guid(),
+    purchaseOrderId: z.string().guid(),
     status: z.literal('scheduled'),
     scheduledDate: z.string().datetime({ offset: true }),
     siteAddress: z.string(),
@@ -57,8 +57,8 @@ export const deliveryReceiptCommandSchema = z
 
 export const deliveryReceiptResultSchema = z
   .object({
-    deliveryScheduleId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    deliveryScheduleId: z.string().guid(),
+    tenantId: z.string().guid(),
     action: z.literal('record_receipt'),
     fromStatus: z.enum(['scheduled', 'in_transit']),
     status: z.literal('received'),
@@ -78,8 +78,8 @@ export const deliveryMarkInTransitCommandSchema = z
 
 export const deliveryMarkInTransitResultSchema = z
   .object({
-    deliveryScheduleId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    deliveryScheduleId: z.string().guid(),
+    tenantId: z.string().guid(),
     action: z.literal('mark_in_transit'),
     fromStatus: z.literal('site_ready'),
     status: z.literal('in_transit'),
@@ -99,9 +99,9 @@ export const deliveryStartInspectionCommandSchema = z
 
 export const deliveryStartInspectionResultSchema = z
   .object({
-    deliveryScheduleId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    inspectionId: z.string().uuid(),
+    deliveryScheduleId: z.string().guid(),
+    tenantId: z.string().guid(),
+    inspectionId: z.string().guid(),
     action: z.literal('start_inspection'),
     fromStatus: z.literal('received'),
     status: z.literal('inspecting'),
@@ -121,8 +121,8 @@ export const deliveryStartSitePreparationCommandSchema = z
 
 export const deliveryStartSitePreparationResultSchema = z
   .object({
-    deliveryScheduleId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    deliveryScheduleId: z.string().guid(),
+    tenantId: z.string().guid(),
     action: z.literal('start_site_preparation'),
     fromStatus: z.literal('scheduled'),
     status: z.literal('site_preparing'),
@@ -144,8 +144,8 @@ export const deliveryCompleteSitePreparationCommandSchema = z
 
 export const deliveryCompleteSitePreparationResultSchema = z
   .object({
-    deliveryScheduleId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    deliveryScheduleId: z.string().guid(),
+    tenantId: z.string().guid(),
     action: z.literal('complete_site_preparation'),
     fromStatus: z.literal('site_preparing'),
     status: z.literal('site_ready'),
@@ -179,9 +179,9 @@ export const deliveryInspectionCompleteCommandSchema = z
 
 export const deliveryInspectionCompleteResultSchema = z
   .object({
-    deliveryScheduleId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    inspectionId: z.string().uuid(),
+    deliveryScheduleId: z.string().guid(),
+    tenantId: z.string().guid(),
+    inspectionId: z.string().guid(),
     action: z.literal('complete_inspection'),
     fromStatus: z.literal('inspecting'),
     inspectionResult: z.enum(['pass', 'fail', 'partial_pass']),
@@ -209,8 +209,8 @@ export const deliveryCancelCommandSchema = z
 
 export const deliveryCancelResultSchema = z
   .object({
-    deliveryScheduleId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    deliveryScheduleId: z.string().guid(),
+    tenantId: z.string().guid(),
     action: z.literal('cancel_delivery'),
     fromStatus: z.enum([
       'scheduled',

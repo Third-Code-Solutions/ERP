@@ -6,15 +6,15 @@ import {
 
 export const createRfqCommandSchema = z
   .object({
-    bomId: z.string().uuid(),
+    bomId: z.string().guid(),
   })
   .strict()
 
 export const rfqCreationResultSchema = z
   .object({
-    rfqId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    rfqId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
     lineCount: z.number().int().safe().nonnegative(),
     created: z.boolean(),
   })
@@ -30,9 +30,9 @@ export const rfqDispatchResultSchema = z
 export const rfqDispatchJobSchema = z
   .object({
     schemaVersion: z.literal(1),
-    tenantId: z.string().uuid(),
-    actorId: z.string().uuid(),
-    bomId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    actorId: z.string().guid(),
+    bomId: z.string().guid(),
     source: z.literal('bom_approved'),
   })
   .strict()
@@ -53,18 +53,18 @@ export const rfqDispatchDeadLetterSchema = z
 export const notificationDeliveryJobSchema = z
   .object({
     schemaVersion: z.literal(1),
-    tenantId: z.string().uuid(),
-    outboxId: z.string().uuid(),
-    deliveryId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    outboxId: z.string().guid(),
+    deliveryId: z.string().guid(),
   })
   .strict()
 
 export const purchaseOrderSupplierEmailDeliveryJobSchema = z
   .object({
     schemaVersion: z.literal(1),
-    tenantId: z.string().uuid(),
-    outboxId: z.string().uuid(),
-    deliveryId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    outboxId: z.string().guid(),
+    deliveryId: z.string().guid(),
   })
   .strict()
 
@@ -76,7 +76,7 @@ export const notificationSweepJobSchema = z
 
 export const notificationDeliveryResultSchema = z
   .object({
-    deliveryId: z.string().uuid(),
+    deliveryId: z.string().guid(),
     status: z.enum([
       'delivered',
       'already_delivered',
@@ -89,7 +89,7 @@ export const notificationDeliveryResultSchema = z
 export const purchaseOrderWorkflowNotificationPayloadSchema = z
   .object({
     schemaVersion: z.literal(1),
-    purchase_order_id: z.string().uuid(),
+    purchase_order_id: z.string().guid(),
     action: purchaseOrderWorkflowActionSchema,
     from_status: purchaseOrderWorkflowStatusSchema,
     to_status: purchaseOrderWorkflowStatusSchema,
@@ -98,9 +98,9 @@ export const purchaseOrderWorkflowNotificationPayloadSchema = z
 
 export const logRfqQuoteCommandSchema = z
   .object({
-    submissionId: z.string().uuid(),
-    bomLineItemId: z.string().uuid(),
-    vendorId: z.string().uuid(),
+    submissionId: z.string().guid(),
+    bomLineItemId: z.string().guid(),
+    vendorId: z.string().guid(),
     // A quote is price evidence: zero is refused here as in the web action.
     unitPriceCents: z.number().int().safe().positive(),
     leadTimeDays: z.number().int().nonnegative().max(3_650).optional(),
@@ -111,7 +111,7 @@ export const logRfqQuoteCommandSchema = z
 
 export const rfqQuoteResultSchema = z
   .object({
-    quoteId: z.string().uuid(),
+    quoteId: z.string().guid(),
     created: z.boolean(),
     statusChanged: z.boolean(),
   })
@@ -136,8 +136,8 @@ export const transitionRfqCommandSchema = z.discriminatedUnion(
 
 export const rfqTransitionResultSchema = z
   .object({
-    rfqId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    rfqId: z.string().guid(),
+    tenantId: z.string().guid(),
     transitioned: z.literal(true),
   })
   .strict()

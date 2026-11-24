@@ -51,7 +51,7 @@ export const createAccountSchema = z.object({
 export const updateAccountSchema = createAccountSchema.partial()
 
 export const createContactSchema = z.object({
-  account_id: z.string().uuid(),
+  account_id: z.string().guid(),
   full_name: z.string().min(2).max(255),
   email: z.string().email().optional(),
   phone: z.string().max(64).optional(),
@@ -62,16 +62,16 @@ export const createContactSchema = z.object({
 export const updateContactSchema = createContactSchema.partial().omit({ account_id: true })
 
 export const addKycArtifactSchema = z.object({
-  account_id: z.string().uuid(),
+  account_id: z.string().guid(),
   artifact_type: z.enum(kycArtifactTypeValues),
-  document_id: z.string().uuid().optional(),
+  document_id: z.string().guid().optional(),
   notes: z.string().max(2000).optional(),
 })
 
 // Finance review action (US-003). Reason required on flag/reject.
 export const reviewKycSchema = z
   .object({
-    account_id: z.string().uuid(),
+    account_id: z.string().guid(),
     decision: z.enum(['approved', 'flagged', 'rejected']),
     notes: z.string().max(2000).optional(),
   })

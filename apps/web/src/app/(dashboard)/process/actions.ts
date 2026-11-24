@@ -13,7 +13,7 @@ export interface ProcessTaskStatusActionResult {
   error?: string
 }
 
-const taskIdSchema = z.string().uuid()
+const taskIdSchema = z.string().guid()
 
 /**
  * Server-only boundary for task status changes. Core remains authoritative for

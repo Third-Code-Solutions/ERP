@@ -22,8 +22,8 @@ import {
 const MAX_PHOTOS = 10
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024
 const confirmationSchema = z.object({
-  actorId: z.string().uuid(), tenantId: z.string().uuid(),
-  opportunityId: z.string().uuid(), submissionId: z.string().uuid(),
+  actorId: z.string().guid(), tenantId: z.string().guid(),
+  opportunityId: z.string().guid(), submissionId: z.string().guid(),
 })
 
 interface InspectionDefaults {

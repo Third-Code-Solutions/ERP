@@ -11,7 +11,7 @@ import {
 } from '@/lib/erp-core-client'
 import { z } from 'zod'
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 
 export async function createAssetMaintenance(
   assetId: string,

@@ -12,7 +12,7 @@ import {
 } from '@/lib/cortex/citation-header'
 import { CORTEX_PRIVATE_HEADERS } from '@/lib/cortex/response'
 
-const jobIdSchema = z.string().uuid()
+const jobIdSchema = z.string().guid()
 
 function jsonError(message: string, status: number) {
   return Response.json(

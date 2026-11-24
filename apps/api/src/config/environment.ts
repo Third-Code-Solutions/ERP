@@ -54,7 +54,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Asset maintenance history remains fail-closed until the migration replay,
   // audit/RLS review, and a protected tenant canary are approved.
   ERP_ASSET_MAINTENANCE_READS_ENABLED: z
@@ -70,7 +70,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_ASSET_MAINTENANCE_CREATE_WRITES_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -84,7 +84,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Cortex keyword reads stay fail-closed until the derived graph replay and
   // a tenant-scoped canary are approved. Search never accepts tenant or role
   // scope from the browser and never spends an external AI provider budget.
@@ -101,7 +101,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Universal search authority remains closed until graph parity, task
   // assignee filtering, and an exact-tenant read canary are approved.
   ERP_UNIVERSAL_SEARCH_READS_ENABLED: z
@@ -117,7 +117,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // The operating brief is a separate read projection. Keep its Core canary
   // independent from keyword, graph, entity, and conversation reads.
   ERP_CORTEX_BRIEF_READS_ENABLED: z
@@ -133,7 +133,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Chat retrieval remains a separate Core canary. It is read-only, bounded,
   // and disabled until the Web route has a reviewed parity packet.
   ERP_CORTEX_CHAT_RETRIEVAL_READS_ENABLED: z
@@ -149,7 +149,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Conversation owner/context resolution is independent from history,
   // retrieval, writes, and generation. Keep the canary closed by default.
   ERP_CORTEX_CONVERSATION_CONTEXT_READS_ENABLED: z
@@ -165,7 +165,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Interactive Cortex graph reads are separate from keyword search so each
   // surface can be canaried and rolled back independently.
   ERP_CORTEX_GRAPH_READS_ENABLED: z
@@ -181,7 +181,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Entity context, relationship, citation, and evidence reads are canaried
   // independently from the whole graph so rollback remains one flag change.
   ERP_CORTEX_ENTITY_READS_ENABLED: z
@@ -197,7 +197,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Saved Cortex memory reads are canaried independently. Core derives tenant,
   // user ownership, and current-role citation/context scope from the principal.
   ERP_CORTEX_CONVERSATION_READS_ENABLED: z
@@ -213,7 +213,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Only signed-in user turns are accepted here. Assistant/provider turns need
   // a separate server-to-server authority and cannot be supplied by browsers.
   ERP_CORTEX_CONVERSATION_USER_TURN_WRITES_ENABLED: z
@@ -229,7 +229,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Assistant generations require both an authenticated principal and a
   // server-only HMAC. Browser callers can never select the assistant role.
   ERP_CORTEX_CONVERSATION_ASSISTANT_TURN_WRITES_ENABLED: z
@@ -245,7 +245,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_CORTEX_ASSISTANT_TURN_HMAC_SECRET: z.string().min(32).optional(),
   // Provider-free grounded analysis jobs are independently scoped for intake,
   // execution, and stale-job recovery. All gates default closed.
@@ -262,7 +262,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_CORTEX_ASSISTANT_GENERATION_WORKER_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -276,7 +276,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_CORTEX_ASSISTANT_GENERATION_RECOVERY_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -290,7 +290,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // A future provider-backed assistant may dispatch only after Nest reserves
   // one exact PostgreSQL budget. No policy rows are seeded by source.
   ERP_CORTEX_ASSISTANT_PROVIDER_BUDGET_ENABLED: z
@@ -306,7 +306,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Provider execution is a second, independent exact-tenant gate. Source
   // provides only an unavailable adapter; no provider can be called yet.
   ERP_CORTEX_ASSISTANT_PROVIDER_EXECUTION_ENABLED: z
@@ -322,7 +322,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Circuit alert routing is a separate exact-tenant gate. Source provides
   // only a provider-neutral adapter contract; no route credential belongs in
   // this boundary or in a route payload.
@@ -339,7 +339,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Durable circuit-alert transport stays closed until a reviewed queue,
   // worker, recovery, and exact-tenant canary are approved. BullMQ carries
   // only an opaque event key; it never grants route or ERP authority.
@@ -356,7 +356,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_WORKER_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -370,7 +370,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_CORTEX_ASSISTANT_PROVIDER_CIRCUIT_ALERT_RECOVERY_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -384,7 +384,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Semantic indexing can spend an external provider call. Intake, worker,
   // and recovery are independently closed and exact-tenant scoped.
   ERP_CORTEX_SEMANTIC_INDEX_JOBS_ENABLED: z
@@ -400,7 +400,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_CORTEX_SEMANTIC_INDEX_WORKER_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -414,7 +414,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_CORTEX_SEMANTIC_INDEX_RECOVERY_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -428,7 +428,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // General-ledger reads stay fail-closed until the hosted finance schema,
   // disposable replay, and a protected tenant canary are approved.
   ERP_FINANCE_LEDGER_READS_ENABLED: z
@@ -444,7 +444,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Customer receivables reads stay fail-closed until invoice, allocation,
   // RLS, and exact-cent parity are replayed and a protected canary is approved.
   ERP_FINANCE_RECEIVABLES_READS_ENABLED: z
@@ -460,7 +460,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Supplier payables reads stay fail-closed until supplier-bill,
   // allocation, RLS, and exact-cent parity are replayed and a protected
   // canary is approved.
@@ -477,7 +477,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Cash register reads stay fail-closed until cash-account, transaction,
   // counterparty, RLS, and exact-cent parity are replayed and a protected
   // canary is approved.
@@ -494,7 +494,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Bank reconciliation register reads stay fail-closed until statement,
   // cash-account, RLS, and protected canary parity are approved.
   ERP_FINANCE_RECONCILIATION_READS_ENABLED: z
@@ -510,7 +510,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Auto-match writes stay fail-closed until the request ledger, trusted
   // function parity, and a protected tenant canary are approved.
   ERP_FINANCE_RECONCILIATION_AUTO_MATCH_WRITES_ENABLED: z
@@ -526,7 +526,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Manual line match/unmatch stays fail-closed until line-targeted
   // idempotency, trusted-function parity, and a protected canary are approved.
   ERP_FINANCE_RECONCILIATION_LINE_MATCH_WRITES_ENABLED: z
@@ -542,7 +542,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Reconciliation writes stay fail-closed until the request ledger, trusted
   // function parity, and a protected tenant canary are approved.
   ERP_FINANCE_RECONCILIATION_RECONCILE_WRITES_ENABLED: z
@@ -558,7 +558,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Bank-statement void writes stay fail-closed until the request ledger,
   // trusted function parity, and a protected tenant canary are approved.
   ERP_FINANCE_RECONCILIATION_VOID_WRITES_ENABLED: z
@@ -574,7 +574,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Bank-statement import writes stay fail-closed until the request ledger,
   // parser parity, trusted transaction, and protected tenant canary are
   // approved.
@@ -591,7 +591,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Bank-statement Storage signing/cleanup stays fail-closed until the
   // service-role boundary, tenant-prefix policy, audit, and browser canary
   // are approved.
@@ -608,7 +608,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Project creation authority stays fail-closed until idempotency and a
   // tenant-scoped canary are approved.
   ERP_PROJECT_CREATE_WRITES_ENABLED: z
@@ -624,7 +624,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Project discussion creation stays fail-closed until the Core transaction,
   // browser-DML revocation, replay, and protected tenant canary are approved.
   ERP_PROJECT_COMMENT_CREATE_WRITES_ENABLED: z
@@ -640,7 +640,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Project discussion deletion stays fail-closed until hard-delete replay,
   // evidence retention, and a protected tenant canary are approved.
   ERP_PROJECT_COMMENT_DELETE_WRITES_ENABLED: z
@@ -656,7 +656,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Project retirement is an evidence-preserving logical deletion. It stays
   // closed until its additive migration and one protected-tenant replay pass.
   ERP_PROJECT_DELETE_WRITES_ENABLED: z
@@ -672,7 +672,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // User role assignment is a privileged command. It stays fail-closed until
   // browser DML revocation, replay, audit, and one protected tenant canary pass.
   ERP_ADMIN_USER_ROLE_ASSIGNMENT_WRITES_ENABLED: z
@@ -688,7 +688,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Won-to-Project handoff stays fail-closed until the atomic checklist,
   // notification, idempotency, and tenant-canary replay are approved.
   ERP_OPPORTUNITY_CONVERT_WRITES_ENABLED: z
@@ -704,7 +704,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Opportunity stage changes stay fail-closed until the transition ledger,
   // SLA/audit transaction, and atomic won handoff canary are approved.
   ERP_OPPORTUNITY_STAGE_WRITES_ENABLED: z
@@ -720,7 +720,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Manual project cost entry authority stays fail-closed until the
   // idempotency ledger, replay, and tenant canary are approved.
   ERP_COST_ENTRY_CREATE_WRITES_ENABLED: z
@@ -736,7 +736,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Manual cost-entry voids stay fail-closed until the soft-delete snapshot,
   // replay, read filtering, and rollback evidence are approved.
   ERP_COST_ENTRY_DELETE_WRITES_ENABLED: z
@@ -752,7 +752,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Cost-entry restores stay fail-closed until snapshot/replay and recovery
   // evidence are approved independently from voids.
   ERP_COST_ENTRY_RESTORE_WRITES_ENABLED: z
@@ -768,7 +768,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   RESEND_API_KEY: z.string().min(20).optional(),
   EMAIL_FROM: z.string().min(3).max(320).optional(),
   SEMAPHORE_API_KEY: z.string().min(20).optional(),
@@ -812,7 +812,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // BOM-to-PO creation stays fail-closed until its single transaction and
   // idempotent replay are proven against a designated tenant.
   ERP_PO_BOM_CREATE_WRITES_ENABLED: z
@@ -828,7 +828,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Grouped BOM-to-PO creation stays fail-closed until supplier grouping,
   // rate-card validity, and idempotent multi-PO replay are proven.
   ERP_PO_BOM_GROUPED_CREATE_WRITES_ENABLED: z
@@ -844,7 +844,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Togal BOM line commits stay fail-closed until the dedicated idempotency
   // ledger, transaction replay, and tenant canary are approved.
   ERP_BOM_TOGAL_COMMIT_WRITES_ENABLED: z
@@ -860,7 +860,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Client Change Request authority stays fail-closed until hosted schema
   // reconciliation and a tenant-scoped canary are explicitly approved.
   ERP_CHANGE_REQUEST_WRITES_ENABLED: z
@@ -876,7 +876,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Approval transitions stay fail-closed until hosted reconciliation and a
   // tenant-scoped canary are explicitly approved.
   ERP_PO_WORKFLOW_WRITES_ENABLED: z
@@ -892,7 +892,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Workflow writes require durable notification intent and recipients. Both
   // this flag and its tenant allowlist stay empty until delivery parity is
   // replayed and a single-tenant canary is explicitly approved.
@@ -909,7 +909,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Delivery schedule creation stays fail-closed until the server-owned
   // idempotency ledger, notification parity, and tenant canary are approved.
   ERP_DELIVERY_SCHEDULE_CREATE_WRITES_ENABLED: z
@@ -925,7 +925,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Delivery receipt status changes stay fail-closed until the server-owned
   // idempotency ledger and a tenant canary are approved.
   ERP_DELIVERY_RECEIPT_WRITES_ENABLED: z
@@ -941,7 +941,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Marking a prepared delivery in transit stays fail-closed until the
   // server-owned request ledger and a tenant canary are approved.
   ERP_DELIVERY_MARK_IN_TRANSIT_WRITES_ENABLED: z
@@ -957,7 +957,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Starting delivery site preparation stays fail-closed until the existing
   // delivery ledger and a tenant canary are approved.
   ERP_DELIVERY_SITE_PREPARATION_START_WRITES_ENABLED: z
@@ -973,7 +973,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Completing site preparation stays fail-closed until its transaction,
   // replay behavior, and tenant canary are approved.
   ERP_DELIVERY_SITE_PREPARATION_COMPLETE_WRITES_ENABLED: z
@@ -989,7 +989,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Starting a delivery inspection stays fail-closed until the existing
   // delivery ledger extension and a tenant canary are approved.
   ERP_DELIVERY_INSPECTION_START_WRITES_ENABLED: z
@@ -1005,7 +1005,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Completing a delivery inspection stays fail-closed until its terminal
   // transaction, replay behavior, and tenant canary are approved.
   ERP_DELIVERY_INSPECTION_COMPLETE_WRITES_ENABLED: z
@@ -1021,7 +1021,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Delivery cancellation stays fail-closed until cancellation evidence,
   // replay behavior, and a tenant canary are approved.
   ERP_DELIVERY_CANCEL_WRITES_ENABLED: z
@@ -1037,7 +1037,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Manual journal posting stays fail-closed until the forward migration,
   // disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_JOURNAL_POST_WRITES_ENABLED: z
@@ -1053,7 +1053,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Manual journal reversal stays fail-closed until its forward migration,
   // disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_JOURNAL_REVERSE_WRITES_ENABLED: z
@@ -1069,7 +1069,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Supplier Bill posting stays fail-closed until its payable function,
   // idempotent replay, and tenant canary are approved.
   ERP_FINANCE_SUPPLIER_BILL_POST_WRITES_ENABLED: z
@@ -1085,7 +1085,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Supplier Bill reversal stays fail-closed until its ordered migration,
   // disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_SUPPLIER_BILL_REVERSE_WRITES_ENABLED: z
@@ -1101,7 +1101,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Cash posting and reversal stay fail-closed until their ordered migration,
   // disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_CASH_WORKFLOW_WRITES_ENABLED: z
@@ -1117,7 +1117,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Cash draft create/update/delete stays fail-closed until its ordered
   // migration, disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_CASH_DRAFT_WRITES_ENABLED: z
@@ -1133,7 +1133,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Customer invoice issuance stays fail-closed until its ordered migration,
   // disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_CUSTOMER_INVOICE_ISSUE_WRITES_ENABLED: z
@@ -1149,7 +1149,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Customer invoice draft creation stays fail-closed until the Core
   // transaction, idempotency ledger, audit proof, and tenant canary pass.
   ERP_FINANCE_CUSTOMER_INVOICE_DRAFT_CREATE_WRITES_ENABLED: z
@@ -1165,7 +1165,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Customer invoice reversal stays fail-closed until its ordered migration,
   // disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_CUSTOMER_INVOICE_REVERSE_WRITES_ENABLED: z
@@ -1181,7 +1181,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Customer invoice cancellation stays fail-closed until its ordered
   // migration, disposable transaction proof, and tenant canary are approved.
   ERP_FINANCE_CUSTOMER_INVOICE_CANCEL_WRITES_ENABLED: z
@@ -1197,7 +1197,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Stock Receipt draft creation stays fail-closed until hosted migration and
   // a tenant-scoped canary prove inventory transaction parity.
   ERP_INVENTORY_RECEIPT_CREATE_WRITES_ENABLED: z
@@ -1213,7 +1213,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Stock Receipt posting/reversal stay fail-closed until the workflow
   // idempotency migration, disposable transaction proof, and canary pass.
   ERP_INVENTORY_RECEIPT_POST_WRITES_ENABLED: z
@@ -1229,7 +1229,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_INVENTORY_RECEIPT_REVERSE_WRITES_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -1243,7 +1243,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Stock Movement draft creation stays fail-closed until the ordered
   // idempotency migration, disposable transaction proof, and tenant canary.
   ERP_INVENTORY_STOCK_MOVEMENT_CREATE_WRITES_ENABLED: z
@@ -1259,7 +1259,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Stock Movement posting/reversal remains fail-closed until the workflow
   // ledger, disposable transaction proof, and tenant canary are approved.
   ERP_INVENTORY_STOCK_MOVEMENT_WORKFLOW_WRITES_ENABLED: z
@@ -1275,7 +1275,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Inventory item policy updates are naturally idempotent state setters;
   // keep the transactional Nest command fail-closed until a tenant canary.
   ERP_INVENTORY_ITEM_CONFIG_WRITES_ENABLED: z
@@ -1291,7 +1291,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // UOM setup writes stay fail-closed until the Nest transaction and tenant
   // canary prove parity with the compatibility Server Action.
   ERP_INVENTORY_UOM_CREATE_WRITES_ENABLED: z
@@ -1307,7 +1307,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_INVENTORY_UOM_UPDATE_WRITES_ENABLED: z
     .enum(['true', 'false'])
     .default('false')
@@ -1321,7 +1321,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Warehouse setup writes stay fail-closed until the Nest transaction and
   // tenant canary prove parity with the compatibility Server Action.
   ERP_INVENTORY_WAREHOUSE_CREATE_WRITES_ENABLED: z
@@ -1337,7 +1337,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Warehouse name/state updates stay fail-closed until the Nest transaction
   // and protected tenant canary prove parity with the compatibility action.
   ERP_INVENTORY_WAREHOUSE_UPDATE_WRITES_ENABLED: z
@@ -1353,7 +1353,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // CAD evidence commits stay fail-closed until the Nest transaction is
   // replayed against hosted schema and canary data.
   ERP_CAD_EVIDENCE_COMMIT_WRITES_ENABLED: z
@@ -1369,7 +1369,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Processing intake stays fail-closed until a Nest worker bridge and
   // disposable/hosted canary prove the full evidence path.
   ERP_DOCUMENT_PROCESSING_JOBS_ENABLED: z
@@ -1385,7 +1385,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Recovery scheduling is closed by default and must be scoped to explicit
   // tenant UUIDs before any Redis scheduler is created.
   ERP_DOCUMENT_PROCESSING_RECOVERY_ENABLED: z
@@ -1401,7 +1401,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Private evidence bridge remains fail-closed until the parser URL, secret,
   // commit path, disposable canary, and hosted gates are approved together.
   ERP_DOCUMENT_PROCESSING_WORKER_BRIDGE_ENABLED: z
@@ -1423,7 +1423,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Document deletion is closed by default. Enable only for an explicit
   // tenant canary after the Nest transaction, replay, and Storage cleanup
   // gates pass together.
@@ -1440,7 +1440,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Public canvas signing is token-authorized but still closed by default.
   // Enable only for an explicit tenant canary after Storage, replay, and
   // transaction proof are complete.
@@ -1457,7 +1457,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Supplier confirmation review is a token-scoped read seam. Keep closed
   // until the hosted supplier tables and public-link threat model are cleared.
   ERP_PUBLIC_VENDOR_CONFIRMATION_READ_ENABLED: z
@@ -1473,7 +1473,7 @@ const environmentSchema = z.object({
         .map((entry) => entry.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Supplier confirmation is token-authorized but closed until the response
   // state machine, replay, and rollback proofs pass for one tenant.
   ERP_PUBLIC_VENDOR_CONFIRMATION_WRITES_ENABLED: z
@@ -1489,7 +1489,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   // Session minting is a separate closed seam. It can create only a hashed
   // token session during SCM issuance; public link delivery remains off.
   ERP_PUBLIC_VENDOR_CONFIRMATION_SESSION_MINTING_ENABLED: z
@@ -1505,7 +1505,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_PUBLIC_VENDOR_CONFIRMATION_TOKEN_SECRET: z
     .string()
     .min(32)
@@ -1531,7 +1531,7 @@ const environmentSchema = z.object({
         .map((tenantId) => tenantId.trim())
         .filter(Boolean)
     )
-    .pipe(z.array(z.string().uuid())),
+    .pipe(z.array(z.string().guid())),
   ERP_PUBLIC_VENDOR_CONFIRMATION_BASE_URL: optionalHttpsUrl,
   AI_WORKER_URL: optionalHttpUrl,
   AI_WORKER_SHARED_SECRET: z.string().min(20).optional(),

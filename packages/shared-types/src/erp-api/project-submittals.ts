@@ -18,15 +18,15 @@ export const projectSubmittalListQuerySchema = z.object({
 }).strict()
 
 export const createProjectSubmittalCommandSchema = z.object({
-  projectId: z.string().uuid(),
-  clientRequestId: z.string().uuid(),
+  projectId: z.string().guid(),
+  clientRequestId: z.string().guid(),
   title: text(200, true),
   description: text(10000, true),
   specSection: text(120),
   discipline: text(120),
   planReference: text(200),
   dueDate: calendarDateSchema.nullable(),
-  assignedTo: z.string().uuid().nullable(),
+  assignedTo: z.string().guid().nullable(),
 }).strict()
 
 export const updateProjectSubmittalCommandSchema = z.object({
@@ -37,7 +37,7 @@ export const updateProjectSubmittalCommandSchema = z.object({
   discipline: text(120),
   planReference: text(200),
   dueDate: calendarDateSchema.nullable(),
-  assignedTo: z.string().uuid().nullable(),
+  assignedTo: z.string().guid().nullable(),
 }).strict()
 
 export const projectSubmittalSubmitCommandSchema = z.object({
@@ -61,8 +61,8 @@ export const projectSubmittalDecisionCommandSchema = z.object({
 })
 
 export const projectSubmittalRowSchema = z.object({
-  id: z.string().uuid(),
-  projectId: z.string().uuid(),
+  id: z.string().guid(),
+  projectId: z.string().guid(),
   submittalNumber: z.string().trim().min(1).max(40),
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(10000),
@@ -74,21 +74,21 @@ export const projectSubmittalRowSchema = z.object({
   submissionNotes: z.string().max(10000),
   reviewNotes: z.string().max(10000),
   rejectionReason: z.string().max(5000),
-  requestedBy: z.string().uuid(),
-  assignedTo: z.string().uuid().nullable(),
+  requestedBy: z.string().guid(),
+  assignedTo: z.string().guid().nullable(),
   submittedAt: z.string().datetime({ offset: true }).nullable(),
-  submittedBy: z.string().uuid().nullable(),
+  submittedBy: z.string().guid().nullable(),
   reviewStartedAt: z.string().datetime({ offset: true }).nullable(),
-  reviewStartedBy: z.string().uuid().nullable(),
+  reviewStartedBy: z.string().guid().nullable(),
   reviewedAt: z.string().datetime({ offset: true }).nullable(),
-  reviewedBy: z.string().uuid().nullable(),
+  reviewedBy: z.string().guid().nullable(),
   version: z.number().int().min(1),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
 }).strict()
 
 export const projectSubmittalListResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   rows: z.array(projectSubmittalRowSchema),
   total: z.number().int().nonnegative(),
   page: z.number().int().positive(),
@@ -97,14 +97,14 @@ export const projectSubmittalListResultSchema = z.object({
 }).strict()
 
 export const projectSubmittalCreateResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   created: z.boolean(),
   changed: z.boolean(),
   submittal: projectSubmittalRowSchema,
 }).strict()
 
 export const projectSubmittalMutationResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   changed: z.boolean(),
   submittal: projectSubmittalRowSchema,
 }).strict()

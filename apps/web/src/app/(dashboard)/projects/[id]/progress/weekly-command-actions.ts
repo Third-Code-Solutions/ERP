@@ -28,7 +28,7 @@ export type WeeklyProgressCommandActionResult =
   | { ok: false; outcome: 'rejected' | 'unknown'; error: string }
 
 type Failure = Extract<WeeklyProgressCommandActionResult, { ok: false }>
-const uuid = z.string().uuid().transform(value => value.toLowerCase())
+const uuid = z.string().guid().transform(value => value.toLowerCase())
 const scopeSchema = z.object({ tenantId: uuid, actorId: uuid, projectId: uuid }).strict()
 const keyedLockSchema = lockProjectWeeklyProgressCommandSchema.extend({ clientRequestId: uuid })
 const rejected = (error: string): Failure => ({ ok: false, outcome: 'rejected', error })

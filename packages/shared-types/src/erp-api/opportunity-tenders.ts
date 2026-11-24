@@ -14,13 +14,13 @@ export const tenderVendorProfileStatusSchema = z.enum(['draft', 'reviewing', 'qu
 export const opportunityTenderListQuerySchema = z.object({}).strict()
 
 export const createOpportunityTenderCommandSchema = z.object({
-  opportunityId: z.string().uuid(),
-  clientRequestId: z.string().uuid(),
+  opportunityId: z.string().guid(),
+  clientRequestId: z.string().guid(),
   title: nonEmptyText(255),
   reference: nonEmptyText(120),
   sourceMode: tenderSourceModeSchema,
-  torDocumentId: z.string().uuid().nullable(),
-  boqDocumentId: z.string().uuid().nullable(),
+  torDocumentId: z.string().guid().nullable(),
+  boqDocumentId: z.string().guid().nullable(),
   closingAt: isoDateTime.nullable(),
 }).strict().superRefine((value, context) => {
   if (value.sourceMode === 'client_issued_boq' && !value.boqDocumentId) {
@@ -33,8 +33,8 @@ export const updateOpportunityTenderCommandSchema = z.object({
   title: nonEmptyText(255),
   reference: nonEmptyText(120),
   sourceMode: tenderSourceModeSchema,
-  torDocumentId: z.string().uuid().nullable(),
-  boqDocumentId: z.string().uuid().nullable(),
+  torDocumentId: z.string().guid().nullable(),
+  boqDocumentId: z.string().guid().nullable(),
   closingAt: isoDateTime.nullable(),
 }).strict().superRefine((value, context) => {
   if (value.sourceMode === 'client_issued_boq' && !value.boqDocumentId) {
@@ -49,7 +49,7 @@ export const tenderStatusCommandSchema = z.object({
 
 export const bindTenderBomCommandSchema = z.object({
   expectedVersion: z.number().int().min(1),
-  bomId: z.string().uuid().nullable(),
+  bomId: z.string().guid().nullable(),
 }).strict()
 
 export const createTenderDeviationCommandSchema = z.object({
@@ -57,7 +57,7 @@ export const createTenderDeviationCommandSchema = z.object({
   title: nonEmptyText(255),
   description: nonEmptyText(10000),
   sourceReference: boundedText(255),
-  ownerId: z.string().uuid().nullable(),
+  ownerId: z.string().guid().nullable(),
 }).strict()
 
 export const updateTenderDeviationCommandSchema = z.object({
@@ -67,7 +67,7 @@ export const updateTenderDeviationCommandSchema = z.object({
   description: nonEmptyText(10000),
   sourceReference: boundedText(255),
   response: boundedText(10000),
-  ownerId: z.string().uuid().nullable(),
+  ownerId: z.string().guid().nullable(),
   status: tenderDeviationStatusSchema,
 }).strict()
 
@@ -91,7 +91,7 @@ export const updateTenderCriterionCommandSchema = z.object({
 }).strict()
 
 export const createTenderVendorProfileCommandSchema = z.object({
-  vendorId: z.string().uuid(),
+  vendorId: z.string().guid(),
   trade: boundedText(120),
   capabilitySummary: boundedText(10000),
   qualificationSummary: boundedText(10000),
@@ -110,40 +110,40 @@ export const updateTenderVendorProfileCommandSchema = z.object({
 }).strict()
 
 export const upsertTenderEvaluationScoreCommandSchema = z.object({
-  vendorProfileId: z.string().uuid(),
-  criterionId: z.string().uuid(),
+  vendorProfileId: z.string().guid(),
+  criterionId: z.string().guid(),
   expectedVersion: z.number().int().min(1).nullable(),
   scoreBps: z.number().int().min(0).max(10000),
   notes: boundedText(10000),
 }).strict()
 
 export const opportunityTenderRowSchema = z.object({
-  id: z.string().uuid(),
-  opportunityId: z.string().uuid(),
+  id: z.string().guid(),
+  opportunityId: z.string().guid(),
   title: z.string().trim().min(1).max(255),
   reference: z.string().trim().min(1).max(120),
   sourceMode: tenderSourceModeSchema,
   status: tenderPackageStatusSchema,
-  torDocumentId: z.string().uuid().nullable(),
-  boqDocumentId: z.string().uuid().nullable(),
-  boundBomId: z.string().uuid().nullable(),
+  torDocumentId: z.string().guid().nullable(),
+  boqDocumentId: z.string().guid().nullable(),
+  boundBomId: z.string().guid().nullable(),
   closingAt: isoDateTime.nullable(),
   submittedAt: isoDateTime.nullable(),
   version: z.number().int().min(1),
-  createdBy: z.string().uuid().nullable(),
+  createdBy: z.string().guid().nullable(),
   createdAt: isoDateTime,
   updatedAt: isoDateTime,
 }).strict()
 
 export const tenderDeviationRowSchema = z.object({
-  id: z.string().uuid(),
-  tenderId: z.string().uuid(),
+  id: z.string().guid(),
+  tenderId: z.string().guid(),
   category: tenderDeviationCategorySchema,
   title: z.string().trim().min(1).max(255),
   description: z.string().trim().min(1).max(10000),
   sourceReference: z.string().max(255),
   response: z.string().max(10000),
-  ownerId: z.string().uuid().nullable(),
+  ownerId: z.string().guid().nullable(),
   status: tenderDeviationStatusSchema,
   version: z.number().int().min(1),
   createdAt: isoDateTime,
@@ -151,8 +151,8 @@ export const tenderDeviationRowSchema = z.object({
 }).strict()
 
 export const tenderCriterionRowSchema = z.object({
-  id: z.string().uuid(),
-  tenderId: z.string().uuid(),
+  id: z.string().guid(),
+  tenderId: z.string().guid(),
   name: z.string().trim().min(1).max(160),
   description: z.string().max(5000),
   criterionType: tenderCriterionTypeSchema,
@@ -165,9 +165,9 @@ export const tenderCriterionRowSchema = z.object({
 }).strict()
 
 export const tenderVendorProfileRowSchema = z.object({
-  id: z.string().uuid(),
-  tenderId: z.string().uuid(),
-  vendorId: z.string().uuid(),
+  id: z.string().guid(),
+  tenderId: z.string().guid(),
+  vendorId: z.string().guid(),
   vendorName: z.string().trim().min(1).max(255),
   trade: z.string().max(120),
   capabilitySummary: z.string().max(10000),
@@ -181,20 +181,20 @@ export const tenderVendorProfileRowSchema = z.object({
 }).strict()
 
 export const tenderEvaluationScoreRowSchema = z.object({
-  id: z.string().uuid(),
-  tenderId: z.string().uuid(),
-  vendorProfileId: z.string().uuid(),
-  criterionId: z.string().uuid(),
+  id: z.string().guid(),
+  tenderId: z.string().guid(),
+  vendorProfileId: z.string().guid(),
+  criterionId: z.string().guid(),
   scoreBps: z.number().int().min(0).max(10000),
   notes: z.string().max(10000),
-  reviewedBy: z.string().uuid().nullable(),
+  reviewedBy: z.string().guid().nullable(),
   reviewedAt: isoDateTime.nullable(),
   version: z.number().int().min(1),
   updatedAt: isoDateTime,
 }).strict()
 
 export const tenderEvaluationSummaryRowSchema = z.object({
-  vendorProfileId: z.string().uuid(),
+  vendorProfileId: z.string().guid(),
   vendorName: z.string().trim().min(1).max(255),
   weightedScoreBps: z.number().int().min(0).max(10000),
   scoredCriteria: z.number().int().nonnegative(),
@@ -203,7 +203,7 @@ export const tenderEvaluationSummaryRowSchema = z.object({
 }).strict()
 
 export const opportunityTenderDetailResultSchema = z.object({
-  opportunityId: z.string().uuid(),
+  opportunityId: z.string().guid(),
   tender: opportunityTenderRowSchema.nullable(),
   deviations: z.array(tenderDeviationRowSchema),
   criteria: z.array(tenderCriterionRowSchema),
@@ -213,13 +213,13 @@ export const opportunityTenderDetailResultSchema = z.object({
 }).strict()
 
 export const opportunityTenderMutationResultSchema = z.object({
-  opportunityId: z.string().uuid(),
+  opportunityId: z.string().guid(),
   changed: z.boolean(),
   tender: opportunityTenderRowSchema,
 }).strict()
 
 export const tenderNestedMutationResultSchema = z.object({
-  tenderId: z.string().uuid(),
+  tenderId: z.string().guid(),
   changed: z.boolean(),
   row: z.union([
     tenderDeviationRowSchema,

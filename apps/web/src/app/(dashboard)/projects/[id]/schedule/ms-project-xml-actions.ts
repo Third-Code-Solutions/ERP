@@ -11,7 +11,7 @@ import {
 } from '@third-code-erp/shared-types'
 import { importMsProjectXmlThroughCoreApi, previewMsProjectXmlThroughCoreApi } from '@/lib/erp-core-client'
 
-const uuid = z.string().uuid().transform(value => value.toLowerCase())
+const uuid = z.string().guid().transform(value => value.toLowerCase())
 const scopeSchema = z.object({ tenantId: uuid, actorId: uuid }).strict()
 type Input = { command: unknown; expectedScope: { tenantId: string; actorId: string } }
 type Result<T> = { ok: true; data: T; refreshWarning?: string } | { ok: false; error: string; outcomeUnknown?: boolean }

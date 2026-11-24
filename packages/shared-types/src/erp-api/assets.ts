@@ -37,8 +37,8 @@ export type AssetListQuery = z.infer<typeof assetListQuerySchema>
 
 export const assetReadResultSchema = z
   .object({
-    id: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    id: z.string().guid(),
+    tenantId: z.string().guid(),
     assetTag: z.string().trim().min(1).max(64),
     name: z.string().trim().min(1).max(160),
     kind: z.enum(assetKindValues),
@@ -46,13 +46,13 @@ export const assetReadResultSchema = z
     serialNumber: z.string().trim().max(120).nullable(),
     manufacturer: z.string().trim().max(120).nullable(),
     model: z.string().trim().max(120).nullable(),
-    assignedProjectId: z.string().uuid().nullable(),
+    assignedProjectId: z.string().guid().nullable(),
     assignedProjectName: z.string().nullable(),
     location: z.string().trim().max(255).nullable(),
     commissionedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
     retiredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
     notes: z.string().nullable(),
-    createdBy: z.string().uuid(),
+    createdBy: z.string().guid(),
     createdAt: z.string().datetime({ offset: true }),
     updatedAt: z.string().datetime({ offset: true }),
   })
@@ -95,9 +95,9 @@ export type AssetMaintenanceListQuery = z.infer<
 
 export const assetMaintenanceReadResultSchema = z
   .object({
-    id: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    assetId: z.string().uuid(),
+    id: z.string().guid(),
+    tenantId: z.string().guid(),
+    assetId: z.string().guid(),
     maintenanceType: z.enum(assetMaintenanceTypeValues),
     summary: z.string().trim().min(1).max(200),
     performedOn: assetMaintenanceDateSchema,
@@ -105,7 +105,7 @@ export const assetMaintenanceReadResultSchema = z
     vendorName: z.string().trim().max(160).nullable(),
     costCents: z.number().int().nonnegative(),
     notes: z.string().nullable(),
-    createdBy: z.string().uuid(),
+    createdBy: z.string().guid(),
     createdAt: z.string().datetime({ offset: true }),
   })
   .strict()
@@ -116,8 +116,8 @@ export type AssetMaintenanceReadResult = z.infer<
 
 export const assetMaintenanceListResultSchema = z
   .object({
-    tenantId: z.string().uuid(),
-    assetId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    assetId: z.string().guid(),
     rows: z.array(assetMaintenanceReadResultSchema).max(100),
     total: z.number().int().nonnegative(),
     page: z.number().int().min(1),
@@ -147,16 +147,16 @@ export type AssetMaintenanceDueQuery = z.infer<
 
 export const assetMaintenanceDueReadResultSchema = z
   .object({
-    tenantId: z.string().uuid(),
-    assetId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    assetId: z.string().guid(),
     assetTag: z.string().trim().min(1).max(64),
     assetName: z.string().trim().min(1).max(160),
     assetKind: z.enum(assetKindValues),
     assetStatus: z.enum(['active', 'maintenance']),
-    assignedProjectId: z.string().uuid().nullable(),
+    assignedProjectId: z.string().guid().nullable(),
     assignedProjectName: z.string().nullable(),
     location: z.string().trim().max(255).nullable(),
-    maintenanceRecordId: z.string().uuid(),
+    maintenanceRecordId: z.string().guid(),
     maintenanceType: z.enum(assetMaintenanceTypeValues),
     summary: z.string().trim().min(1).max(200),
     performedOn: assetMaintenanceDateSchema,
@@ -172,7 +172,7 @@ export type AssetMaintenanceDueReadResult = z.infer<
 
 export const assetMaintenanceDueResultSchema = z
   .object({
-    tenantId: z.string().uuid(),
+    tenantId: z.string().guid(),
     asOf: assetMaintenanceDateSchema,
     daysAhead: z.number().int().min(0).max(365),
     rows: z.array(assetMaintenanceDueReadResultSchema).max(100),

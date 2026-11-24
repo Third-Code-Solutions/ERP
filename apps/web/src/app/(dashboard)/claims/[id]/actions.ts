@@ -89,7 +89,7 @@ export type ClaimTransitionActionResult = {
 }
 
 function requestId(input: string | undefined): string {
-  const parsed = z.string().uuid().safeParse(input)
+  const parsed = z.string().guid().safeParse(input)
   return (parsed.success ? parsed.data : randomUUID()).toLowerCase()
 }
 
@@ -216,7 +216,7 @@ export async function recordCertification(
     }
   }
 
-  const docIdResult = z.string().uuid().safeParse(certificateDocumentId)
+  const docIdResult = z.string().guid().safeParse(certificateDocumentId)
   if (!docIdResult.success) {
     return { error: 'certificate_document_id must be a UUID' }
   }
@@ -304,7 +304,7 @@ export async function linkInvoice(
     return { error: `Forbidden: only Finance can link an invoice to a claim` }
   }
 
-  const invoiceIdResult = z.string().uuid().safeParse(invoiceId)
+  const invoiceIdResult = z.string().guid().safeParse(invoiceId)
   if (!invoiceIdResult.success) return { error: 'invoice_id must be a UUID' }
 
   const claim = await loadClaim(claimId, profile.tenantId)
@@ -499,7 +499,7 @@ export async function attachClaimDocument(
 
   const parsedClaimId = z
     .string()
-    .uuid('claimId must be a UUID')
+    .guid('claimId must be a UUID')
     .transform((value) => value.toLowerCase())
     .safeParse(claimId)
   const parsedCommand = claimDocumentAttachCommandSchema.safeParse(command)
@@ -573,7 +573,7 @@ export async function listClaimDocuments(
 
   const parsedClaimId = z
     .string()
-    .uuid('claimId must be a UUID')
+    .guid('claimId must be a UUID')
     .transform((value) => value.toLowerCase())
     .safeParse(claimId)
   const parsedQuery = projectDocumentListQuerySchema.safeParse(query)

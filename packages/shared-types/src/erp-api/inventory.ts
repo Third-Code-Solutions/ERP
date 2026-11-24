@@ -7,7 +7,7 @@ const integerStringPattern = /^-?\d+$/
 
 const inventorySummaryUomSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     code: z.string().trim().min(1).max(32),
     name: z.string().trim().min(1).max(120),
     decimalPlaces: z.number().int().nonnegative().max(6),
@@ -17,20 +17,20 @@ const inventorySummaryUomSchema = z
 
 const inventorySummaryWarehouseSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     code: z.string().trim().min(1).max(40),
     name: z.string().trim().min(1).max(160),
-    projectId: z.string().uuid().nullable(),
+    projectId: z.string().guid().nullable(),
     isActive: z.boolean(),
   })
   .strict()
 
 const inventorySummaryItemSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     code: z.string().trim().min(1).max(64),
     description: z.string(),
-    baseUomId: z.string().uuid(),
+    baseUomId: z.string().guid(),
     inventoryTracked: z.boolean(),
     isActive: z.boolean(),
   })
@@ -38,17 +38,17 @@ const inventorySummaryItemSchema = z
 
 const inventorySummaryProjectSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     name: z.string(),
   })
   .strict()
 
 const inventorySummaryBalanceSchema = z
   .object({
-    warehouseId: z.string().uuid(),
+    warehouseId: z.string().guid(),
     warehouseCode: z.string().trim().min(1).max(40),
     warehouseName: z.string().trim().min(1).max(160),
-    itemId: z.string().uuid(),
+    itemId: z.string().guid(),
     itemCode: z.string().trim().min(1).max(64),
     itemDescription: z.string(),
     uomCode: z.string().trim().min(1).max(32),
@@ -66,7 +66,7 @@ const inventorySummaryReceiptCountsSchema = z
 
 export const inventorySummaryResultSchema = z
   .object({
-    tenantId: z.string().uuid(),
+    tenantId: z.string().guid(),
     uoms: z.array(inventorySummaryUomSchema).max(500),
     warehouses: z.array(inventorySummaryWarehouseSchema).max(500),
     items: z.array(inventorySummaryItemSchema).max(1_000),
@@ -91,8 +91,8 @@ export const createInventoryUomCommandSchema = z
 
 export const inventoryUomCreationResultSchema = z
   .object({
-    uomId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    uomId: z.string().guid(),
+    tenantId: z.string().guid(),
     code: z.string().trim().min(1).max(32),
     name: z.string().trim().min(1).max(120),
     decimalPlaces: z.number().int().nonnegative().max(6),
@@ -118,8 +118,8 @@ export const updateInventoryUomCommandSchema = z
 
 export const inventoryUomUpdateResultSchema = z
   .object({
-    uomId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    uomId: z.string().guid(),
+    tenantId: z.string().guid(),
     code: z.string().trim().min(1).max(32),
     name: z.string().trim().min(1).max(120),
     decimalPlaces: z.number().int().nonnegative().max(6),
@@ -140,17 +140,17 @@ export const createInventoryWarehouseCommandSchema = z
   .object({
     code: z.string().trim().min(1).max(40),
     name: z.string().trim().min(1).max(160),
-    projectId: z.string().uuid().nullable(),
+    projectId: z.string().guid().nullable(),
   })
   .strict()
 
 export const inventoryWarehouseCreationResultSchema = z
   .object({
-    warehouseId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    warehouseId: z.string().guid(),
+    tenantId: z.string().guid(),
     code: z.string().trim().min(1).max(40),
     name: z.string().trim().min(1).max(160),
-    projectId: z.string().uuid().nullable(),
+    projectId: z.string().guid().nullable(),
     isActive: z.boolean(),
     createdAt: z.string().datetime({ offset: true }),
     updatedAt: z.string().datetime({ offset: true }),
@@ -173,11 +173,11 @@ export const updateInventoryWarehouseCommandSchema = z
 
 export const inventoryWarehouseUpdateResultSchema = z
   .object({
-    warehouseId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    warehouseId: z.string().guid(),
+    tenantId: z.string().guid(),
     code: z.string().trim().min(1).max(40),
     name: z.string().trim().min(1).max(160),
-    projectId: z.string().uuid().nullable(),
+    projectId: z.string().guid().nullable(),
     isActive: z.boolean(),
     createdAt: z.string().datetime({ offset: true }),
     updatedAt: z.string().datetime({ offset: true }),
@@ -193,11 +193,11 @@ export type InventoryWarehouseUpdateResult = z.infer<
 
 export const inventoryWarehouseCloseoutResultSchema = z
   .object({
-    warehouseId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    warehouseId: z.string().guid(),
+    tenantId: z.string().guid(),
     code: z.string().trim().min(1).max(40),
     name: z.string().trim().min(1).max(160),
-    projectId: z.string().uuid().nullable(),
+    projectId: z.string().guid().nullable(),
     isActive: z.boolean(),
     quantityMicros: z.string().regex(integerStringPattern),
     valueCents: z.string().regex(integerStringPattern),
@@ -224,7 +224,7 @@ export const stockMovementStatusValues = [
 
 const inventoryStockMovementRowSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     internalNumber: z.string().trim().max(40).nullable(),
     movementType: z.enum(stockMovementTypeValues),
     status: z.enum(stockMovementStatusValues),
@@ -249,7 +249,7 @@ export const inventoryStockMovementListQuerySchema = z
 
 export const inventoryStockMovementListResultSchema = z
   .object({
-    tenantId: z.string().uuid(),
+    tenantId: z.string().guid(),
     rows: z.array(inventoryStockMovementRowSchema).max(500),
     total: z.number().int().nonnegative(),
     page: z.number().int().min(1),
@@ -272,7 +272,7 @@ export type InventoryStockMovementListResult = z.infer<
 
 const inventoryStockMovementDetailLineSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     lineNumber: z.number().int().min(1).max(200),
     itemCode: z.string().trim().min(1).max(64),
     description: z.string().trim().min(1).max(2_000),
@@ -287,20 +287,20 @@ const inventoryStockMovementDetailLineSchema = z
 
 const inventoryStockMovementLedgerEntrySchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     eventType: z.string().trim().min(1).max(40),
     occurredOn: z.string().regex(isoDatePattern),
     itemCode: z.string().trim().min(1).max(64),
     warehouseCode: z.string().trim().min(1).max(40),
     quantityDeltaMicros: z.string().regex(integerStringPattern),
     valueDeltaCents: z.string().regex(integerStringPattern),
-    reversesStockLedgerEntryId: z.string().uuid().nullable(),
+    reversesStockLedgerEntryId: z.string().guid().nullable(),
   })
   .strict()
 
 const inventoryStockMovementDetailHeaderSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     internalNumber: z.string().trim().max(40).nullable(),
     movementType: z.enum(stockMovementTypeValues),
     status: z.enum(stockMovementStatusValues),
@@ -312,9 +312,9 @@ const inventoryStockMovementDetailHeaderSchema = z
     targetWarehouseCode: z.string().trim().min(1).max(40).nullable(),
     targetWarehouseName: z.string().trim().min(1).max(160).nullable(),
     projectName: z.string().trim().min(1).max(200).nullable(),
-    postingJournalEntryId: z.string().uuid().nullable(),
+    postingJournalEntryId: z.string().guid().nullable(),
     postingJournalNumber: z.string().trim().max(40).nullable(),
-    reversalJournalEntryId: z.string().uuid().nullable(),
+    reversalJournalEntryId: z.string().guid().nullable(),
     reversalJournalNumber: z.string().trim().max(40).nullable(),
     postedAt: z.string().datetime({ offset: true }).nullable(),
     reversedAt: z.string().datetime({ offset: true }).nullable(),
@@ -324,7 +324,7 @@ const inventoryStockMovementDetailHeaderSchema = z
 
 export const inventoryStockMovementDetailResultSchema = z
   .object({
-    tenantId: z.string().uuid(),
+    tenantId: z.string().guid(),
     movement: inventoryStockMovementDetailHeaderSchema,
     lines: z.array(inventoryStockMovementDetailLineSchema).max(200),
     ledger: z.array(inventoryStockMovementLedgerEntrySchema).max(1_000),
@@ -346,16 +346,16 @@ export type InventoryStockMovementDetailResult = z.infer<
 
 export const configureInventoryItemCommandSchema = z
   .object({
-    uomId: z.string().uuid(),
+    uomId: z.string().guid(),
     tracked: z.boolean(),
   })
   .strict()
 
 export const inventoryItemConfigurationResultSchema = z
   .object({
-    materialItemId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    baseUomId: z.string().uuid(),
+    materialItemId: z.string().guid(),
+    tenantId: z.string().guid(),
+    baseUomId: z.string().guid(),
     inventoryTracked: z.boolean(),
     unit: z.string().trim().min(1).max(32),
     updatedAt: z.string().datetime({ offset: true }),
@@ -399,7 +399,7 @@ const isoDateSchema = z
 
 const stockMovementLineCommandSchema = z
   .object({
-    materialItemId: z.string().uuid(),
+    materialItemId: z.string().guid(),
     quantity: z
       .string()
       .trim()
@@ -409,7 +409,7 @@ const stockMovementLineCommandSchema = z
         inventorySignedQuantityPattern,
         'Quantity requires up to six decimal places'
       ),
-    costCodeId: z.string().uuid().nullable().optional(),
+    costCodeId: z.string().guid().nullable().optional(),
     declaredUnitCostPhp: z.string().trim().max(32).nullable().optional(),
   })
   .strict()
@@ -417,9 +417,9 @@ const stockMovementLineCommandSchema = z
 export const createStockMovementCommandSchema = z
   .object({
     movementType: z.enum(stockMovementTypeValues),
-    sourceWarehouseId: z.string().uuid(),
-    targetWarehouseId: z.string().uuid().nullable().optional(),
-    projectId: z.string().uuid().nullable().optional(),
+    sourceWarehouseId: z.string().guid(),
+    targetWarehouseId: z.string().guid().nullable().optional(),
+    projectId: z.string().guid().nullable().optional(),
     movementDate: isoDateSchema,
     reason: z.string().trim().min(3).max(2_000),
     lines: z.array(stockMovementLineCommandSchema).min(1).max(200),
@@ -428,8 +428,8 @@ export const createStockMovementCommandSchema = z
 
 export const stockMovementCreationResultSchema = z
   .object({
-    stockMovementId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    stockMovementId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('draft'),
     lineCount: z.number().int().positive().max(200),
   })
@@ -446,21 +446,21 @@ export const stockMovementReverseCommandSchema = z
 
 export const stockMovementPostingResultSchema = z
   .object({
-    stockMovementId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    stockMovementId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('posted'),
     movementNumber: z.string().regex(/^SM-\d{4}-\d{6}$/),
-    journalEntryId: z.string().uuid().nullable(),
+    journalEntryId: z.string().guid().nullable(),
     journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/).nullable(),
   })
   .strict()
 
 export const stockMovementReversalResultSchema = z
   .object({
-    stockMovementId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    stockMovementId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('reversed'),
-    reversalJournalEntryId: z.string().uuid().nullable(),
+    reversalJournalEntryId: z.string().guid().nullable(),
     reversalJournalEntryNumber: z
       .string()
       .regex(/^JE-\d{4}-\d{6}$/)
@@ -489,7 +489,7 @@ export type StockMovementReversalResult = z.infer<
 
 export const stockReceiptLineCommandSchema = z
   .object({
-    poLineItemId: z.string().uuid(),
+    poLineItemId: z.string().guid(),
     quantity: z
       .string()
       .trim()
@@ -523,9 +523,9 @@ export function isStockReceiptReceivablePoStatus(
 
 export const createStockReceiptCommandSchema = z
   .object({
-    warehouseId: z.string().uuid(),
-    purchaseOrderId: z.string().uuid(),
-    deliveryScheduleId: z.string().uuid().nullable().optional(),
+    warehouseId: z.string().guid(),
+    purchaseOrderId: z.string().guid(),
+    deliveryScheduleId: z.string().guid().nullable().optional(),
     supplierDeliveryReference: z.string().trim().max(120).nullable().optional(),
     receivedDate: isoDateSchema,
     notes: z.string().trim().max(2_000).nullable().optional(),
@@ -535,8 +535,8 @@ export const createStockReceiptCommandSchema = z
 
 export const stockReceiptCreationResultSchema = z
   .object({
-    stockReceiptId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    stockReceiptId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('draft'),
     lineCount: z.number().int().positive().max(250),
   })
@@ -557,21 +557,21 @@ export const stockReceiptReverseCommandSchema = z
 
 export const stockReceiptPostingResultSchema = z
   .object({
-    stockReceiptId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    stockReceiptId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('posted'),
     receiptNumber: z.string().regex(/^SR-\d{4}-\d{6}$/),
-    journalEntryId: z.string().uuid(),
+    journalEntryId: z.string().guid(),
     journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()
 
 export const stockReceiptReversalResultSchema = z
   .object({
-    stockReceiptId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    stockReceiptId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('reversed'),
-    reversalJournalEntryId: z.string().uuid(),
+    reversalJournalEntryId: z.string().guid(),
     reversalJournalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()

@@ -15,7 +15,7 @@ import {
 } from '@/lib/erp-core-client'
 
 const storedCitationSchema = z.object({
-  nodeId: z.string().uuid(),
+  nodeId: z.string().guid(),
 })
 
 function storedCitationIds(value: unknown): string[] {
@@ -42,7 +42,7 @@ export async function GET(
     )
   }
 
-  const parsed = z.string().uuid().safeParse((await params).id)
+  const parsed = z.string().guid().safeParse((await params).id)
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'Invalid id' },

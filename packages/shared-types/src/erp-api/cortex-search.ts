@@ -25,13 +25,13 @@ export type CortexSearchQuery = z.infer<typeof cortexSearchQuerySchema>
 
 export const cortexSearchHitSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     nodeType: z.string().trim().min(1).max(64),
     title: z.string().trim().max(500).nullable(),
     summary: z.string().nullable(),
     refTable: cortexGraphRefTableSchema,
-    refId: z.string().uuid(),
-    projectId: z.string().uuid().nullable(),
+    refId: z.string().guid(),
+    projectId: z.string().guid().nullable(),
     freshness: z.enum(cortexSearchFreshnessValues),
     source: z.literal('cortex'),
   })

@@ -1507,7 +1507,7 @@ export async function completeDailyTaskThroughCoreApi(
   command: DailyTaskCompletionCommand,
   idempotencyKey: string
 ): Promise<CoreResult<DailyTaskCompletionResult>> {
-  const parsedTaskId = z.string().uuid().safeParse(taskId)
+  const parsedTaskId = z.string().guid().safeParse(taskId)
   const parsedCommand = dailyTaskCompletionCommandSchema.safeParse(command)
   const parsedKey = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
   if (!parsedTaskId.success || !parsedCommand.success || !parsedKey.success) {
@@ -1781,7 +1781,7 @@ export async function updateProcessTaskStatusThroughCoreApi(
   taskId: unknown,
   command: unknown
 ): Promise<CoreResult<TaskInstanceResult>> {
-  const parsedTaskId = z.string().uuid().safeParse(taskId)
+  const parsedTaskId = z.string().guid().safeParse(taskId)
   if (!parsedTaskId.success) {
     return {
       ok: false,
@@ -3348,7 +3348,7 @@ export async function createInspectionPhotoThroughCoreApi(
   }
 
   const tenantPrefix = parsedCommand.data.storagePath.split('/')[0]
-  const parsedTenantPrefix = z.string().uuid().safeParse(tenantPrefix)
+  const parsedTenantPrefix = z.string().guid().safeParse(tenantPrefix)
   if (!parsedTenantPrefix.success) {
     return {
       ok: false,
@@ -3549,7 +3549,7 @@ export async function assignUserRoleThroughCoreApi(
   command: UserRoleAssignmentCommand,
   idempotencyKey: string
 ): Promise<UserRoleAssignmentCoreResult> {
-  const parsedUserId = z.string().uuid().safeParse(userId)
+  const parsedUserId = z.string().guid().safeParse(userId)
   const parsedCommand = userRoleAssignmentCommandSchema.safeParse(command)
   const parsedKey = z.string().min(1).max(256)
     .refine((value) => value.trim().length > 0).safeParse(idempotencyKey)
@@ -8690,7 +8690,7 @@ export async function getInspectionRfisThroughCoreApi(
   opportunityId: unknown,
   query: unknown = {}
 ): Promise<CoreResult<InspectionRfiListResult>> {
-  const parsedOpportunityId = z.string().uuid().safeParse(opportunityId)
+  const parsedOpportunityId = z.string().guid().safeParse(opportunityId)
   if (!parsedOpportunityId.success) {
     return {
       ok: false,
@@ -8773,8 +8773,8 @@ export async function transitionInspectionRfiThroughCoreApi(
   target: unknown,
   command: unknown
 ): Promise<CoreResult<InspectionRfiTransitionResult>> {
-  const parsedOpportunityId = z.string().uuid().safeParse(opportunityId)
-  const parsedRfiId = z.string().uuid().safeParse(rfiId)
+  const parsedOpportunityId = z.string().guid().safeParse(opportunityId)
+  const parsedRfiId = z.string().guid().safeParse(rfiId)
   const parsedTarget = z.enum(['resolve', 'reopen']).safeParse(target)
   if (!parsedOpportunityId.success || !parsedRfiId.success || !parsedTarget.success) {
     return {
@@ -8855,7 +8855,7 @@ export async function getProjectRfisThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectRfiListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) {
     return { ok: false, status: 400, error: 'Invalid project identifier.' }
   }
@@ -8959,8 +8959,8 @@ export async function transitionProjectRfiThroughCoreApi(
   target: unknown,
   command: unknown,
 ): Promise<CoreResult<ProjectRfiTransitionResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedRfiId = z.string().uuid().safeParse(rfiId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedRfiId = z.string().guid().safeParse(rfiId)
   const parsedTarget = z.enum(['answer', 'close', 'reopen']).safeParse(target)
   if (!parsedProjectId.success || !parsedRfiId.success || !parsedTarget.success) {
     return { ok: false, status: 400, error: 'Invalid project RFI transition target.' }
@@ -9016,7 +9016,7 @@ export async function getSiteDiaryThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<SiteDiaryListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) {
     return { ok: false, status: 400, error: 'Invalid project identifier.' }
   }
@@ -9119,8 +9119,8 @@ export async function mutateSiteDiaryThroughCoreApi(
   target: unknown,
   command: unknown,
 ): Promise<CoreResult<SiteDiaryMutationResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedEntryId = z.string().uuid().safeParse(entryId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedEntryId = z.string().guid().safeParse(entryId)
   const parsedTarget = z.enum(['update', 'submit']).safeParse(target)
   if (!parsedProjectId.success || !parsedEntryId.success || !parsedTarget.success) {
     return { ok: false, status: 400, error: 'Invalid site diary mutation target.' }
@@ -9178,7 +9178,7 @@ export async function getQualityHoldPointsThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<QualityHoldPointListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = qualityHoldPointListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid quality filters.' }
@@ -9261,8 +9261,8 @@ export async function mutateQualityHoldPointThroughCoreApi(
   target: unknown,
   command: unknown,
 ): Promise<CoreResult<QualityHoldPointMutationResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedEntryId = z.string().uuid().safeParse(entryId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedEntryId = z.string().guid().safeParse(entryId)
   const parsedTarget = z.enum(['update', 'ready', 'submit', 'accept', 'reject']).safeParse(target)
   if (!parsedProjectId.success || !parsedEntryId.success || !parsedTarget.success) {
     return { ok: false, status: 400, error: 'Invalid quality mutation target.' }
@@ -9328,8 +9328,8 @@ export async function handoffQualityHoldPointToPunchlistThroughCoreApi(
   entryId: unknown,
   command: unknown,
 ): Promise<QualityPunchlistHandoffCoreResult> {
-  const parsedProjectId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(projectId)
-  const parsedEntryId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(entryId)
+  const parsedProjectId = z.string().guid().transform((value) => value.toLowerCase()).safeParse(projectId)
+  const parsedEntryId = z.string().guid().transform((value) => value.toLowerCase()).safeParse(entryId)
   const parsedCommand = qualityHoldPointPunchlistHandoffCommandSchema.safeParse(command)
   if (!parsedProjectId.success || !parsedEntryId.success || !parsedCommand.success) {
     return {
@@ -9444,7 +9444,7 @@ export async function getProjectSubmittalsThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectSubmittalListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectSubmittalListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid submittal filters.' }
@@ -9489,8 +9489,8 @@ export async function createProjectSubmittalThroughCoreApi(command: unknown): Pr
 
 /** Updates or advances a submittal with optimistic concurrency. */
 export async function mutateProjectSubmittalThroughCoreApi(projectId: unknown, submittalId: unknown, target: unknown, command: unknown): Promise<CoreResult<ProjectSubmittalMutationResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedSubmittalId = z.string().uuid().safeParse(submittalId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedSubmittalId = z.string().guid().safeParse(submittalId)
   const parsedTarget = z.enum(['update', 'submit', 'start-review', 'review']).safeParse(target)
   if (!parsedProjectId.success || !parsedSubmittalId.success || !parsedTarget.success) return { ok: false, status: 400, error: 'Invalid submittal mutation target.' }
   const schemas = { update: updateProjectSubmittalCommandSchema, submit: projectSubmittalSubmitCommandSchema, 'start-review': projectSubmittalReviewStartCommandSchema, review: projectSubmittalDecisionCommandSchema } as const
@@ -9519,7 +9519,7 @@ export async function attachClaimDocumentThroughCoreApi(
   claimId: unknown,
   command: unknown,
 ): Promise<CoreResult<ClaimDocumentAttachResult>> {
-  const parsedClaimId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(claimId)
+  const parsedClaimId = z.string().guid().transform((value) => value.toLowerCase()).safeParse(claimId)
   const parsedCommand = claimDocumentAttachCommandSchema.safeParse(command)
   if (!parsedClaimId.success || !parsedCommand.success) {
     return {
@@ -9588,7 +9588,7 @@ export async function getProjectDocumentsThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectDocumentListResult>> {
-  const parsedProjectId = z.string().uuid().transform((value) => value.toLowerCase()).safeParse(projectId)
+  const parsedProjectId = z.string().guid().transform((value) => value.toLowerCase()).safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectDocumentListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid project document filters.' }
@@ -9633,7 +9633,7 @@ export async function getAccountKycDocumentsThroughCoreApi(
 ): Promise<CoreResult<AccountKycDocumentResult>> {
   const parsedAccountId = z
     .string()
-    .uuid()
+    .guid()
     .transform((value) => value.toLowerCase())
     .safeParse(accountId)
   const parsedQuery = accountKycDocumentQuerySchema.safeParse(query)
@@ -9704,7 +9704,7 @@ export async function createKycArtifactThroughCoreApi(
 ): Promise<CoreResult<KycArtifactCreateResult>> {
   const parsedAccountId = z
     .string()
-    .uuid()
+    .guid()
     .transform((value) => value.toLowerCase())
     .safeParse(accountId)
   const parsedCommand = kycArtifactCreateCommandSchema.safeParse(command)
@@ -9775,8 +9775,8 @@ export async function getProjectSubmittalDocumentsThroughCoreApi(
   projectId: unknown,
   submittalId: unknown,
 ): Promise<CoreResult<ProjectSubmittalDocumentListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedSubmittalId = z.string().uuid().safeParse(submittalId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedSubmittalId = z.string().guid().safeParse(submittalId)
   if (!parsedProjectId.success || !parsedSubmittalId.success) return { ok: false, status: 400, error: 'Invalid submittal document scope.' }
   const access = await getCoreApiAccess()
   if (!access.ok) return access
@@ -9800,8 +9800,8 @@ export async function linkProjectSubmittalDocumentThroughCoreApi(
   submittalId: unknown,
   command: unknown,
 ): Promise<CoreResult<ProjectSubmittalDocumentLinkResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedSubmittalId = z.string().uuid().safeParse(submittalId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedSubmittalId = z.string().guid().safeParse(submittalId)
   const parsedCommand = projectSubmittalDocumentLinkCommandSchema.safeParse(command)
   if (!parsedProjectId.success || !parsedSubmittalId.success || !parsedCommand.success) return { ok: false, status: 400, error: 'Invalid submittal document link.' }
   const access = await getCoreApiAccess()
@@ -9827,9 +9827,9 @@ export async function unlinkProjectSubmittalDocumentThroughCoreApi(
   linkId: unknown,
   command: unknown,
 ): Promise<CoreResult<ProjectSubmittalDocumentUnlinkResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedSubmittalId = z.string().uuid().safeParse(submittalId)
-  const parsedLinkId = z.string().uuid().safeParse(linkId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedSubmittalId = z.string().guid().safeParse(submittalId)
+  const parsedLinkId = z.string().guid().safeParse(linkId)
   const parsedCommand = projectSubmittalDocumentUnlinkCommandSchema.safeParse(command)
   if (!parsedProjectId.success || !parsedSubmittalId.success || !parsedLinkId.success || !parsedCommand.success) return { ok: false, status: 400, error: 'Invalid submittal document unlink.' }
   const access = await getCoreApiAccess()
@@ -9853,7 +9853,7 @@ export async function getProjectScheduleThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectScheduleListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectScheduleListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid schedule filters.' }
@@ -9894,7 +9894,7 @@ export async function getProjectScheduleThroughCoreApi(
 }
 
 export async function getProjectScheduleDependenciesThroughCoreApi(projectId: unknown, query: unknown): Promise<CoreResult<ProjectScheduleDependencyResult>> {
-  const project = z.string().uuid().safeParse(projectId)
+  const project = z.string().guid().safeParse(projectId)
   const input = projectScheduleDependencyQuerySchema.safeParse(query)
   if (!project.success || !input.success) return { ok: false, status: 400, error: 'Invalid schedule dependency filters.' }
   const access = await getCoreApiAccess()
@@ -9988,7 +9988,7 @@ export async function importMsProjectXmlThroughCoreApi(command: unknown): Promis
 }
 
 export async function previewLegacyProjectScheduleThroughCoreApi(projectId: string): Promise<CoreResult<LegacyProjectSchedulePreview>> {
-  if (!z.string().uuid().safeParse(projectId).success) return { ok: false as const, error: 'Invalid project identifier.' }
+  if (!z.string().guid().safeParse(projectId).success) return { ok: false as const, error: 'Invalid project identifier.' }
   const access = await getCoreApiAccess()
   if (!access.ok) return access
   try {
@@ -10003,7 +10003,7 @@ export async function previewLegacyProjectScheduleThroughCoreApi(projectId: stri
 
 export async function importLegacyProjectScheduleThroughCoreApi(projectId: string, command: unknown): Promise<CoreResult<ImportLegacyProjectScheduleResult>> {
   const input = importLegacyProjectScheduleCommandSchema.safeParse(command)
-  if (!z.string().uuid().safeParse(projectId).success || !input.success) return { ok: false as const, error: 'Invalid schedule import.' }
+  if (!z.string().guid().safeParse(projectId).success || !input.success) return { ok: false as const, error: 'Invalid schedule import.' }
   const access = await getCoreApiAccess()
   if (!access.ok) return access
   try {
@@ -10038,8 +10038,8 @@ export async function createProjectScheduleTaskThroughCoreApi(command: unknown):
 
 /** Updates a normalized task or records its status/Last-Planner commitment. */
 export async function mutateProjectScheduleTaskThroughCoreApi(projectId: unknown, taskId: unknown, target: unknown, command: unknown): Promise<CoreResult<ProjectScheduleMutationResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedTaskId = z.string().uuid().safeParse(taskId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedTaskId = z.string().guid().safeParse(taskId)
   const parsedTarget = z.enum(['update', 'status']).safeParse(target)
   if (!parsedProjectId.success || !parsedTaskId.success || !parsedTarget.success) return { ok: false, status: 400, error: 'Invalid schedule mutation target.' }
   const parsedCommand = parsedTarget.data === 'update' ? updateProjectScheduleTaskCommandSchema.safeParse(command) : projectScheduleTaskStatusCommandSchema.safeParse(command)
@@ -10067,7 +10067,7 @@ export async function getProjectPerformanceThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectPerformanceResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectPerformanceQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid performance query.' }
@@ -10099,7 +10099,7 @@ export async function getProjectMaterialActualsThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectMaterialActualsResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) {
     return { ok: false, status: 400, error: 'Invalid project identifier.' }
   }
@@ -10155,7 +10155,7 @@ export async function getProjectLabourReconciliationThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectLabourReconciliationResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) {
     return { ok: false, status: 400, error: 'Invalid project identifier.' }
   }
@@ -10212,7 +10212,7 @@ export async function getProjectHandoverReadinessThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectHandoverReadinessResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) {
     return { ok: false, status: 400, error: 'Invalid project identifier.' }
   }
@@ -10268,7 +10268,7 @@ export async function getProjectCloseoutReadinessThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectCloseoutReadinessResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectCloseoutReadinessQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid project close-out readiness query.' }
@@ -10316,7 +10316,7 @@ export async function getProjectBillingMilestonesThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectBillingMilestoneListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectBillingMilestoneListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid billing milestone filters.' }
@@ -10384,7 +10384,7 @@ export async function getVendorPerformanceThroughCoreApi(
 export async function getRfqBidLevelingThroughCoreApi(
   rfqId: unknown,
 ): Promise<CoreResult<RfqBidLevelingResult>> {
-  const parsedRfqId = z.string().uuid().safeParse(rfqId)
+  const parsedRfqId = z.string().guid().safeParse(rfqId)
   if (!parsedRfqId.success) return { ok: false, status: 400, error: 'Invalid RFQ identifier.' }
   const access = await getCoreApiAccess()
   if (!access.ok) return access
@@ -10414,7 +10414,7 @@ export async function getProjectWeeklyProgressThroughCoreApi(
   projectId: unknown,
   query: unknown = {},
 ): Promise<CoreResult<ProjectWeeklyProgressListResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
   if (!parsedProjectId.success) return { ok: false, status: 400, error: 'Invalid project identifier.' }
   const parsedQuery = projectWeeklyProgressListQuerySchema.safeParse(query)
   if (!parsedQuery.success) return { ok: false, status: 400, error: 'Invalid weekly progress filters.' }
@@ -10480,8 +10480,8 @@ export async function createProjectWeeklyProgressThroughCoreApi(command: unknown
 
 /** Locks an open weekly period into its immutable WAR snapshot. */
 export async function lockProjectWeeklyProgressThroughCoreApi(projectId: unknown, periodId: unknown, command: unknown): Promise<CoreResult<ProjectWeeklyProgressLockResult>> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedPeriodId = z.string().uuid().safeParse(periodId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedPeriodId = z.string().guid().safeParse(periodId)
   const parsedCommand = lockProjectWeeklyProgressCommandSchema.safeParse(command)
   if (!parsedProjectId.success || !parsedPeriodId.success || !parsedCommand.success) return { ok: false, status: 400, outcomeUnknown: false, error: 'Invalid weekly progress lock.' }
   let access: Awaited<ReturnType<typeof getCoreApiAccess>>

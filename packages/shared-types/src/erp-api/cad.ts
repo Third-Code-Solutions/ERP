@@ -30,7 +30,7 @@ export const cadWorkerScopeItemSchema = z
 
 export const cadWorkerResponseSchema = z
   .object({
-    document_id: z.string().uuid(),
+    document_id: z.string().guid(),
     scope_items: z
       .array(cadWorkerScopeItemSchema)
       .max(CAD_MAX_SCOPE_ITEMS),
@@ -43,16 +43,16 @@ export const cadWorkerResponseSchema = z
 
 export const cadEvidenceCommitCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     workerResponse: cadWorkerResponseSchema,
   })
   .strict()
 
 export const cadEvidenceCommitResultSchema = z
   .object({
-    documentId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    documentId: z.string().guid(),
+    projectId: z.string().guid(),
+    tenantId: z.string().guid(),
     scopeItemsCreated: z.number().int().nonnegative().max(CAD_MAX_SCOPE_ITEMS),
     sourceFormat: z.enum(['dxf', 'dwg']),
     status: z.literal('committed'),

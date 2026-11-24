@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const authenticationClaims = z.object({
-  sub: z.string().uuid(),
+  sub: z.string().guid(),
   amr: z.array(z.object({
     method: z.string(),
     timestamp: z.number().int().nonnegative(),

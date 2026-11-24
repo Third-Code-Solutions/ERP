@@ -5,15 +5,15 @@ export const documentDeleteBodySchema = z.object({}).strict()
 
 export const documentDeleteCommandSchema = z
   .object({
-    documentId: z.string().uuid(),
+    documentId: z.string().guid(),
   })
   .strict()
 
 export const documentDeleteResultSchema = z
   .object({
-    documentId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    documentId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
     storagePath: z.string().trim().min(1).max(2_000),
     status: z.literal('deleted'),
     derivedScopeItemsRemoved: z.number().int().min(0).max(5_000),

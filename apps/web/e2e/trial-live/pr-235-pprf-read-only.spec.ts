@@ -13,11 +13,11 @@ test('reviewers see the latest PPRF read-only', { tag: '@pr-235' }, async ({ bro
     target,
     'pprf_submissions',
     'submitted_at=not.is.null&select=opportunity_id&order=version.desc&limit=1',
-    z.object({ opportunity_id: z.string().uuid() })
+    z.object({ opportunity_id: z.string().guid() })
   )
   const [anyOpportunity] = submitted
     ? [{ id: submitted.opportunity_id }]
-    : await tenantRows(target, 'opportunities', 'select=id&limit=1', z.object({ id: z.string().uuid() }))
+    : await tenantRows(target, 'opportunities', 'select=id&limit=1', z.object({ id: z.string().guid() }))
   if (!anyOpportunity) needsData('an opportunity in the E2E tenant')
 
   const session = await openRole(browser, target, reviewer)

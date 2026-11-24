@@ -17,7 +17,7 @@ export const projectScheduleSourceSchema = z.enum(['manual', 'legacy_l1', 'ms_pr
 export const projectScheduleDependencyKindSchema = z.enum(['parent', 'predecessor'])
 
 export const importLegacyProjectScheduleCommandSchema = z.object({
-  sourceScheduleId: z.string().uuid(),
+  sourceScheduleId: z.string().guid(),
   sourceHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict()
 
@@ -44,8 +44,8 @@ export const legacyProjectScheduleTasksSchema = z.array(z.object({
 })
 
 export const legacyProjectSchedulePreviewSchema = z.object({
-  projectId: z.string().uuid(),
-  sourceScheduleId: z.string().uuid(),
+  projectId: z.string().guid(),
+  sourceScheduleId: z.string().guid(),
   sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
   tasks: legacyProjectScheduleTasksSchema,
 }).strict()
@@ -62,8 +62,8 @@ export const projectScheduleListQuerySchema = z.object({
 export const projectScheduleDependencyQuerySchema = z.object({
   kind: projectScheduleDependencyKindSchema,
   level: projectScheduleLevelSchema,
-  excludeTaskId: z.string().uuid().optional(),
-  selectedTaskId: z.string().uuid().optional(),
+  excludeTaskId: z.string().guid().optional(),
+  selectedTaskId: z.string().guid().optional(),
   search: z.string().trim().max(200).optional(),
   page: z.coerce.number().int().min(1).max(100000).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -74,12 +74,12 @@ const scheduleFields = {
   taskCode: text(80, true),
   name: text(200, true),
   description: text(5000),
-  parentTaskId: z.string().uuid().nullable(),
-  predecessorTaskId: z.string().uuid().nullable(),
+  parentTaskId: z.string().guid().nullable(),
+  predecessorTaskId: z.string().guid().nullable(),
   plannedStart: calendarDateSchema,
   plannedFinish: calendarDateSchema,
   plannedLaborMinutes: z.number().int().min(0).max(100_000_000),
-  ownerId: z.string().uuid().nullable(),
+  ownerId: z.string().guid().nullable(),
   commitmentWeek: calendarDateSchema.nullable(),
   commitmentStatus: projectScheduleCommitmentStatusSchema,
   constraintReason: text(2000),
@@ -91,8 +91,8 @@ function refineDates(value: { plannedStart: string; plannedFinish: string; commi
 }
 
 export const createProjectScheduleTaskCommandSchema = z.object({
-  projectId: z.string().uuid(),
-  clientRequestId: z.string().uuid(),
+  projectId: z.string().guid(),
+  clientRequestId: z.string().guid(),
   ...scheduleFields,
 }).strict().superRefine(refineDates)
 
@@ -118,14 +118,14 @@ export const projectScheduleTaskStatusCommandSchema = z.object({
 })
 
 export const projectScheduleTaskRowSchema = z.object({
-  id: z.string().uuid(),
-  projectId: z.string().uuid(),
+  id: z.string().guid(),
+  projectId: z.string().guid(),
   level: projectScheduleLevelSchema,
   taskCode: z.string().trim().min(1).max(80),
   name: z.string().trim().min(1).max(200),
   description: z.string().max(5000),
-  parentTaskId: z.string().uuid().nullable(),
-  predecessorTaskId: z.string().uuid().nullable(),
+  parentTaskId: z.string().guid().nullable(),
+  predecessorTaskId: z.string().guid().nullable(),
   plannedStart: calendarDateSchema,
   plannedFinish: calendarDateSchema,
   actualStart: calendarDateSchema.nullable(),
@@ -137,10 +137,10 @@ export const projectScheduleTaskRowSchema = z.object({
   commitmentWeek: calendarDateSchema.nullable(),
   commitmentStatus: projectScheduleCommitmentStatusSchema,
   constraintReason: z.string().max(2000),
-  ownerId: z.string().uuid().nullable(),
+  ownerId: z.string().guid().nullable(),
   source: projectScheduleSourceSchema,
   version: z.number().int().min(1),
-  createdBy: z.string().uuid(),
+  createdBy: z.string().guid(),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
 }).strict()
@@ -155,7 +155,7 @@ export const projectScheduleSummarySchema = z.object({
 }).strict()
 
 export const projectScheduleListResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   rows: z.array(projectScheduleTaskRowSchema),
   summary: projectScheduleSummarySchema,
   total: z.number().int().nonnegative(),
@@ -165,15 +165,15 @@ export const projectScheduleListResultSchema = z.object({
 }).strict()
 
 export const projectScheduleDependencyOptionSchema = z.object({
-  id: z.string().uuid(),
-  projectId: z.string().uuid(),
+  id: z.string().guid(),
+  projectId: z.string().guid(),
   level: projectScheduleLevelSchema,
   taskCode: z.string().trim().min(1).max(80),
   name: z.string().trim().min(1).max(200),
 }).strict()
 
 export const projectScheduleDependencyResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   kind: projectScheduleDependencyKindSchema,
   level: projectScheduleLevelSchema,
   rows: z.array(projectScheduleDependencyOptionSchema),
@@ -185,21 +185,21 @@ export const projectScheduleDependencyResultSchema = z.object({
 }).strict()
 
 export const projectScheduleCreateResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   created: z.boolean(),
   changed: z.boolean(),
   task: projectScheduleTaskRowSchema,
 }).strict()
 
 export const projectScheduleMutationResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   changed: z.boolean(),
   task: projectScheduleTaskRowSchema,
 }).strict()
 
 export const importLegacyProjectScheduleResultSchema = z.object({
-  projectId: z.string().uuid(),
-  sourceScheduleId: z.string().uuid(),
+  projectId: z.string().guid(),
+  sourceScheduleId: z.string().guid(),
   created: z.boolean(),
   changed: z.boolean(),
   rows: z.array(projectScheduleTaskRowSchema).min(1).max(1000),

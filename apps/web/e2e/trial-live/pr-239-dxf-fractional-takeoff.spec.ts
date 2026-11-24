@@ -8,7 +8,7 @@ gateTrialLive()
 
 // One closed 1 m x 12.3456789 m polyline: 12.3456789 sqm, committed at 4 dp.
 const FIXTURE = resolve(__dirname, '../fixtures/trial-live-fractional-area.dxf')
-const scopeRow = z.object({ id: z.string().uuid(), quantity: z.coerce.number(), quantity_decimal: z.coerce.number() })
+const scopeRow = z.object({ id: z.string().guid(), quantity: z.coerce.number(), quantity_decimal: z.coerce.number() })
 
 test('a DXF with a fractional area produces a fractional takeoff quantity', { tag: '@pr-239' }, async ({ browser }, testInfo) => {
   testInfo.setTimeout(180_000)

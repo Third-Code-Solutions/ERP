@@ -14,8 +14,8 @@ export const createProjectCommandSchema = z
   .strict()
 
 export const projectCreationResultSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  id: z.string().guid(),
+  tenantId: z.string().guid(),
   name: z.string(),
   client: z.string(),
   status: z.enum(projectStatusValues),
@@ -34,8 +34,8 @@ export type ProjectCreationResult = z.infer<typeof projectCreationResultSchema>
 // may expose stable ownership metadata without making the browser depend on
 // the database package's snake_case row shape.
 export const projectReadResultSchema = projectCreationResultSchema.extend({
-  accountId: z.string().uuid().nullable(),
-  createdBy: z.string().uuid().nullable(),
+  accountId: z.string().guid().nullable(),
+  createdBy: z.string().guid().nullable(),
 })
 
 export type ProjectReadResult = z.infer<typeof projectReadResultSchema>
@@ -84,8 +84,8 @@ export const updateProjectCommandSchema = z
   .strict()
 
 export const projectUpdateResultSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  id: z.string().guid(),
+  tenantId: z.string().guid(),
   name: z.string(),
   client: z.string(),
   status: z.enum(projectStatusValues),
@@ -116,8 +116,8 @@ export const retireProjectCommandSchema = z
 export type RetireProjectCommand = z.infer<typeof retireProjectCommandSchema>
 
 export const projectRetirementResultSchema = z.object({
-  projectId: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  projectId: z.string().guid(),
+  tenantId: z.string().guid(),
   deleted: z.literal(true),
   retiredAt: z.string().datetime({ offset: true }),
 })

@@ -27,11 +27,11 @@ export const publicSigningCommandSchema = z
 
 export const publicSigningResultSchema = z
   .object({
-    sessionId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    sessionId: z.string().guid(),
+    tenantId: z.string().guid(),
     entityType: signableEntityTypeSchema,
-    entityId: z.string().uuid(),
-    signatureDocumentId: z.string().uuid(),
+    entityId: z.string().guid(),
+    signatureDocumentId: z.string().guid(),
     signedAt: z.string().datetime({ offset: true }),
   })
   .strict()

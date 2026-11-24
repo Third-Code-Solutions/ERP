@@ -33,7 +33,7 @@ export interface MovementActionResult {
   number?: string
 }
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const movementTypeSchema = z.enum([
   'transfer',

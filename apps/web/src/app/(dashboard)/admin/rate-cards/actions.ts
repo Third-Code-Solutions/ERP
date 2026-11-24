@@ -10,11 +10,11 @@ import { writeAuditLog } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
 
 const rateCardSchema = z.object({
-  id: z.string().uuid().optional(),
-  material_item_id: z.string().uuid('material item required'),
+  id: z.string().guid().optional(),
+  material_item_id: z.string().guid('material item required'),
   vendor_id: z
     .string()
-    .uuid()
+    .guid()
     .optional()
     .or(z.literal('').transform(() => undefined)),
   // The BOM rate-card picker skips cards priced at 0, so a 0-centavo card would never apply.

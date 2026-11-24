@@ -27,8 +27,8 @@ export const userRoleAssignmentCommandSchema = z
 
 export const userRoleAssignmentResultSchema = z
   .object({
-    userId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    userId: z.string().guid(),
+    tenantId: z.string().guid(),
     previousRole: erpRoleSchema,
     role: erpRoleSchema,
     status: z.enum(['updated', 'unchanged']),

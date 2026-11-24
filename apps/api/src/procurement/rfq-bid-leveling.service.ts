@@ -29,8 +29,8 @@ import { DatabaseService } from '../database/database.service'
 
 const lineSchema = z
   .object({
-    bom_line_item_id: z.string().uuid().optional(),
-    material_item_id: z.string().uuid().nullable(),
+    bom_line_item_id: z.string().guid().optional(),
+    material_item_id: z.string().guid().nullable(),
     code: z.string().trim().max(64).nullable(),
     description: z.string().trim().min(1).max(5000),
     qty: z.number().finite().nonnegative(),

@@ -92,7 +92,7 @@ function statusFromRow(row: DocumentProcessingJob): DocumentProcessingStatus {
 }
 
 function parseDocumentId(documentId: string): string {
-  const parsed = z.string().uuid().safeParse(documentId)
+  const parsed = z.string().guid().safeParse(documentId)
   if (!parsed.success) {
     throw new BadRequestException('Invalid document id')
   }

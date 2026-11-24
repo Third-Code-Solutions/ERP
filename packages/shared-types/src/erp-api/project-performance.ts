@@ -33,7 +33,7 @@ export const projectPerformanceQuerySchema = z.object({}).strict()
 
 export const projectPerformanceResultSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     asOf: z.string().datetime({ offset: true }),
     currency: z.string().regex(/^[A-Z]{3}$/),
     status: projectPerformanceStatusSchema,

@@ -32,7 +32,7 @@ export async function GET(
     )
   }
 
-  const parsed = z.string().uuid().safeParse((await params).jobId)
+  const parsed = z.string().guid().safeParse((await params).jobId)
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'Invalid semantic index job.' },

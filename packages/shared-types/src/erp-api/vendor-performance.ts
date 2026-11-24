@@ -9,13 +9,13 @@ export const vendorPerformanceRiskSchema = z.enum([
 
 export const vendorPerformanceQuerySchema = z
   .object({
-    projectId: z.string().uuid().optional(),
+    projectId: z.string().guid().optional(),
   })
   .strict()
 
 export const vendorPerformanceRowSchema = z
   .object({
-    vendorId: z.string().uuid(),
+    vendorId: z.string().guid(),
     vendorName: z.string().trim().min(1).max(255),
     poCount: z.number().int().nonnegative(),
     issuedPoCount: z.number().int().nonnegative(),
@@ -49,7 +49,7 @@ export const vendorPerformanceTotalsSchema = z
 export const vendorPerformanceResultSchema = z
   .object({
     asOf: z.string().datetime({ offset: true }),
-    projectId: z.string().uuid().nullable(),
+    projectId: z.string().guid().nullable(),
     rows: z.array(vendorPerformanceRowSchema),
     totals: vendorPerformanceTotalsSchema,
   })

@@ -18,7 +18,7 @@ export const documentIntakeDocumentTypeSchema = z.enum([
 export const documentIntakeRequestSchema = z
   .object({
     storagePath: z.string().trim().min(1).max(2_000),
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     fileName: z.string().trim().min(1).max(255),
     mimeType: z
       .string()
@@ -33,9 +33,9 @@ export const documentIntakeRequestSchema = z
 
 export const documentIntakeResultSchema = z
   .object({
-    documentId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    documentId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
     storagePath: z.string().trim().min(1).max(2_000),
     documentType: documentIntakeDocumentTypeSchema,
     status: z.literal('created'),

@@ -15,7 +15,7 @@ export type ClaimDraftActionResult =
   | { ok: true; receipt: ClaimDraftCommandReceipt; changed: boolean; warning?: string }
   | { ok: false; outcome: 'rejected' | 'unknown'; error: string }
 
-const uuid = z.string().uuid().transform(value => value.toLowerCase())
+const uuid = z.string().guid().transform(value => value.toLowerCase())
 const scopeSchema = z.object({ tenantId: uuid, actorId: uuid }).strict()
 const unknownOutcome = (): ClaimDraftActionResult => ({
   ok: false, outcome: 'unknown',

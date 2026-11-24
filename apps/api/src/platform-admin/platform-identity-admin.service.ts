@@ -8,7 +8,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
 const lifecycleAcknowledgementSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   banned_until: z.string().datetime({ offset: true }).nullish(),
 })
 

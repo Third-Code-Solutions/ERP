@@ -6,22 +6,22 @@ export interface ParsedBomLocation {
 }
 
 export const bomLocationReviewResolutionSchema = z.object({
-  reviewId: z.string().uuid(),
-  projectId: z.string().uuid(),
-  locationId: z.string().uuid(),
+  reviewId: z.string().guid(),
+  projectId: z.string().guid(),
+  locationId: z.string().guid(),
 })
 export type BomLocationReviewResolution = z.infer<typeof bomLocationReviewResolutionSchema>
 
 export const projectLocationCreateSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   name: z.string().trim().min(1).max(255),
 })
 export type ProjectLocationCreate = z.infer<typeof projectLocationCreateSchema>
 
 export const bomLineLocationUpdateSchema = z.object({
-  lineItemId: z.string().uuid(),
-  projectId: z.string().uuid(),
-  locationId: z.string().uuid().nullable(),
+  lineItemId: z.string().guid(),
+  projectId: z.string().guid(),
+  locationId: z.string().guid().nullable(),
 })
 export type BomLineLocationUpdate = z.infer<typeof bomLineLocationUpdateSchema>
 

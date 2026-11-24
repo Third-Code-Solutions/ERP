@@ -26,7 +26,7 @@ export const pprfPayloadSchema = z.object({
 export type PprfPayload = z.infer<typeof pprfPayloadSchema>
 
 export const submitPprfSchema = z
-  .object({ opportunity_id: z.string().uuid() })
+  .object({ opportunity_id: z.string().guid() })
   .merge(pprfPayloadSchema)
 
 export const ASBUILT_OPTIONS = ASBUILT_VALUES

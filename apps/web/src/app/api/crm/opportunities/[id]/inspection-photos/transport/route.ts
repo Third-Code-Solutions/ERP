@@ -8,7 +8,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const profile = await getUserProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!can(profile.role, 'site_inspection.submit')) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  const id = z.string().uuid().safeParse((await context.params).id)
+  const id = z.string().guid().safeParse((await context.params).id)
   if (!id.success) return NextResponse.json({ error: 'Invalid opportunity' }, { status: 400 })
   const actor = request.headers.get('x-expected-actor-id')?.toLowerCase()
   const tenant = request.headers.get('x-expected-tenant-id')?.toLowerCase()
@@ -18,7 +18,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const opportunityId = id.data.toLowerCase()
     const opportunity = await getOpportunityThroughCoreApi(opportunityId)
-    const checked = z.object({ id: z.string().uuid(), tenantId: z.string().uuid() }).safeParse(opportunity.data)
+    const checked = z.object({ id: z.string().guid(), tenantId: z.string().guid() }).safeParse(opportunity.data)
     if (!opportunity.ok || !checked.success || checked.data.id.toLowerCase() !== opportunityId ||
       checked.data.tenantId.toLowerCase() !== tenant) {
       return NextResponse.json({ error: 'Opportunity could not be verified.' }, { status: 503 })

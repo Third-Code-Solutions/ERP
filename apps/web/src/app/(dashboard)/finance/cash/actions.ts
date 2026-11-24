@@ -43,17 +43,17 @@ const allocationSchema = z.object({
     'customer_retention',
     'supplier_bill',
   ]),
-  targetId: z.string().uuid(),
+  targetId: z.string().guid(),
   description: z.string().trim().max(500).nullable().optional(),
   amountCents: moneySchema,
 })
 
 const cashDraftSchema = z
   .object({
-    transactionId: z.string().uuid().optional(),
-    cashAccountId: z.string().uuid(),
+    transactionId: z.string().guid().optional(),
+    cashAccountId: z.string().guid(),
     direction: z.enum(['receipt', 'disbursement']),
-    counterpartyId: z.string().uuid(),
+    counterpartyId: z.string().guid(),
     referenceNumber: z.string().trim().min(1).max(100),
     transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     notes: z.string().trim().max(2_000).nullable().optional(),
@@ -90,7 +90,7 @@ const cashDraftSchema = z
   })
 
 const postingSchema = z.object({
-  transactionId: z.string().uuid(),
+  transactionId: z.string().guid(),
   postingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
 
@@ -349,7 +349,7 @@ export async function deleteCashDraft(
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
-    const parsedId = z.string().uuid().parse(transactionId)
+    const parsedId = z.string().guid().parse(transactionId)
 
     if (financeCashDraftWritesUseCoreApi(profile.tenantId)) {
       if (!idempotencyKey?.trim()) {

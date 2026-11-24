@@ -23,7 +23,7 @@ test('all demo roles cannot read an active project from another tenant', async (
   const baseUrl = testInfo.project.use.baseURL
   if (!baseUrl) throw new Error('Production E2E base URL is required')
   const slug = process.env.E2E_DEMO_TENANT_SLUG?.trim()
-  const configuredProjectId = z.string().uuid().parse(process.env.E2E_PROJECT_ID)
+  const configuredProjectId = z.string().guid().parse(process.env.E2E_PROJECT_ID)
   if (!slug) throw new Error('Dedicated demo tenant slug is required')
 
   const demoTenantId = await resolveDemoTenantId(slug)
@@ -65,7 +65,7 @@ test('all demo roles cannot read an active project from another tenant', async (
         )
         expect(ownRestResponse.status, `${role} own project RLS control status`).toBe(200)
         const ownRestRows: unknown = await ownRestResponse.json()
-        const ownRestParsed = z.array(z.object({ id: z.string().uuid() })).safeParse(ownRestRows)
+        const ownRestParsed = z.array(z.object({ id: z.string().guid() })).safeParse(ownRestRows)
         expect(
           ownRestParsed.success &&
             ownRestParsed.data.length === 1 &&

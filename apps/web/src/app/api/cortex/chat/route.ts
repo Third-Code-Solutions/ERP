@@ -59,7 +59,7 @@ export const maxDuration = 30
 
 const recordContextSchema = z.object({
   refTable: z.string().trim().min(1).max(100),
-  refId: z.string().uuid(),
+  refId: z.string().guid(),
 })
 
 const chatRequestSchema = z.object({
@@ -72,7 +72,7 @@ const chatRequestSchema = z.object({
     )
     .min(1)
     .max(100),
-  conversationId: z.string().uuid().optional(),
+  conversationId: z.string().guid().optional(),
   context: recordContextSchema.optional(),
 })
 
@@ -96,13 +96,13 @@ function isSafeCortexPromptNode(node: {
 }): node is CortexPromptNode {
   if (
     typeof node.id !== 'string' ||
-    !z.string().uuid().safeParse(node.id).success ||
+    !z.string().guid().safeParse(node.id).success ||
     typeof node.node_type !== 'string' ||
     typeof node.ref_table !== 'string' ||
     !isCortexGraphRefTable(node.ref_table) ||
     !cortexGraphRefTableMatchesType(node.ref_table, node.node_type) ||
     typeof node.ref_id !== 'string' ||
-    !z.string().uuid().safeParse(node.ref_id).success
+    !z.string().guid().safeParse(node.ref_id).success
   ) {
     return false
   }

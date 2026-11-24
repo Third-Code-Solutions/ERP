@@ -52,7 +52,7 @@ const fiscalPeriodSchema = z
   })
 
 const cashAccountSchema = z.object({
-  ledgerAccountId: z.string().uuid(),
+  ledgerAccountId: z.string().guid(),
   name: z.string().trim().min(2).max(160),
   accountKind: z.enum(['cash', 'bank', 'e_wallet']),
   bankName: z.string().trim().max(160).nullable().optional(),
@@ -70,8 +70,8 @@ const journalDraftSchema = z.object({
   lines: z
     .array(
       z.object({
-        ledgerAccountId: z.string().uuid(),
-        projectId: z.string().uuid().nullable().optional(),
+        ledgerAccountId: z.string().guid(),
+        projectId: z.string().guid().nullable().optional(),
         description: z.string().trim().max(500).nullable().optional(),
         debitCents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
         creditCents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
@@ -94,7 +94,7 @@ const systemAccountSchema = z.object({
     'inventory',
     'goods_received_not_invoiced',
   ]),
-  ledgerAccountId: z.string().uuid(),
+  ledgerAccountId: z.string().guid(),
 })
 
 const SYSTEM_ACCOUNT_TYPES: Record<
@@ -370,7 +370,7 @@ export async function closeFiscalPeriod(
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage')
-    z.string().uuid().parse(periodId)
+    z.string().guid().parse(periodId)
 
     const [period] = await db
       .select({ id: fiscalPeriods.id })
@@ -510,7 +510,7 @@ export async function postJournalEntry(
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.post')
-    z.string().uuid().parse(entryId)
+    z.string().guid().parse(entryId)
 
     const [entry] = await db
       .select({ id: journalEntries.id })
@@ -574,7 +574,7 @@ export async function reverseJournalEntry(input: {
     requireCapability(profile, 'finance.post')
     const parsed = z
       .object({
-        entryId: z.string().uuid(),
+        entryId: z.string().guid(),
         reason: z.string().trim().min(3).max(500),
         postingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       })

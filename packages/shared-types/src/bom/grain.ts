@@ -16,10 +16,10 @@ export const bomLineItemUnitRateSourceSchema = z.enum(bomLineItemUnitRateSourceV
 export type BomLineItemUnitRateSource = typeof bomLineItemUnitRateSourceValues[number]
 
 export const bomGrainReviewResolutionSchema = z.object({
-  reviewId: z.string().uuid(),
-  projectId: z.string().uuid(),
+  reviewId: z.string().guid(),
+  projectId: z.string().guid(),
   kind: bomLineItemKindSchema,
-  parentLineItemId: z.string().uuid().nullable(),
+  parentLineItemId: z.string().guid().nullable(),
 })
 export type BomGrainReviewResolution = z.infer<typeof bomGrainReviewResolutionSchema>
 

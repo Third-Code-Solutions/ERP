@@ -14,7 +14,7 @@ export const inspectionPhotoMimeTypeSchema = z.enum([
  */
 export const inspectionPhotoCommandSchema = z
   .object({
-    opportunityId: z.string().uuid(),
+    opportunityId: z.string().guid(),
     storagePath: z.string().trim().min(1).max(2_000),
     fileName: z.string().trim().min(1).max(255),
     mimeType: inspectionPhotoMimeTypeSchema,
@@ -25,10 +25,10 @@ export const inspectionPhotoCommandSchema = z
 
 export const inspectionPhotoResultSchema = z
   .object({
-    documentId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    opportunityId: z.string().uuid(),
-    projectId: z.string().uuid().nullable(),
+    documentId: z.string().guid(),
+    tenantId: z.string().guid(),
+    opportunityId: z.string().guid(),
+    projectId: z.string().guid().nullable(),
     storagePath: z.string().trim().min(1).max(2_000),
     fileName: z.string().trim().min(1).max(255),
     status: z.literal('created'),

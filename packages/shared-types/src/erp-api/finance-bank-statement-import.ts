@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const uuid = z.string().uuid()
+const uuid = z.string().guid()
 
 const isoDate = z
   .string()

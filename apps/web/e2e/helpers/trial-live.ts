@@ -42,7 +42,7 @@ export async function trialTarget(testInfo: TestInfo): Promise<TrialTarget> {
   const baseUrl = z.string().url().parse(testInfo.project.use.baseURL)
   const apiBaseUrl = z.string().url().parse(process.env.E2E_API_BASE_URL)
   const slug = z.string().min(1).parse(process.env.E2E_DEMO_TENANT_SLUG)
-  const projectId = z.string().uuid().parse(process.env.E2E_PROJECT_ID)
+  const projectId = z.string().guid().parse(process.env.E2E_PROJECT_ID)
   const tenantId = await resolveDemoTenantId(slug.trim())
   await assertDemoProject(projectId, tenantId)
   return { baseUrl, apiBaseUrl: apiBaseUrl.replace(/\/$/, ''), tenantId, projectId }
@@ -108,7 +108,7 @@ export async function tenantRows<T extends z.ZodTypeAny>(
   if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('Supabase E2E environment is incomplete')
   }
-  const tenantId = z.string().uuid().parse(target.tenantId)
+  const tenantId = z.string().guid().parse(target.tenantId)
   const response = await fetch(
     `${env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/${table}?tenant_id=eq.${tenantId}&${query}`,
     {

@@ -23,13 +23,13 @@ type BoundaryClient = {
   fetcher: typeof fetch
 }
 
-const tenantRow = z.object({ id: z.string().uuid(), slug: z.string() })
+const tenantRow = z.object({ id: z.string().guid(), slug: z.string() })
 const profileRow = z.object({
   email: z.string().email(),
-  tenant_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
   account_status: z.string(),
 })
-const projectRow = z.object({ id: z.string().uuid(), tenant_id: z.string().uuid(), deleted_at: z.string().nullable() })
+const projectRow = z.object({ id: z.string().guid(), tenant_id: z.string().guid(), deleted_at: z.string().nullable() })
 export const ISOLATION_TENANT_SLUG = 'buildops-isolation-qa'
 export const ISOLATION_PROJECT_NAME = 'QA Synthetic Cross-Company Project'
 export const ISOLATION_PROJECT_CLIENT = 'QA Synthetic Client'
@@ -110,7 +110,7 @@ export async function assertDemoProject(
   expectedTenantId: string,
   fetcher: typeof fetch = fetch
 ): Promise<void> {
-  const id = z.string().uuid().parse(projectId)
+  const id = z.string().guid().parse(projectId)
   const rows = await selectRows(
     client(fetcher),
     `projects?select=id,tenant_id,deleted_at&id=eq.${encodeURIComponent(id)}&limit=2`,
@@ -139,7 +139,7 @@ export async function resolveForeignProjectId(
   expectedDemoTenantId: string,
   fetcher: typeof fetch = fetch
 ): Promise<string> {
-  const demoTenantId = z.string().uuid().parse(expectedDemoTenantId)
+  const demoTenantId = z.string().guid().parse(expectedDemoTenantId)
   const connection = client(fetcher)
   const tenantRows = await selectRows(
     connection,

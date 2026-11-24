@@ -40,7 +40,7 @@ type CreateCommand = {
 
 type CommandPhase = 'idle' | 'pending' | 'unknown'
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const requestIdSchema = z.string().min(1).max(256)
 const manualCostReceiptSchema = z
   .object({

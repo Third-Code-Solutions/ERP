@@ -97,7 +97,7 @@ export class ClaimTransitionService {
     commandInput: ClaimTransitionCommand,
     principal: ErpPrincipal,
   ): Promise<ClaimTransitionResult> {
-    const claimId = z.string().uuid().parse(claimIdInput).toLowerCase()
+    const claimId = z.string().guid().parse(claimIdInput).toLowerCase()
     const command = claimTransitionCommandSchema.parse(commandInput)
     const payloadHash = hashPayload(claimId, command)
 

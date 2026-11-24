@@ -5,14 +5,14 @@ export const createChangeRequestCommandSchema = z
     requestedByName: z.string().trim().min(1).max(255),
     description: z.string().trim().min(2).max(5_000),
     priority: z.enum(['minor', 'major']).default('minor'),
-    affectedDesignFileId: z.string().uuid().nullable().optional(),
+    affectedDesignFileId: z.string().guid().nullable().optional(),
   })
   .strict()
 
 export const changeRequestCreationResultSchema = z
   .object({
-    changeRequestId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    changeRequestId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('open'),
     created: z.boolean(),
   })

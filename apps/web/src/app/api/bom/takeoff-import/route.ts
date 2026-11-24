@@ -131,7 +131,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const bomId = getFormString(form, 'bom_id')
-  if (!bomId || !z.string().uuid().safeParse(bomId).success) {
+  if (!bomId || !z.string().guid().safeParse(bomId).success) {
     return errorResponse(422, 'INVALID_BOM_ID', 'bom_id must be a UUID.')
   }
 

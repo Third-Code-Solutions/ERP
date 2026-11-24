@@ -28,7 +28,7 @@ export const opportunityKycTrackTypeSchema = z.enum(opportunityKycTrackTypeValue
 export const opportunityKycTrackActionSchema = z.enum(opportunityKycTrackActionValues)
 
 export const opportunityKycTrackCommandSchema = z.object({
-  opportunity_id: z.string().uuid(),
+  opportunity_id: z.string().guid(),
   track_type: opportunityKycTrackTypeSchema,
   action: opportunityKycTrackActionSchema,
   notes: z.string().trim().max(2000).optional(),

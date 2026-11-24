@@ -23,7 +23,7 @@ const maxBase64Length = Math.ceil(MS_PROJECT_XML_MAX_DECODED_BYTES / 3) * 4
 const canonicalBase64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
 const calendarDatePattern = /^\d{4}-\d{2}-\d{2}$/
 const sourceDateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/
-const uuidSchema = z.string().uuid().transform((value) => value.toLowerCase())
+const uuidSchema = z.string().guid().transform((value) => value.toLowerCase())
 
 function isRealCalendarDate(value: string): boolean {
   if (!calendarDatePattern.test(value)) return false

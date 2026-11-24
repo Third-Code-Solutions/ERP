@@ -4,7 +4,7 @@ import { gateTrialLive, needsData, noteNeedsData, openRole, tenantRows, trialTar
 
 gateTrialLive()
 
-const uuid = z.string().uuid()
+const uuid = z.string().guid()
 const cashRow = z.object({
   id: uuid,
   cash_account_id: uuid,

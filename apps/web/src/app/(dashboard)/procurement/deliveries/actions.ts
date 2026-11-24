@@ -110,7 +110,7 @@ function revalidate(scheduleId: string): void {
 }
 
 const scheduleSchema = z.object({
-  purchase_order_id: z.string().uuid(),
+  purchase_order_id: z.string().guid(),
   scheduled_date: z.string().min(1, 'Scheduled date required'),
   site_address: z.string().min(3, 'Site address required'),
   site_contact_name: z.string().min(1, 'Site contact name required'),

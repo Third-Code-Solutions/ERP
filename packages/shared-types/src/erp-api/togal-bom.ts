@@ -3,7 +3,7 @@ import { boqQuantityFromNumber, MAX_BOM_LINE_ITEM_QUANTITY } from '../bom/quanti
 
 const togalBomCommitLineSchema = z
   .object({
-    materialItemId: z.string().uuid().nullable().optional(),
+    materialItemId: z.string().guid().nullable().optional(),
     code: z.string().trim().max(50).nullable().optional(),
     description: z.string().trim().min(1).max(2_000),
     unit: z.string().trim().max(20).nullable().optional(),
@@ -17,7 +17,7 @@ const togalBomCommitLineSchema = z
       }),
     unitCostCents: z.number().int().nonnegative().safe(),
     markupBps: z.number().int().nonnegative().max(2_147_483_647).optional(),
-    vendorId: z.string().uuid().nullable().optional(),
+    vendorId: z.string().guid().nullable().optional(),
     sourceLabel: z.string().trim().max(255).nullable().optional(),
     notes: z.string().max(4_000).nullable().optional(),
   })
@@ -25,7 +25,7 @@ const togalBomCommitLineSchema = z
 
 export const togalBomCommitCommandSchema = z
   .object({
-    bomId: z.string().uuid(),
+    bomId: z.string().guid(),
     proposedLines: z.array(togalBomCommitLineSchema).min(1).max(500),
     markupBps: z.number().int().nonnegative().max(2_147_483_647).optional(),
   })
@@ -35,8 +35,8 @@ export const togalBomCommitResultSchema = z
   .object({
     ok: z.literal(true),
     linesCreated: z.number().int().nonnegative().max(500),
-    bomId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    bomId: z.string().guid(),
+    tenantId: z.string().guid(),
     totalCostCents: z.number().int().nonnegative().safe(),
     tcvCents: z.number().int().nonnegative().safe(),
     gpCents: z.number().int().safe(),

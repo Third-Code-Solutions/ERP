@@ -25,7 +25,7 @@ export const slaClockDefinitionSchema = z.object({
   time_zone: z.string().min(1).default(DEFAULT_SLA_TIME_ZONE),
 })
 
-const apiUuidSchema = z.string().uuid()
+const apiUuidSchema = z.string().guid()
 const apiDateTimeSchema = z.string().datetime({ offset: true })
 
 export const createProcessStepCommandSchema = z

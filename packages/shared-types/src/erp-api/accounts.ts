@@ -28,8 +28,8 @@ export const accountListQuerySchema = z
 export type AccountListQuery = z.infer<typeof accountListQuerySchema>
 
 export const accountReadResultSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  id: z.string().guid(),
+  tenantId: z.string().guid(),
   name: z.string(),
   industry: z.enum(accountIndustryValues),
   billingAddress: z.string().nullable(),
@@ -38,7 +38,7 @@ export const accountReadResultSchema = z.object({
   kycStatus: z.enum(kycStatusValues),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
-  createdBy: z.string().uuid().nullable(),
+  createdBy: z.string().guid().nullable(),
   opportunityCount: z.number().int().nonnegative(),
 })
 
@@ -56,8 +56,8 @@ export type AccountListResult = z.infer<typeof accountListResultSchema>
 
 export const accountKycQueueRowSchema = z
   .object({
-    id: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    id: z.string().guid(),
+    tenantId: z.string().guid(),
     name: z.string(),
     industry: z.enum(accountIndustryValues),
     createdAt: z.string().datetime({ offset: true }),
@@ -83,16 +83,16 @@ export type AccountKycQueueResult = z.infer<
 export const accountDetailAccountSchema = accountReadResultSchema.extend({
   kycNotes: z.string().nullable(),
   kycDecidedAt: z.string().datetime({ offset: true }).nullable(),
-  kycDecidedBy: z.string().uuid().nullable(),
+  kycDecidedBy: z.string().guid().nullable(),
   cnpsScoreX10: z.string().nullable(),
 })
 
 export type AccountDetailAccount = z.infer<typeof accountDetailAccountSchema>
 
 export const accountContactReadSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
-  accountId: z.string().uuid(),
+  id: z.string().guid(),
+  tenantId: z.string().guid(),
+  accountId: z.string().guid(),
   fullName: z.string(),
   email: z.string().nullable(),
   phone: z.string().nullable(),
@@ -105,11 +105,11 @@ export const accountContactReadSchema = z.object({
 export type AccountContactRead = z.infer<typeof accountContactReadSchema>
 
 export const accountKycArtifactReadSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
-  accountId: z.string().uuid(),
+  id: z.string().guid(),
+  tenantId: z.string().guid(),
+  accountId: z.string().guid(),
   artifactType: z.enum(kycArtifactTypeValues),
-  documentId: z.string().uuid().nullable(),
+  documentId: z.string().guid().nullable(),
   notes: z.string().nullable(),
   uploadedAt: z.string().datetime({ offset: true }),
   fileName: z.string().nullable(),
@@ -118,10 +118,10 @@ export const accountKycArtifactReadSchema = z.object({
 export type AccountKycArtifactRead = z.infer<typeof accountKycArtifactReadSchema>
 
 export const accountOpportunityReadSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
-  accountId: z.string().uuid().nullable(),
-  projectId: z.string().uuid().nullable(),
+  id: z.string().guid(),
+  tenantId: z.string().guid(),
+  accountId: z.string().guid().nullable(),
+  projectId: z.string().guid().nullable(),
   stage: z.enum(opportunityStageValues),
   tcvCents: z.number().int(),
   gpCents: z.number().int(),
@@ -137,9 +137,9 @@ export const accountOpportunityReadSchema = z.object({
 export type AccountOpportunityRead = z.infer<typeof accountOpportunityReadSchema>
 
 export const accountProjectReadSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
-  accountId: z.string().uuid().nullable(),
+  id: z.string().guid(),
+  tenantId: z.string().guid(),
+  accountId: z.string().guid().nullable(),
   name: z.string(),
   status: z.enum(projectStatusValues),
   createdAt: z.string().datetime({ offset: true }),

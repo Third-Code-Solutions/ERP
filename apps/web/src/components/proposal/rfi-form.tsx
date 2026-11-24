@@ -30,15 +30,15 @@ type SyncState = 'idle' | 'queued' | 'syncing' | 'rejected' | 'unknown' | 'confi
 
 const rfiActionSuccessSchema = z.object({
   ok: z.literal(true),
-  rfiId: z.string().uuid(),
+  rfiId: z.string().guid(),
   replayed: z.boolean(),
   refreshFailed: z.boolean(),
   confirmation: z.object({
-    actorId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    submissionId: z.string().uuid(),
-    opportunityId: z.string().uuid(),
-    inspectionId: z.string().uuid(),
+    actorId: z.string().guid(),
+    tenantId: z.string().guid(),
+    submissionId: z.string().guid(),
+    opportunityId: z.string().guid(),
+    inspectionId: z.string().guid(),
   }).strict(),
 }).strict()
 

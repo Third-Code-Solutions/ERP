@@ -13,7 +13,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
 
 const materialItemSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.string().guid().optional(),
   code: z.string().trim().min(1, 'code required').max(64),
   description: z.string().trim().min(1, 'description required'),
   category: z.string().trim().max(120).optional(),

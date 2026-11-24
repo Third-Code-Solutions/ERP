@@ -13,7 +13,7 @@ const MAX_UPLOAD_BYTES = 100 * 1024 * 1024 // 100 MB per upload (PRD F2.1)
 const PROJECT_QUOTA_BYTES = 500 * 1024 * 1024 // 500 MB per project (PRD F2.1)
 
 const SignSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   fileName: z.string().min(1).max(255),
   mimeType: z.string().max(255).optional(),
   // Required so the server can reject oversized uploads BEFORE issuing

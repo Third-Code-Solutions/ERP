@@ -157,7 +157,7 @@ test('inventory every page with explicit live render and guard evidence', async 
     const response = await fetch(`${auth.supabaseUrl}/rest/v1/${table}?select=id&tenant_id=eq.${auth.tenantId}&limit=1`, {
       headers: { apikey: auth.anonKey, Authorization: `Bearer ${auth.accessToken}` },
     })
-    const parsed = response.ok ? z.array(z.object({ id: z.string().uuid() })).safeParse(await response.json()) : null
+    const parsed = response.ok ? z.array(z.object({ id: z.string().guid() })).safeParse(await response.json()) : null
     const id = parsed?.success ? parsed.data[0]?.id ?? null : null
     lookups.push({ table, status: response.status, available: id !== null })
     cache.set(table, id)

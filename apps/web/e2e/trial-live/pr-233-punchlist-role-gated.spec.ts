@@ -10,7 +10,7 @@ const VIEW_ONLY = 'View only. Admin, SD / PM / PE, PM and CX can change the stat
 
 test('punchlist status controls are role-gated', { tag: '@pr-233' }, async ({ browser }, testInfo) => {
   const target = await trialTarget(testInfo)
-  const row = z.object({ id: z.string().uuid() })
+  const row = z.object({ id: z.string().guid() })
   const inProject = await tenantRows(target, 'punchlist_items', `project_id=eq.${target.projectId}&select=id&limit=1`, row)
   const [item] = inProject.length > 0
     ? inProject

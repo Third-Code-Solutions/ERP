@@ -44,10 +44,10 @@ import {
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const logQuoteSchema = z.object({
-  rfq_id: z.string().uuid(),
-  bom_line_item_id: z.string().uuid(),
-  vendor_id: z.string().uuid(),
-  submission_id: z.string().uuid(),
+  rfq_id: z.string().guid(),
+  bom_line_item_id: z.string().guid(),
+  vendor_id: z.string().guid(),
+  submission_id: z.string().guid(),
   // A quote is price evidence: blank or zero is refused, never logged as 0.00.
   unit_price_cents: z
     .number({ invalid_type_error: UNIT_PRICE_REQUIRED_ERROR })
@@ -65,7 +65,7 @@ const logQuoteSchema = z.object({
 })
 
 const cancelRfqSchema = z.object({
-  rfqId: z.string().uuid(),
+  rfqId: z.string().guid(),
   reason: z.string().trim().min(1).max(CANCEL_REASON_MAX_LENGTH),
 })
 
@@ -214,7 +214,7 @@ export async function awardRfqQuote(
     return { error: `Forbidden: role "${profile.role}" lacks "rfq.dispatch"` }
   }
 
-  if (!z.string().uuid().safeParse(rfqId).success || !z.string().uuid().safeParse(quoteId).success) {
+  if (!z.string().guid().safeParse(rfqId).success || !z.string().guid().safeParse(quoteId).success) {
     return { error: 'RFQ and quote identifiers must be valid UUIDs' }
   }
 

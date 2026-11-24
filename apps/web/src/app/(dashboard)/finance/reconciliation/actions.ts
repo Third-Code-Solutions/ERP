@@ -48,7 +48,7 @@ const signedMoneySchema = z
 
 const statementSchema = z
   .object({
-    cashAccountId: z.string().uuid(),
+    cashAccountId: z.string().guid(),
     referenceNumber: z.string().trim().min(1).max(120),
     sourceFileName: z.string().trim().min(1).max(255),
     statementStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -290,7 +290,7 @@ export async function deleteBankStatementDraft(
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
-    const parsedId = z.string().uuid().parse(statementId)
+    const parsedId = z.string().guid().parse(statementId)
     const deleted = await db.transaction(async (tx) => {
       const [draft] = await tx
         .select({ id: bankStatements.id })
@@ -339,7 +339,7 @@ export async function autoMatchBankStatement(
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.manage_cash')
-    const parsedId = z.string().uuid().parse(statementId)
+    const parsedId = z.string().guid().parse(statementId)
     if (financeReconciliationAutoMatchWritesUseCoreApi(profile.tenantId)) {
       const parsedKey = z.string().trim().min(1).max(256).safeParse(idempotencyKey)
       if (!parsedKey.success) {
@@ -404,9 +404,9 @@ export async function matchBankStatementLine(input: {
     requireCapability(profile, 'finance.manage_cash')
     const parsed = z
       .object({
-        lineId: z.string().uuid(),
-        statementId: z.string().uuid(),
-        cashTransactionId: z.string().uuid(),
+        lineId: z.string().guid(),
+        statementId: z.string().guid(),
+        cashTransactionId: z.string().guid(),
         idempotencyKey: z.string().trim().min(1).max(256).optional(),
       })
       .parse(input)
@@ -465,8 +465,8 @@ export async function unmatchBankStatementLine(input: {
     requireCapability(profile, 'finance.manage_cash')
     const parsed = z
       .object({
-        lineId: z.string().uuid(),
-        statementId: z.string().uuid(),
+        lineId: z.string().guid(),
+        statementId: z.string().guid(),
         idempotencyKey: z.string().trim().min(1).max(256).optional(),
       })
       .parse(input)
@@ -522,7 +522,7 @@ export async function reconcileBankStatement(
     requireCapability(profile, 'finance.manage_cash')
     const parsed = z
       .object({
-        statementId: z.string().uuid(),
+        statementId: z.string().guid(),
         idempotencyKey: z.string().trim().min(1).max(256).optional(),
       })
       .parse({ statementId, idempotencyKey })
@@ -577,7 +577,7 @@ export async function voidBankStatement(input: {
     requireCapability(profile, 'finance.manage_cash')
     const parsed = z
       .object({
-        statementId: z.string().uuid(),
+        statementId: z.string().guid(),
         reason: z.string().trim().min(3).max(500),
         idempotencyKey: z.string().trim().min(1).max(256).optional(),
       })

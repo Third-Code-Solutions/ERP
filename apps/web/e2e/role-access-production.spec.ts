@@ -31,7 +31,7 @@ test.describe('production role access matrix', () => {
     testInfo.setTimeout(300_000)
     const baseUrl = testInfo.project.use.baseURL
     expect(baseUrl).toBeTruthy()
-    const projectId = z.string().uuid().parse(process.env.E2E_PROJECT_ID)
+    const projectId = z.string().guid().parse(process.env.E2E_PROJECT_ID)
     await assertConfiguredDemoProject(projectId)
 
     const allRoles: MagicLinkRole[] = [

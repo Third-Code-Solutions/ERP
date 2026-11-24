@@ -6,7 +6,7 @@ gateTrialLive()
 
 // The only platform identity (apps/api/src/auth: PLATFORM_OWNER_EMAIL).
 const PLATFORM_OWNER_EMAIL = 'kurt@thirdcodesolutions.com'
-const memberRow = z.object({ id: z.string().uuid(), role: z.string() })
+const memberRow = z.object({ id: z.string().guid(), role: z.string() })
 
 test(
   'a workspace admin cannot change the role of a platform identity',

@@ -9,7 +9,7 @@ import {
   deleteCostEntryThroughCoreApi,
 } from '@/lib/erp-core-client'
 
-const uuidSchema = z.string().uuid().transform((value) => value.toLowerCase())
+const uuidSchema = z.string().guid().transform((value) => value.toLowerCase())
 const scopeSchema = z.object({ actorId: uuidSchema, tenantId: uuidSchema })
 
 function validCalendarDate(value: string): boolean {

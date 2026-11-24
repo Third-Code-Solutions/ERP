@@ -26,7 +26,7 @@ const dupaCentavosStringSchema = z
 
 const dupaDescriptionSchema = z.string().trim().min(1).max(255)
 const dupaUomSchema = z.string().trim().min(1).max(20)
-const dupaOptionalUuidSchema = z.string().uuid().nullable().optional()
+const dupaOptionalUuidSchema = z.string().guid().nullable().optional()
 const dupaDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/u, 'must be an ISO date')
@@ -67,7 +67,7 @@ export const dupaEquipmentLineInputSchema = z
 
 export const dupaUpsertInputSchema = z
   .object({
-    lineItemId: z.string().uuid(),
+    lineItemId: z.string().guid(),
     headerQuantity: dupaPositiveDecimalStringSchema,
     uom: dupaUomSchema,
     assemblyId: dupaOptionalUuidSchema,

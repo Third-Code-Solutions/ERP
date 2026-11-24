@@ -18,7 +18,7 @@ gateTrialLive()
 
 const FEATURE_DISABLED = 503
 const statusRow = z.object({ status: z.string() })
-const materialRow = z.object({ id: z.string().uuid(), base_uom_id: z.string().uuid() })
+const materialRow = z.object({ id: z.string().guid(), base_uom_id: z.string().guid() })
 const requisitionPath = (id: string) => `/v1/roadmap/procurement/requisitions/${id}/workflow`
 
 function created<T extends z.ZodTypeAny>(result: ApiResult, schema: T): z.infer<T> {
@@ -66,7 +66,7 @@ test(
           noteNeedsData(testInfo, 'the procurement_lifecycle roadmap feature enabled for the E2E tenant (self-approval check)')
           return
         }
-        const { requisitionId } = created(create, z.object({ requisitionId: z.string().uuid() }).passthrough())
+        const { requisitionId } = created(create, z.object({ requisitionId: z.string().guid() }).passthrough())
         try {
           const submit = await callApi(target, admin.accessToken, 'POST', requisitionPath(requisitionId), { action: 'submit' })
           expect(submit.status, submit.body).toBe(200)
@@ -109,7 +109,7 @@ test(
           noteNeedsData(testInfo, 'the price_lists roadmap feature enabled for the E2E tenant (preparer check)')
           return
         }
-        const { priceListId } = created(create, z.object({ priceListId: z.string().uuid() }).passthrough())
+        const { priceListId } = created(create, z.object({ priceListId: z.string().guid() }).passthrough())
         const workflow = `/v1/roadmap/price-lists/${priceListId}/workflow`
         const activate = await callApi(target, admin.accessToken, 'POST', workflow, { action: 'activate' })
         try {

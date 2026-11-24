@@ -23,7 +23,7 @@ export const safeSignedCentavosStringSchema = z
 /** Project-detail Opportunity creation; Account identity is server-derived. */
 export const opportunityCreationCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     stage: z.literal('opportunity_creation').default('opportunity_creation'),
     tcvCents: safeNonNegativeCentavosStringSchema.default('0'),
     gpCents: safeSignedCentavosStringSchema.default('0'),
@@ -37,11 +37,11 @@ export const opportunityCreationCommandSchema = z
 export const opportunityCreationResultSchema = z
   .object({
     ok: z.literal(true),
-    opportunityId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    accountId: z.string().uuid().nullable(),
-    repId: z.string().uuid(),
+    opportunityId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
+    accountId: z.string().guid().nullable(),
+    repId: z.string().guid(),
     stage: z.literal('opportunity_creation'),
     probability: z.literal(10),
     tcvCents: safeNonNegativeCentavosStringSchema,
@@ -70,8 +70,8 @@ export const opportunityInspectionStatusValues = [
 
 export const opportunityDetailOpportunitySchema = z
   .object({
-    id: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    id: z.string().guid(),
+    tenantId: z.string().guid(),
     stage: z.enum(opportunityStageValues),
     tcvCents: z.number().int(),
     gpCents: z.number().int(),
@@ -80,8 +80,8 @@ export const opportunityDetailOpportunitySchema = z
     areaSqm: z.number().int().nonnegative().nullable(),
     opportunityType: z.string().nullable(),
     closingDate: z.string().datetime({ offset: true }).nullable(),
-    accountId: z.string().uuid().nullable(),
-    projectId: z.string().uuid().nullable(),
+    accountId: z.string().guid().nullable(),
+    projectId: z.string().guid().nullable(),
     accountName: z.string().nullable(),
     projectName: z.string().nullable(),
   })
@@ -93,7 +93,7 @@ export type OpportunityDetailOpportunity = z.infer<
 
 export const opportunityInspectionSummarySchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     status: z.enum(opportunityInspectionStatusValues),
   })
   .strict()

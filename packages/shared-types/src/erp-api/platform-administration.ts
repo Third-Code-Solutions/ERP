@@ -88,7 +88,7 @@ export type UpdatePlatformTenantStatusCommand = z.infer<
 >
 
 export const invitePlatformUserCommandSchema = z.object({
-  tenantId: z.string().uuid(),
+  tenantId: z.string().guid(),
   email: trimmed.email().max(255).transform((value) => value.toLowerCase()),
   fullName: trimmed.min(2).max(255),
   role: z.enum(ERP_ROLES),
@@ -130,7 +130,7 @@ export type PlatformReasonCommand = z.infer<
 >
 
 export const createPlatformSupportSessionCommandSchema = z.object({
-  tenantId: z.string().uuid(),
+  tenantId: z.string().guid(),
   reason: trimmed.min(3).max(500),
   durationMinutes: z.coerce.number().int().min(5).max(240).default(30),
 })
@@ -254,7 +254,7 @@ export interface PlatformOverviewResult {
 }
 
 // Validate HTTP output before it enters the privileged Web rendering boundary.
-const identifier = z.string().uuid()
+const identifier = z.string().guid()
 const timestamp = z.string().datetime({ offset: true })
 const countValue = z.number().int().nonnegative()
 

@@ -42,9 +42,9 @@ const SLOT_COLUMN: Record<TurnoverSlot, keyof typeof turnoverPackages.$inferInse
 }
 
 const attachSchema = z.object({
-  project_id: z.string().uuid(),
+  project_id: z.string().guid(),
   slot: z.enum(TURNOVER_SLOTS),
-  document_id: z.string().uuid(),
+  document_id: z.string().guid(),
 })
 
 export async function attachTurnoverDocument(
@@ -151,7 +151,7 @@ export async function markTurnoverCompiled(
   const forbid = guard(profile.role, 'punchlist.manage')
   if (forbid) return { error: forbid }
 
-  if (!z.string().uuid().safeParse(projectId).success) {
+  if (!z.string().guid().safeParse(projectId).success) {
     return { error: 'Invalid project id' }
   }
 

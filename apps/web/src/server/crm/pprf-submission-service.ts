@@ -79,7 +79,7 @@ export const pprfSubmissionPayloadSchema = z
 
 export const pprfIntakeCommandSchema = z
   .object({
-    submissionId: z.string().uuid(),
+    submissionId: z.string().guid(),
     clientName: z.string().trim().min(2).max(255),
     industry: z.enum(accountIndustryValues).default('other'),
     billingAddress: optionalTrimmedText(1_000),
@@ -97,8 +97,8 @@ export const pprfIntakeCommandSchema = z
 
 export const pprfResubmissionCommandSchema = z
   .object({
-    submissionId: z.string().uuid(),
-    opportunityId: z.string().uuid(),
+    submissionId: z.string().guid(),
+    opportunityId: z.string().guid(),
     pprf: pprfSubmissionPayloadSchema,
   })
   .strict()
@@ -107,10 +107,10 @@ const intakeSuccessSchema = z
   .object({
     ok: z.literal(true),
     kind: z.literal('intake'),
-    tenantId: z.string().uuid(),
-    accountId: z.string().uuid(),
-    opportunityId: z.string().uuid(),
-    pprfSubmissionId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    accountId: z.string().guid(),
+    opportunityId: z.string().guid(),
+    pprfSubmissionId: z.string().guid(),
     version: z.literal(1),
     replayed: z.boolean(),
   })
@@ -120,9 +120,9 @@ const resubmissionSuccessSchema = z
   .object({
     ok: z.literal(true),
     kind: z.literal('resubmission'),
-    tenantId: z.string().uuid(),
-    opportunityId: z.string().uuid(),
-    pprfSubmissionId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    opportunityId: z.string().guid(),
+    pprfSubmissionId: z.string().guid(),
     version: z.number().int().positive(),
     replayed: z.boolean(),
   })
@@ -300,8 +300,8 @@ export interface PprfSubmissionDependencies {
 
 const principalSchema = z
   .object({
-    tenantId: z.string().uuid(),
-    userId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    userId: z.string().guid(),
   })
   .strict()
 
@@ -312,9 +312,9 @@ const receiptSchema = z
     submission_kind: z.enum(['intake', 'resubmission']),
     idempotency_key_hash: z.string().regex(/^[a-f0-9]{64}$/),
     command_hash: z.string().regex(/^[a-f0-9]{64}$/),
-    account_id: z.string().uuid().nullable(),
-    opportunity_id: z.string().uuid(),
-    pprf_submission_id: z.string().uuid(),
+    account_id: z.string().guid().nullable(),
+    opportunity_id: z.string().guid(),
+    pprf_submission_id: z.string().guid(),
     pprf_version: z.number().int().positive(),
     kyc_tracks_reset: z.literal(true).optional(),
     kyc_due_at: z.string().datetime(),

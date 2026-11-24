@@ -43,7 +43,7 @@ export const documentUploadCadResultSchema = z
     dwgVersion: z.string().max(127).nullable(),
     extensionMismatch: z.boolean(),
     message: z.string().max(2_000),
-    bomId: z.string().uuid().nullable(),
+    bomId: z.string().guid().nullable(),
     bomTcvCents: z.number().int().nonnegative(),
     bomCostCents: z.number().int().nonnegative(),
     // GP can legitimately be negative for an over-budget estimate.
@@ -53,7 +53,7 @@ export const documentUploadCadResultSchema = z
     // Retained for responses from earlier explicit AI/CAD producers. The
     // standard deterministic upload path never creates a candidate BOM.
     unpricedCandidateBom: z.boolean().optional(),
-    processingJobId: z.string().uuid().nullable().optional(),
+    processingJobId: z.string().guid().nullable().optional(),
     // Deterministic non-CAD read metadata. Source text remains in private
     // tenant-scoped storage; the response exposes only bounded evidence.
     extractedCharacters: z.number().int().nonnegative().max(250_000).optional(),
@@ -66,7 +66,7 @@ export const documentUploadCadResultSchema = z
 
 export const documentUploadCompleteResultSchema = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     storagePath: z.string().trim().min(1).max(2_000),
     documentType: documentIntakeDocumentTypeSchema,
     cadFormat: z.enum(['dxf', 'dwg']).nullable(),

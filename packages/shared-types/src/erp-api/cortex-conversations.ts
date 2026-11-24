@@ -2,13 +2,13 @@ import { z } from 'zod'
 import { cortexCitationSchema } from './cortex-entity'
 import { cortexGraphRefTableSchema } from './cortex-graph'
 
-export const cortexConversationIdSchema = z.string().uuid()
+export const cortexConversationIdSchema = z.string().guid()
 
 export const cortexConversationContextSchema = z
   .object({
     refTable: cortexGraphRefTableSchema,
-    refId: z.string().uuid(),
-    nodeId: z.string().uuid(),
+    refId: z.string().guid(),
+    nodeId: z.string().guid(),
     nodeType: z.string().trim().min(1).max(64),
     title: z.string().max(500).nullable(),
   })
@@ -52,7 +52,7 @@ export const cortexConversationUserTurnCommandSchema = z
     context: z
       .object({
         refTable: cortexGraphRefTableSchema,
-        refId: z.string().uuid(),
+        refId: z.string().guid(),
       })
       .strict()
       .optional(),
@@ -66,7 +66,7 @@ export const cortexConversationUserTurnCommandSchema = z
 export const cortexConversationUserTurnResultSchema = z
   .object({
     conversationId: cortexConversationIdSchema,
-    messageId: z.string().uuid(),
+    messageId: z.string().guid(),
     status: z.enum(['created', 'appended']),
   })
   .strict()
@@ -91,7 +91,7 @@ export const cortexConversationAssistantTurnExternalOutcomeSchema = z.enum([
 export const cortexConversationAssistantTurnClaimCommandSchema = z
   .object({
     conversationId: cortexConversationIdSchema,
-    userMessageId: z.string().uuid(),
+    userMessageId: z.string().guid(),
   })
   .strict()
 
@@ -99,8 +99,8 @@ export const cortexConversationAssistantTurnSucceededSchema = z
   .object({
     status: z.literal('succeeded'),
     conversationId: cortexConversationIdSchema,
-    userMessageId: z.string().uuid(),
-    messageId: z.string().uuid(),
+    userMessageId: z.string().guid(),
+    messageId: z.string().guid(),
     content: z.string().max(100_000),
     citations: z.array(cortexCitationSchema).max(12),
     outcome: cortexConversationAssistantTurnOutcomeSchema,
@@ -115,9 +115,9 @@ export const cortexConversationAssistantTurnClaimResultSchema = z.discriminatedU
       .object({
         status: z.literal('claimed'),
         conversationId: cortexConversationIdSchema,
-        userMessageId: z.string().uuid(),
-        requestId: z.string().uuid(),
-        claimToken: z.string().uuid(),
+        userMessageId: z.string().guid(),
+        requestId: z.string().guid(),
+        claimToken: z.string().guid(),
         leaseExpiresAt: z.string().datetime({ offset: true }),
       })
       .strict(),
@@ -125,7 +125,7 @@ export const cortexConversationAssistantTurnClaimResultSchema = z.discriminatedU
       .object({
         status: z.literal('in_progress'),
         conversationId: cortexConversationIdSchema,
-        userMessageId: z.string().uuid(),
+        userMessageId: z.string().guid(),
         retryAfterSeconds: z.number().int().min(1).max(300),
       })
       .strict(),
@@ -135,13 +135,13 @@ export const cortexConversationAssistantTurnClaimResultSchema = z.discriminatedU
 
 export const cortexConversationAssistantTurnCompleteCommandSchema = z
   .object({
-    requestId: z.string().uuid(),
-    claimToken: z.string().uuid(),
+    requestId: z.string().guid(),
+    claimToken: z.string().guid(),
     content: z
       .string()
       .max(100_000)
       .refine((value) => value.trim().length > 0, 'Content is required'),
-    citationNodeIds: z.array(z.string().uuid()).max(12),
+    citationNodeIds: z.array(z.string().guid()).max(12),
     outcome: cortexConversationAssistantTurnExternalOutcomeSchema,
     model: z.string().trim().min(1).max(100),
   })
@@ -155,8 +155,8 @@ export const cortexConversationAssistantTurnCompleteResultSchema = z
   .object({
     status: z.literal('created'),
     conversationId: cortexConversationIdSchema,
-    userMessageId: z.string().uuid(),
-    messageId: z.string().uuid(),
+    userMessageId: z.string().guid(),
+    messageId: z.string().guid(),
   })
   .strict()
 

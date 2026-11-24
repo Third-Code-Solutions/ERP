@@ -116,9 +116,9 @@ export const createOpportunitySchema = z
     // ABI OPS Phase 0: at least one of account_id or project_id must be
     // present. New opps coming through the M1 flow will use account_id;
     // legacy code paths can still pass project_id only.
-    account_id: z.string().uuid().optional(),
-    project_id: z.string().uuid().optional(),
-    rep_id: z.string().uuid().optional(),
+    account_id: z.string().guid().optional(),
+    project_id: z.string().guid().optional(),
+    rep_id: z.string().guid().optional(),
     stage: z.enum(opportunityStageValues).default('opportunity_creation'),
     tcv_cents: z.number().int().min(0).default(0),
     gp_cents: z.number().int().min(0).default(0),
@@ -135,7 +135,7 @@ export const createOpportunitySchema = z
 
 export const updateOpportunitySchema = z
   .object({
-    rep_id: z.string().uuid().optional(),
+    rep_id: z.string().guid().optional(),
     stage: z.enum(opportunityStageValues).optional(),
     tcv_cents: z.number().int().min(0).optional(),
     gp_cents: z.number().int().min(0).optional(),
@@ -161,8 +161,8 @@ export type StageTransitionInput = z.infer<typeof stageTransitionSchema>
 
 export const opportunityFiltersSchema = z.object({
   stage: z.enum(opportunityStageValues).optional(),
-  rep_id: z.string().uuid().optional(),
-  project_id: z.string().uuid().optional(),
+  rep_id: z.string().guid().optional(),
+  project_id: z.string().guid().optional(),
   search: z.string().max(255).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(50),

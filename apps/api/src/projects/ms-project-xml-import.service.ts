@@ -15,7 +15,7 @@ import { DatabaseService, type DatabaseTransaction } from '../database/database.
 import { parseMsProjectXmlSource } from './ms-project-xml-parser'
 
 const levels = { l1: 1, l2: 2, l3: 3, l4: 4 }
-const uuid = z.string().uuid().transform(value => value.toLowerCase())
+const uuid = z.string().guid().transform(value => value.toLowerCase())
 const receiptEnvelope = z.object({ commandHash: z.string().regex(/^[a-f0-9]{64}$/), receipt: msProjectXmlImportReceiptSchema })
 
 function taskRequestId(tenantId: string, projectId: string, requestId: string, sourceUid: number): string {

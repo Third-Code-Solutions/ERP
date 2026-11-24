@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const optionalUuid = z.string().uuid().nullable()
+const optionalUuid = z.string().guid().nullable()
 
 export const rfqBidLevelingLineSchema = z
   .object({
@@ -18,8 +18,8 @@ export const rfqBidLevelingLineSchema = z
 
 export const rfqBidLevelingQuoteSchema = z
   .object({
-    quoteId: z.string().uuid(),
-    vendorId: z.string().uuid(),
+    quoteId: z.string().guid(),
+    vendorId: z.string().guid(),
     vendorName: z.string().trim().min(1).max(255),
     unitPriceCents: z.number().int().nonnegative(),
     leadTimeDays: z.number().int().nonnegative().nullable(),
@@ -34,8 +34,8 @@ export const rfqBidLevelingQuoteSchema = z
 
 export const rfqBidLevelingResultSchema = z
   .object({
-    rfqId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    rfqId: z.string().guid(),
+    projectId: z.string().guid(),
     status: z.enum(['pending', 'quotes_received', 'completed', 'cancelled']),
     asOf: z.string().datetime({ offset: true }),
     staleAfterDays: z.literal(90),

@@ -24,7 +24,7 @@ export const claimTransitionActionSchema = z.enum([
   'cancel',
 ])
 
-const uuid = z.string().uuid().transform((value) => value.toLowerCase())
+const uuid = z.string().guid().transform((value) => value.toLowerCase())
 const reason = z.string().trim().min(3).max(2000)
 
 const commandFields = {

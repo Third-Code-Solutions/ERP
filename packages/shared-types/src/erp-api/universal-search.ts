@@ -145,7 +145,7 @@ export type UniversalSearchQuery = z.infer<typeof universalSearchQuerySchema>
 export const universalSearchHitSchema = z
   .object({
     type: universalSearchHitTypeSchema,
-    id: z.string().uuid(),
+    id: z.string().guid(),
     title: z.string().trim().min(1).max(500),
     subtitle: z.string().trim().max(500).optional(),
     href: z.string().trim().regex(/^\/(?!\/)/).max(500),

@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
 export const inspectionPhotoTransportSchema = z.object({
-  actorId: z.string().uuid(),
-  tenantId: z.string().uuid(),
-  opportunityId: z.string().uuid(),
+  actorId: z.string().guid(),
+  tenantId: z.string().guid(),
+  opportunityId: z.string().guid(),
   uploadUrl: z.string().url(),
 }).strict()
 
@@ -14,7 +14,7 @@ export function inspectionPhotoUploadUrl(base: string, opportunityId: string): s
     url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
     throw new Error('Inspection photo transport configuration is invalid')
   }
-  return `${url.origin}/v1/opportunities/${z.string().uuid().parse(opportunityId).toLowerCase()}/inspection-photos/upload`
+  return `${url.origin}/v1/opportunities/${z.string().guid().parse(opportunityId).toLowerCase()}/inspection-photos/upload`
 }
 
 export function safeInspectionPhotoFileName(name: string): string {

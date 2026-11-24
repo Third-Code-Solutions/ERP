@@ -2,14 +2,14 @@ import { z } from 'zod'
 
 export const journalPostCommandSchema = z
   .object({
-    journalEntryId: z.string().uuid(),
+    journalEntryId: z.string().guid(),
   })
   .strict()
 
 export const journalPostResultSchema = z
   .object({
-    journalEntryId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    journalEntryId: z.string().guid(),
+    tenantId: z.string().guid(),
     postedNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()
@@ -53,7 +53,7 @@ export const journalReverseBodySchema = z
 
 export const journalReverseCommandSchema = z
   .object({
-    journalEntryId: z.string().uuid(),
+    journalEntryId: z.string().guid(),
     reason: z.string().trim().min(3).max(500),
     postingDate: isoDateSchema,
   })
@@ -61,9 +61,9 @@ export const journalReverseCommandSchema = z
 
 export const journalReverseResultSchema = z
   .object({
-    journalEntryId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    reversalJournalEntryId: z.string().uuid(),
+    journalEntryId: z.string().guid(),
+    tenantId: z.string().guid(),
+    reversalJournalEntryId: z.string().guid(),
     reversalNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()
@@ -80,11 +80,11 @@ export const supplierBillPostCommandSchema = z
 
 export const supplierBillPostResultSchema = z
   .object({
-    supplierBillId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    supplierBillId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('posted'),
     supplierBillNumber: z.string().regex(/^SB-\d{4}-\d{6}$/),
-    journalEntryId: z.string().uuid(),
+    journalEntryId: z.string().guid(),
     journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()
@@ -105,7 +105,7 @@ export const supplierBillReverseBodySchema = z
 
 export const supplierBillReverseCommandSchema = z
   .object({
-    supplierBillId: z.string().uuid(),
+    supplierBillId: z.string().guid(),
     reason: z.string().trim().min(3).max(500),
     postingDate: isoDateSchema,
   })
@@ -113,10 +113,10 @@ export const supplierBillReverseCommandSchema = z
 
 export const supplierBillReverseResultSchema = z
   .object({
-    supplierBillId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    supplierBillId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('reversed'),
-    reversalJournalEntryId: z.string().uuid(),
+    reversalJournalEntryId: z.string().guid(),
     reversalJournalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()
@@ -133,7 +133,7 @@ export type SupplierBillReverseResult = z.infer<
 
 export const cashTransactionPostCommandSchema = z
   .object({
-    cashTransactionId: z.string().uuid(),
+    cashTransactionId: z.string().guid(),
     postingDate: isoDateSchema,
   })
   .strict()
@@ -146,11 +146,11 @@ export const cashTransactionPostBodySchema = z
 
 export const cashTransactionPostResultSchema = z
   .object({
-    cashTransactionId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    cashTransactionId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('posted'),
     cashTransactionNumber: z.string().regex(/^CT-\d{4}-\d{6}$/),
-    journalEntryId: z.string().uuid(),
+    journalEntryId: z.string().guid(),
     journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()
@@ -174,7 +174,7 @@ export const cashTransactionReverseBodySchema = z
 
 export const cashTransactionReverseCommandSchema = z
   .object({
-    cashTransactionId: z.string().uuid(),
+    cashTransactionId: z.string().guid(),
     reason: z.string().trim().min(3).max(500),
     postingDate: isoDateSchema,
   })
@@ -182,10 +182,10 @@ export const cashTransactionReverseCommandSchema = z
 
 export const cashTransactionReverseResultSchema = z
   .object({
-    cashTransactionId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    cashTransactionId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('reversed'),
-    reversalJournalEntryId: z.string().uuid(),
+    reversalJournalEntryId: z.string().guid(),
     reversalJournalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()
@@ -209,7 +209,7 @@ const cashAllocationTypeSchema = z.enum([
 export const cashTransactionDraftAllocationSchema = z
   .object({
     allocationType: cashAllocationTypeSchema,
-    targetId: z.string().uuid(),
+    targetId: z.string().guid(),
     description: z.string().trim().max(500).nullable().optional(),
     amountCents: z
       .number()
@@ -221,10 +221,10 @@ export const cashTransactionDraftAllocationSchema = z
 
 export const cashTransactionDraftBodySchema = z
   .object({
-    transactionId: z.string().uuid().optional(),
-    cashAccountId: z.string().uuid(),
+    transactionId: z.string().guid().optional(),
+    cashAccountId: z.string().guid(),
     direction: z.enum(['receipt', 'disbursement']),
-    counterpartyId: z.string().uuid(),
+    counterpartyId: z.string().guid(),
     referenceNumber: z.string().trim().min(1).max(100),
     transactionDate: isoDateSchema,
     notes: z.string().trim().max(2_000).nullable().optional(),
@@ -269,8 +269,8 @@ export const cashTransactionDraftCommandSchema =
 
 export const cashTransactionDraftResultSchema = z
   .object({
-    cashTransactionId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    cashTransactionId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('draft'),
   })
   .strict()
@@ -292,14 +292,14 @@ export const cashTransactionDraftDeleteBodySchema = z.object({}).strict()
 
 export const cashTransactionDraftDeleteCommandSchema = z
   .object({
-    cashTransactionId: z.string().uuid(),
+    cashTransactionId: z.string().guid(),
   })
   .strict()
 
 export const cashTransactionDraftDeleteResultSchema = z
   .object({
-    cashTransactionId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    cashTransactionId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('deleted'),
   })
   .strict()
@@ -322,11 +322,11 @@ export const customerInvoiceIssueCommandSchema = z
 
 export const customerInvoiceIssueResultSchema = z
   .object({
-    invoiceId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    invoiceId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('issued'),
     invoiceNumber: z.string().trim().min(1).max(50),
-    journalEntryId: z.string().uuid(),
+    journalEntryId: z.string().guid(),
     journalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()
@@ -345,7 +345,7 @@ export type CustomerInvoiceIssueResult = z.infer<
 export const customerInvoiceDraftCreateBodySchema = z
   .object({
     billingPercentBps: z.number().int().min(1).max(10_000),
-    bomId: z.string().uuid().nullable().default(null),
+    bomId: z.string().guid().nullable().default(null),
     dueDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Due date requires YYYY-MM-DD')
@@ -357,9 +357,9 @@ export const customerInvoiceDraftCreateBodySchema = z
 
 export const customerInvoiceDraftCreateCommandSchema = z
   .object({
-    projectId: z.string().uuid(),
+    projectId: z.string().guid(),
     billingPercentBps: z.number().int().min(1).max(10_000),
-    bomId: z.string().uuid().nullable().default(null),
+    bomId: z.string().guid().nullable().default(null),
     dueDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Due date requires YYYY-MM-DD')
@@ -371,9 +371,9 @@ export const customerInvoiceDraftCreateCommandSchema = z
 
 export const customerInvoiceDraftCreateResultSchema = z
   .object({
-    invoiceId: z.string().uuid(),
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    invoiceId: z.string().guid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
     status: z.literal('draft'),
     invoiceNumber: z.string().trim().min(1).max(50),
     billingPercentBps: z.number().int().min(1).max(10_000),
@@ -407,7 +407,7 @@ export const customerInvoiceReverseBodySchema = z
 
 export const customerInvoiceReverseCommandSchema = z
   .object({
-    invoiceId: z.string().uuid(),
+    invoiceId: z.string().guid(),
     reason: z.string().trim().min(3).max(500),
     postingDate: isoDateSchema,
   })
@@ -415,10 +415,10 @@ export const customerInvoiceReverseCommandSchema = z
 
 export const customerInvoiceReverseResultSchema = z
   .object({
-    invoiceId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    invoiceId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('cancelled'),
-    reversalJournalEntryId: z.string().uuid(),
+    reversalJournalEntryId: z.string().guid(),
     reversalJournalEntryNumber: z.string().regex(/^JE-\d{4}-\d{6}$/),
   })
   .strict()
@@ -437,14 +437,14 @@ export const customerInvoiceCancelBodySchema = z.object({}).strict()
 
 export const customerInvoiceCancelCommandSchema = z
   .object({
-    invoiceId: z.string().uuid(),
+    invoiceId: z.string().guid(),
   })
   .strict()
 
 export const customerInvoiceCancelResultSchema = z
   .object({
-    invoiceId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    invoiceId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('cancelled'),
   })
   .strict()
@@ -463,14 +463,14 @@ export const bankStatementAutoMatchBodySchema = z.object({}).strict()
 
 export const bankStatementAutoMatchCommandSchema = z
   .object({
-    statementId: z.string().uuid(),
+    statementId: z.string().guid(),
   })
   .strict()
 
 export const bankStatementAutoMatchResultSchema = z
   .object({
-    statementId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    statementId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('draft'),
     matchedCount: z.number().int().nonnegative(),
     remainingCount: z.number().int().nonnegative(),
@@ -489,7 +489,7 @@ export type BankStatementAutoMatchResult = z.infer<
 
 export const bankStatementLineMatchBodySchema = z
   .object({
-    cashTransactionId: z.string().uuid(),
+    cashTransactionId: z.string().guid(),
   })
   .strict()
 
@@ -497,34 +497,34 @@ export const bankStatementLineUnmatchBodySchema = z.object({}).strict()
 
 export const bankStatementLineMatchCommandSchema = z
   .object({
-    statementId: z.string().uuid(),
-    lineId: z.string().uuid(),
-    cashTransactionId: z.string().uuid(),
+    statementId: z.string().guid(),
+    lineId: z.string().guid(),
+    cashTransactionId: z.string().guid(),
   })
   .strict()
 
 export const bankStatementLineUnmatchCommandSchema = z
   .object({
-    statementId: z.string().uuid(),
-    lineId: z.string().uuid(),
+    statementId: z.string().guid(),
+    lineId: z.string().guid(),
   })
   .strict()
 
 const bankStatementLineMatchedResultSchema = z
   .object({
-    statementId: z.string().uuid(),
-    lineId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    statementId: z.string().guid(),
+    lineId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('matched'),
-    matchedCashTransactionId: z.string().uuid(),
+    matchedCashTransactionId: z.string().guid(),
   })
   .strict()
 
 const bankStatementLineUnmatchedResultSchema = z
   .object({
-    statementId: z.string().uuid(),
-    lineId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    statementId: z.string().guid(),
+    lineId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('unmatched'),
     matchedCashTransactionId: z.null(),
   })
@@ -555,14 +555,14 @@ export const bankStatementReconcileBodySchema = z.object({}).strict()
 
 export const bankStatementReconcileCommandSchema = z
   .object({
-    statementId: z.string().uuid(),
+    statementId: z.string().guid(),
   })
   .strict()
 
 export const bankStatementReconcileResultSchema = z
   .object({
-    statementId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    statementId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('reconciled'),
   })
   .strict()
@@ -585,15 +585,15 @@ export const bankStatementVoidBodySchema = z
 
 export const bankStatementVoidCommandSchema = z
   .object({
-    statementId: z.string().uuid(),
+    statementId: z.string().guid(),
     reason: z.string().trim().min(3).max(500),
   })
   .strict()
 
 export const bankStatementVoidResultSchema = z
   .object({
-    statementId: z.string().uuid(),
-    tenantId: z.string().uuid(),
+    statementId: z.string().guid(),
+    tenantId: z.string().guid(),
     status: z.literal('voided'),
   })
   .strict()

@@ -17,7 +17,7 @@ export const projectCloseoutBondStatusSchema = z.enum([
 const nullableDateTime = z.string().datetime({ offset: true }).nullable()
 
 export const projectCloseoutBondRowSchema = z.object({
-  permitId: z.string().uuid(),
+  permitId: z.string().guid(),
   permitType: projectCloseoutBondTypeSchema,
   status: projectCloseoutBondStatusSchema,
   expectedReturnAt: nullableDateTime,
@@ -28,7 +28,7 @@ export const projectCloseoutBondRowSchema = z.object({
 export const projectCloseoutReadinessQuerySchema = z.object({}).strict()
 
 export const projectCloseoutReadinessResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   asOf: z.string().datetime({ offset: true }),
   status: projectCloseoutReadinessStatusSchema,
   bonds: z.object({

@@ -20,7 +20,7 @@ interface ActionResult {
 }
 
 const CreateCommentSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   idempotencyKey: z.string().trim().min(1).max(256).optional(),
 })
 
@@ -146,8 +146,8 @@ export async function deleteComment(
   commentId: string,
   projectId: string
 ): Promise<ActionResult> {
-  const parsedProjectId = z.string().uuid().safeParse(projectId)
-  const parsedCommentId = z.string().uuid().safeParse(commentId)
+  const parsedProjectId = z.string().guid().safeParse(projectId)
+  const parsedCommentId = z.string().guid().safeParse(commentId)
   if (!parsedProjectId.success || !parsedCommentId.success) {
     return { error: 'Invalid project comment request' }
   }

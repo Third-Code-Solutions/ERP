@@ -78,7 +78,7 @@ export default async function StockReceiptDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await requireUuidRouteParams(params)
-  if (!z.string().uuid().safeParse(id).success) notFound()
+  if (!z.string().guid().safeParse(id).success) notFound()
   const profile = await requireUserProfile()
   requireCapability(profile, 'inventory.read')
   requireRouteAccess(profile.role, '/inventory/receipts/[id]')

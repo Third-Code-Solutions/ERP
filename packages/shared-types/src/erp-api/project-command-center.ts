@@ -3,8 +3,8 @@ import { z } from 'zod'
 /** Project-scoped operational signals returned by the Core read authority. */
 export const projectCommandCenterResultSchema = z
   .object({
-    tenantId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    projectId: z.string().guid(),
     pendingTasks: z.number().int().nonnegative(),
     overdueTasks: z.number().int().nonnegative(),
     documents: z.number().int().nonnegative(),

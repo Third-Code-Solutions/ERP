@@ -61,9 +61,9 @@ const takeoffImportCommandInputSchema = z
     // candidate BOM only after proving the source document belongs to the
     // authenticated tenant and project.
     target: z.enum(['existing_bom', 'ai_document']).optional(),
-    bomId: z.string().uuid().optional(),
-    projectId: z.string().uuid().optional(),
-    documentId: z.string().uuid().optional(),
+    bomId: z.string().guid().optional(),
+    projectId: z.string().guid().optional(),
+    documentId: z.string().guid().optional(),
     sourceModel: z.string().trim().min(1).max(255).optional(),
     source: z.string().trim().min(1).max(100),
     drawingRevisionKey: z.string().trim().min(1).max(500),
@@ -225,8 +225,8 @@ export const takeoffImportPreviewResultSchema = z
   .object({
     ok: z.literal(true),
     mode: z.literal('preview'),
-    tenantId: z.string().uuid(),
-    bomId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    bomId: z.string().guid(),
     source: z.string().trim().min(1).max(100),
     sourceKey: z.string().regex(/^[a-f0-9]{64}$/),
     drawingRevisionKey: z.string().trim().min(1).max(500),
@@ -244,8 +244,8 @@ export const takeoffImportCommitResultSchema = z
   .object({
     ok: z.literal(true),
     mode: z.literal('commit'),
-    tenantId: z.string().uuid(),
-    importId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    importId: z.string().guid(),
     source: z.string().trim().min(1).max(100),
     sourceKey: z.string().regex(/^[a-f0-9]{64}$/),
     linesUpserted: z.number().int().nonnegative().max(TAKEOFF_IMPORT_MAX_ROWS),
@@ -253,7 +253,7 @@ export const takeoffImportCommitResultSchema = z
     // Core that does not report it may still answer.
     linesChanged: z.number().int().nonnegative().max(TAKEOFF_IMPORT_MAX_ROWS).optional(),
     unresolvedCount: z.number().int().nonnegative(),
-    bomId: z.string().uuid(),
+    bomId: z.string().guid(),
   })
   .strict()
 

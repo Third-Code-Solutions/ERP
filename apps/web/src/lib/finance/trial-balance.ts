@@ -106,7 +106,7 @@ export function isEmptyTrialBalanceRange(range: TrialBalanceRange): boolean {
 
 const trialBalanceFields = z.object({
   asOf: isoDateSchema.optional(),
-  period: z.string().uuid().optional(),
+  period: z.string().guid().optional(),
 })
 
 /** Lenient form used by the page: unknown keys are dropped. */

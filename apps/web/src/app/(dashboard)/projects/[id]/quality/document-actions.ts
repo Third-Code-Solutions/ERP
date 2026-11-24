@@ -14,7 +14,7 @@ export async function listQualityProjectDocuments(
   projectId: unknown,
   query: unknown = {},
 ): Promise<QualityDocumentListState> {
-  const project = z.string().uuid().transform(value => value.toLowerCase()).safeParse(projectId)
+  const project = z.string().guid().transform(value => value.toLowerCase()).safeParse(projectId)
   const filters = projectDocumentListQuerySchema.safeParse(query)
   if (!project.success || !filters.success) return { ok: false, error: 'Invalid project document filters.' }
 

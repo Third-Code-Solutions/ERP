@@ -66,7 +66,7 @@ export const siteInspectionPayloadSchema = z
   .strict()
 
 const uniquePhotoIdsSchema = z
-  .array(z.string().uuid())
+  .array(z.string().guid())
   .max(MAX_PHOTOS)
   .superRefine((ids, context) => {
     if (new Set(ids).size !== ids.length) {
@@ -80,8 +80,8 @@ const uniquePhotoIdsSchema = z
 export const siteInspectionSubmissionCommandSchema = z
   .object({
     kind: z.literal('inspection_submission'),
-    submissionId: z.string().uuid(),
-    opportunityId: z.string().uuid(),
+    submissionId: z.string().guid(),
+    opportunityId: z.string().guid(),
     payload: siteInspectionPayloadSchema,
     photoDocumentIds: uniquePhotoIdsSchema,
   })
@@ -90,16 +90,16 @@ export const siteInspectionSubmissionCommandSchema = z
 export const siteInspectionRfiCommandSchema = z
   .object({
     kind: z.literal('rfi_creation'),
-    submissionId: z.string().uuid(),
-    opportunityId: z.string().uuid(),
-    inspectionId: z.string().uuid(),
+    submissionId: z.string().guid(),
+    opportunityId: z.string().guid(),
+    inspectionId: z.string().guid(),
     description: z.string().trim().min(2).max(2_000),
     priority: z.enum(['minor', 'major']),
   })
   .strict()
 
 const principalSchema = z
-  .object({ tenantId: z.string().uuid(), userId: z.string().uuid() })
+  .object({ tenantId: z.string().guid(), userId: z.string().guid() })
   .strict()
 
 export const siteInspectionReceiptSchema = z
@@ -109,10 +109,10 @@ export const siteInspectionReceiptSchema = z
     submission_kind: z.literal('inspection_submission'),
     idempotency_key_hash: z.string().regex(HASH),
     command_hash: z.string().regex(HASH),
-    tenant_id: z.string().uuid(),
-    actor_id: z.string().uuid(),
-    opportunity_id: z.string().uuid(),
-    inspection_id: z.string().uuid(),
+    tenant_id: z.string().guid(),
+    actor_id: z.string().guid(),
+    opportunity_id: z.string().guid(),
+    inspection_id: z.string().guid(),
     status: z.literal('submitted'),
     submitted_at: z.string().datetime(),
     linked_photo_count: z.number().int().min(0).max(MAX_PHOTOS),
@@ -128,11 +128,11 @@ export const siteInspectionRfiReceiptSchema = z
     submission_kind: z.literal('rfi_creation'),
     idempotency_key_hash: z.string().regex(HASH),
     command_hash: z.string().regex(HASH),
-    tenant_id: z.string().uuid(),
-    actor_id: z.string().uuid(),
-    opportunity_id: z.string().uuid(),
-    inspection_id: z.string().uuid(),
-    rfi_id: z.string().uuid(),
+    tenant_id: z.string().guid(),
+    actor_id: z.string().guid(),
+    opportunity_id: z.string().guid(),
+    inspection_id: z.string().guid(),
+    rfi_id: z.string().guid(),
     priority: z.enum(['minor', 'major']),
     created_at: z.string().datetime(),
   })
@@ -142,10 +142,10 @@ const inspectionSuccessSchema = z
   .object({
     ok: z.literal(true),
     kind: z.literal('inspection_submission'),
-    tenantId: z.string().uuid(),
-    actorId: z.string().uuid(),
-    opportunityId: z.string().uuid(),
-    inspectionId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    actorId: z.string().guid(),
+    opportunityId: z.string().guid(),
+    inspectionId: z.string().guid(),
     status: z.literal('submitted'),
     submittedAt: z.string().datetime(),
     linkedPhotoCount: z.number().int().min(0).max(MAX_PHOTOS),
@@ -157,11 +157,11 @@ const rfiSuccessSchema = z
   .object({
     ok: z.literal(true),
     kind: z.literal('rfi_creation'),
-    tenantId: z.string().uuid(),
-    actorId: z.string().uuid(),
-    opportunityId: z.string().uuid(),
-    inspectionId: z.string().uuid(),
-    rfiId: z.string().uuid(),
+    tenantId: z.string().guid(),
+    actorId: z.string().guid(),
+    opportunityId: z.string().guid(),
+    inspectionId: z.string().guid(),
+    rfiId: z.string().guid(),
     priority: z.enum(['minor', 'major']),
     createdAt: z.string().datetime(),
     replayed: z.boolean(),
@@ -755,7 +755,7 @@ export class SiteInspectionWorkflowService {
       receipt.data.inspection_id
     )
     const persistedNotificationRecipients = z
-      .array(z.string().uuid())
+      .array(z.string().guid())
       .safeParse(notified)
     const notifiedRecipientSetIsComplete =
       persistedNotificationRecipients.success &&

@@ -81,7 +81,7 @@ function parseCommand(
   command: CadEvidenceCommitCommand
 ): { documentId: string; command: CadEvidenceCommitCommand; worker: CadWorkerResponse } {
   try {
-    const parsedDocumentId = z.string().uuid().parse(documentId)
+    const parsedDocumentId = z.string().guid().parse(documentId)
     const parsedCommand = cadEvidenceCommitCommandSchema.parse(command)
     const worker = parseCadWorkerResponse(
       parsedCommand.workerResponse,

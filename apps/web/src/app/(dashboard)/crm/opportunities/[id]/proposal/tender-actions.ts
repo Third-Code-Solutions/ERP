@@ -23,7 +23,7 @@ function forbid(role: AppRole, capability: ErpCapability): string | null {
 }
 
 function parseUuid(value: FormDataEntryValue | null, label: string): string {
-  const parsed = z.string().uuid().safeParse(value)
+  const parsed = z.string().guid().safeParse(value)
   if (!parsed.success) throw new Error(`${label} must be a valid UUID`)
   return parsed.data
 }

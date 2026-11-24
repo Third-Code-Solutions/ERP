@@ -43,7 +43,7 @@ export interface InventoryActionResult {
   number?: string
 }
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const idempotencyKeySchema = z.string().trim().min(1).max(200)
 

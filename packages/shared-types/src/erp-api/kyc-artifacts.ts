@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { kycArtifactTypeValues } from '../accounts'
 
-const uuid = z.string().uuid().transform((value) => value.toLowerCase())
+const uuid = z.string().guid().transform((value) => value.toLowerCase())
 
 export const kycArtifactCreateCommandSchema = z.object({
   clientRequestId: uuid,

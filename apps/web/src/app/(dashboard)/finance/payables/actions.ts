@@ -37,8 +37,8 @@ const moneySchema = z
 
 const supplierBillDraftSchema = z
   .object({
-    billId: z.string().uuid().optional(),
-    purchaseOrderId: z.string().uuid(),
+    billId: z.string().guid().optional(),
+    purchaseOrderId: z.string().guid(),
     vendorBillNumber: z.string().trim().min(1).max(80),
     billDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     dueDate: z
@@ -54,10 +54,10 @@ const supplierBillDraftSchema = z
     lines: z
       .array(
         z.object({
-          poLineItemId: z.string().uuid(),
-          stockReceiptLineId: z.string().uuid().nullable().optional(),
+          poLineItemId: z.string().guid(),
+          stockReceiptLineId: z.string().guid().nullable().optional(),
           quantityMicros: moneySchema.min(1).nullable().optional(),
-          ledgerAccountId: z.string().uuid(),
+          ledgerAccountId: z.string().guid(),
           description: z.string().trim().min(1).max(500),
           amountCents: moneySchema.min(1),
         })
@@ -112,7 +112,7 @@ const supplierBillDraftSchema = z
   })
 
 const postingSchema = z.object({
-  billId: z.string().uuid(),
+  billId: z.string().guid(),
   postingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 })
 
@@ -422,7 +422,7 @@ export async function deleteSupplierBillDraft(
   try {
     const profile = await requireUserProfile()
     requireCapability(profile, 'finance.post_supplier_bill')
-    const parsedId = z.string().uuid().parse(billId)
+    const parsedId = z.string().guid().parse(billId)
     const [deleted] = await db
       .delete(supplierBills)
       .where(

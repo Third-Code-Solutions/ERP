@@ -37,7 +37,7 @@ type ActiveCommand = {
   unknownObserved: boolean
 }
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 const lockSuccessSchema = z
   .object({
     ok: z.literal(true),

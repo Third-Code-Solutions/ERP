@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
 
-const uuidParamsSchema = z.record(z.string().uuid())
+const uuidParamsSchema = z.record(z.string().guid())
 
 /**
  * Validate UUID-only page parameters before database or Core reads. Validate in

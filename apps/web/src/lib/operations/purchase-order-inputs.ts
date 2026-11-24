@@ -3,7 +3,7 @@ import { z } from 'zod'
 const MAX_POSTGRES_INTEGER = 2_147_483_647
 const MAX_SAFE_CENTAVOS = Number.MAX_SAFE_INTEGER
 
-const uuidSchema = z.string().uuid()
+const uuidSchema = z.string().guid()
 
 const dateOnlySchema = z
   .string()

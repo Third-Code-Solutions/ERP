@@ -218,7 +218,7 @@ export class CortexSemanticIndexService {
     rawJobId: string,
     principal: ErpPrincipal
   ): Promise<CortexSemanticIndexStatus> {
-    const parsedJobId = z.string().uuid().safeParse(rawJobId)
+    const parsedJobId = z.string().guid().safeParse(rawJobId)
     if (!parsedJobId.success) throw new BadRequestException('Invalid job id')
 
     const [membership] = await this.database.client

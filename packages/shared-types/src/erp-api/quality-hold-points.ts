@@ -37,7 +37,7 @@ const qualityHoldPointPunchlistItemCommandSchema = z.object({
   trade: z.string().trim().max(120).nullable().default(null),
   priority: punchlistPrioritySchema.default('medium'),
   dueDate: z.string().datetime({ offset: true }).nullable().default(null),
-  assignedToUserId: z.string().uuid().nullable().default(null),
+  assignedToUserId: z.string().guid().nullable().default(null),
   assignedToText: z.string().trim().max(255).nullable().default(null),
 }).strict()
 
@@ -54,8 +54,8 @@ export const qualityHoldPointListQuerySchema = z.object({
 }).strict()
 
 export const createQualityHoldPointCommandSchema = z.object({
-  projectId: z.string().uuid(),
-  clientRequestId: z.string().uuid(),
+  projectId: z.string().guid(),
+  clientRequestId: z.string().guid(),
   title: qualityText(200, true),
   description: qualityText(10000, true),
   discipline: qualityText(120),
@@ -63,7 +63,7 @@ export const createQualityHoldPointCommandSchema = z.object({
   planReference: qualityText(200),
   holdPoint: z.boolean(),
   inspectionDate: nullableDate,
-  assignedTo: z.string().uuid().nullable(),
+  assignedTo: z.string().guid().nullable(),
 }).strict()
 
 export const updateQualityHoldPointCommandSchema = z.object({
@@ -75,7 +75,7 @@ export const updateQualityHoldPointCommandSchema = z.object({
   planReference: qualityText(200),
   holdPoint: z.boolean(),
   inspectionDate: nullableDate,
-  assignedTo: z.string().uuid().nullable(),
+  assignedTo: z.string().guid().nullable(),
 }).strict()
 
 export const qualityHoldPointReadyCommandSchema = z.object({
@@ -101,14 +101,14 @@ export const qualityHoldPointRejectCommandSchema = z.object({
 
 /** Creates one immutable handoff and one or more linked punchlist items. */
 export const qualityHoldPointPunchlistHandoffCommandSchema = z.object({
-  clientRequestId: z.string().uuid(),
-  planDocumentId: z.string().uuid().nullable().default(null),
+  clientRequestId: z.string().guid(),
+  planDocumentId: z.string().guid().nullable().default(null),
   items: z.array(qualityHoldPointPunchlistItemCommandSchema).min(1).max(100),
 }).strict()
 
 export const qualityHoldPointRowSchema = z.object({
-  id: z.string().uuid(),
-  projectId: z.string().uuid(),
+  id: z.string().guid(),
+  projectId: z.string().guid(),
   iwrNumber: z.string().trim().min(1).max(40),
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(10000),
@@ -122,23 +122,23 @@ export const qualityHoldPointRowSchema = z.object({
   findings: z.string().max(10000),
   rejectionReason: z.string().max(5000),
   acceptanceNotes: z.string().max(10000),
-  requestedBy: z.string().uuid(),
-  assignedTo: z.string().uuid().nullable(),
+  requestedBy: z.string().guid(),
+  assignedTo: z.string().guid().nullable(),
   submittedAt: z.string().datetime({ offset: true }).nullable(),
-  submittedBy: z.string().uuid().nullable(),
+  submittedBy: z.string().guid().nullable(),
   acceptedAt: z.string().datetime({ offset: true }).nullable(),
-  acceptedBy: z.string().uuid().nullable(),
+  acceptedBy: z.string().guid().nullable(),
   rejectedAt: z.string().datetime({ offset: true }).nullable(),
-  rejectedBy: z.string().uuid().nullable(),
+  rejectedBy: z.string().guid().nullable(),
   punchlistHandoffAt: z.string().datetime({ offset: true }).nullable(),
-  punchlistHandoffBy: z.string().uuid().nullable(),
+  punchlistHandoffBy: z.string().guid().nullable(),
   version: z.number().int().min(1),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
 }).strict()
 
 export const qualityHoldPointListResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   rows: z.array(qualityHoldPointRowSchema),
   total: z.number().int().nonnegative(),
   page: z.number().int().positive(),
@@ -147,47 +147,47 @@ export const qualityHoldPointListResultSchema = z.object({
 }).strict()
 
 export const qualityHoldPointCreateResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   created: z.boolean(),
   changed: z.boolean(),
   entry: qualityHoldPointRowSchema,
 }).strict()
 
 export const qualityHoldPointMutationResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   changed: z.boolean(),
   entry: qualityHoldPointRowSchema,
 }).strict()
 
 export const qualityHoldPointPunchlistSourceSchema = z.object({
-  qualityHoldPointId: z.string().uuid(),
+  qualityHoldPointId: z.string().guid(),
   iwrNumber: z.string().trim().min(1).max(40),
   findings: z.string().max(10000),
   rejectionReason: z.string().trim().min(1).max(5000),
-  planDocumentId: z.string().uuid().nullable(),
+  planDocumentId: z.string().guid().nullable(),
 }).strict()
 
 export const qualityHoldPointPunchlistItemRowSchema = z.object({
-  id: z.string().uuid(),
-  projectId: z.string().uuid(),
+  id: z.string().guid(),
+  projectId: z.string().guid(),
   description: z.string().trim().min(1).max(10000),
   location: z.string().max(255).nullable(),
   trade: z.string().max(120).nullable(),
   priority: punchlistPrioritySchema,
   status: punchlistStatusSchema,
   dueDate: z.string().datetime({ offset: true }).nullable(),
-  assignedToUserId: z.string().uuid().nullable(),
+  assignedToUserId: z.string().guid().nullable(),
   assignedToText: z.string().max(255).nullable(),
   createdAt: z.string().datetime({ offset: true }),
-  createdBy: z.string().uuid().nullable(),
-  sourceHandoffId: z.string().uuid(),
+  createdBy: z.string().guid().nullable(),
+  sourceHandoffId: z.string().guid(),
 }).strict()
 
 export const qualityHoldPointPunchlistHandoffResultSchema = z.object({
-  clientRequestId: z.string().uuid(),
-  projectId: z.string().uuid(),
-  qualityHoldPointId: z.string().uuid(),
-  handoffId: z.string().uuid(),
+  clientRequestId: z.string().guid(),
+  projectId: z.string().guid(),
+  qualityHoldPointId: z.string().guid(),
+  handoffId: z.string().guid(),
   created: z.boolean(),
   changed: z.boolean(),
   source: qualityHoldPointPunchlistSourceSchema,

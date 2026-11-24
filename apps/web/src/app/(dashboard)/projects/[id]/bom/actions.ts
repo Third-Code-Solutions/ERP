@@ -54,17 +54,17 @@ import { computeBomTotals, manualLineTotal } from '@third-code-erp/shared-types/
 
 const bomLineItemReferenceSchema = z
   .object({
-    lineItemId: z.string().uuid(),
-    bomId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    lineItemId: z.string().guid(),
+    bomId: z.string().guid(),
+    projectId: z.string().guid(),
   })
   .strict()
 
 const bomVendorAssignmentSchema = z
   .object({
-    lineItemId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    vendorId: z.string().uuid().nullable(),
+    lineItemId: z.string().guid(),
+    projectId: z.string().guid(),
+    vendorId: z.string().guid().nullable(),
   })
   .strict()
 
@@ -116,12 +116,12 @@ function refineSafeManualLineTotal(
 
 const addBomLineItemActionSchema = z
   .object({
-    bomId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    bomId: z.string().guid(),
+    projectId: z.string().guid(),
     data: bomLineItemFieldsSchema
       .extend({
         notes: z.string().max(2_000).optional(),
-        locationId: z.string().uuid().nullable().optional(),
+        locationId: z.string().guid().nullable().optional(),
       })
       .strict()
       .superRefine(refineSafeManualLineTotal),
@@ -135,9 +135,9 @@ const AI_DRAFT_UNPRICED_ERROR =
 
 const updateBomLineItemActionSchema = z
   .object({
-    lineItemId: z.string().uuid(),
-    bomId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    lineItemId: z.string().guid(),
+    bomId: z.string().guid(),
+    projectId: z.string().guid(),
     data: bomLineItemFieldsSchema
       .extend({
         // The line's updated_at when the edit row opened; a newer line is not overwritten.
@@ -154,8 +154,8 @@ const QUANTITY_MUST_BE_POSITIVE = 'Quantity must be greater than 0 with at most 
 
 const takeoffItemResolutionSchema = z
   .object({
-    itemId: z.string().uuid(),
-    projectId: z.string().uuid(),
+    itemId: z.string().guid(),
+    projectId: z.string().guid(),
     description: bomLineItemFieldsSchema.shape.description.optional(),
     unit: bomLineItemFieldsSchema.shape.unit.optional(),
     quantity: bomLineItemFieldsSchema.shape.quantity.optional(),
@@ -225,7 +225,7 @@ async function lockBomForMutation(
 
 // A malformed id would otherwise reach Postgres and throw instead of answering empty.
 function isUuid(value: string | null): value is string {
-  return z.string().uuid().safeParse(value).success
+  return z.string().guid().safeParse(value).success
 }
 
 async function lockProjectForMutation(

@@ -10,9 +10,9 @@ import { writeAuditLog } from '@/lib/audit'
 import { safeActionError } from '@/lib/safe-action-error'
 
 const mappingSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.string().guid().optional(),
   source_label: z.string().trim().min(1, 'source label required').max(255),
-  material_item_id: z.string().uuid('material item required'),
+  material_item_id: z.string().guid('material item required'),
   notes: z.string().trim().max(500).optional(),
 })
 

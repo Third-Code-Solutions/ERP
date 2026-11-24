@@ -13,7 +13,7 @@ export const cortexSemanticIndexCommandSchema = z
 export const cortexSemanticIndexQueueJobSchema = z
   .object({
     schemaVersion: z.literal(1),
-    jobId: z.string().uuid(),
+    jobId: z.string().guid(),
   })
   .strict()
 
@@ -24,7 +24,7 @@ export const cortexSemanticIndexRecoveryJobSchema = z
 
 export const cortexSemanticIndexStatusSchema = z
   .object({
-    jobId: z.string().uuid(),
+    jobId: z.string().guid(),
     status: z.enum(['queued', 'processing', 'succeeded', 'failed']),
     maxNodes: z.literal(CORTEX_SEMANTIC_INDEX_MAX_NODES),
     backlogAtRequest: z.number().int().nonnegative(),
@@ -47,7 +47,7 @@ export const cortexSemanticIndexStatusSchema = z
 
 export const cortexSemanticIndexAcceptedSchema = z
   .object({
-    jobId: z.string().uuid(),
+    jobId: z.string().guid(),
     status: z.literal('queued'),
     maxNodes: z.literal(CORTEX_SEMANTIC_INDEX_MAX_NODES),
     backlogAtRequest: z.number().int().positive(),

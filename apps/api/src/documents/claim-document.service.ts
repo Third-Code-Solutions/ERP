@@ -38,7 +38,7 @@ export class ClaimDocumentService {
     input: ClaimDocumentAttachCommand,
     principal: ErpPrincipal,
   ): Promise<ClaimDocumentAttachResult> {
-    const claimId = z.string().uuid().parse(claimIdInput).toLowerCase()
+    const claimId = z.string().guid().parse(claimIdInput).toLowerCase()
     const command = claimDocumentAttachCommandSchema.parse(input)
     return this.database.client.transaction(async (transaction) => {
       const actor = await this.authorize(transaction, principal)

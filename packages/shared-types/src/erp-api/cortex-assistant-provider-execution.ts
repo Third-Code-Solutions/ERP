@@ -12,14 +12,14 @@ export const CORTEX_ASSISTANT_PROVIDER_TIMEOUT_MAX_MS = 60_000
 
 const providerEvidenceSchema = z
   .object({
-    nodeId: z.string().uuid(),
+    nodeId: z.string().guid(),
     nodeType: z.string().trim().min(1).max(64),
     title: z.string().max(500).nullable(),
     summary: z.string().max(4_000).nullable(),
   })
   .strict()
 
-const providerCitationIdsSchema = z.array(z.string().uuid()).max(12)
+const providerCitationIdsSchema = z.array(z.string().guid()).max(12)
 
 function nodeIdsAreUnique(value: {
   evidence?: Array<{ nodeId: string }>

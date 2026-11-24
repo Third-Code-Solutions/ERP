@@ -34,15 +34,15 @@ export const projectWeeklyProgressListQuerySchema = z.object({
 }).strict()
 
 export const createProjectWeeklyProgressCommandSchema = z.object({
-  projectId: z.string().uuid(),
-  clientRequestId: z.string().uuid(),
+  projectId: z.string().guid(),
+  clientRequestId: z.string().guid(),
   weekEnding: calendarDateSchema,
   percentByCategory: projectWeeklyProgressPercentSchema,
   notes: notesSchema,
 }).strict()
 
 export const lockProjectWeeklyProgressCommandSchema = z.object({
-  clientRequestId: z.string().uuid().optional(),
+  clientRequestId: z.string().guid().optional(),
   expectedVersion: z.number().int().min(1),
   lockReason: notesSchema,
 }).strict()
@@ -59,10 +59,10 @@ export const projectWeeklyProgressWarSnapshotSchema = z
 
 export const projectWeeklyProgressRowSchema = z
   .object({
-    id: z.string().uuid(),
-    projectId: z.string().uuid(),
-    progressUpdateId: z.string().uuid(),
-    clientRequestId: z.string().uuid(),
+    id: z.string().guid(),
+    projectId: z.string().guid(),
+    progressUpdateId: z.string().guid(),
+    clientRequestId: z.string().guid(),
     weekEnding: calendarDateSchema,
     cutoffAt: z.string().datetime({ offset: true }),
     status: projectWeeklyProgressStatusSchema,
@@ -70,10 +70,10 @@ export const projectWeeklyProgressRowSchema = z
     notes: z.string().max(5000),
     warSnapshot: projectWeeklyProgressWarSnapshotSchema.nullable(),
     lockedAt: z.string().datetime({ offset: true }).nullable(),
-    lockedBy: z.string().uuid().nullable(),
+    lockedBy: z.string().guid().nullable(),
     lockReason: z.string().max(5000),
     version: z.number().int().min(1),
-    createdBy: z.string().uuid(),
+    createdBy: z.string().guid(),
     createdAt: z.string().datetime({ offset: true }),
     updatedAt: z.string().datetime({ offset: true }),
   })
@@ -81,10 +81,10 @@ export const projectWeeklyProgressRowSchema = z
 
 const commandReceiptFields = {
   schemaVersion: z.literal(1),
-  tenantId: z.string().uuid(),
-  actorId: z.string().uuid(),
-  projectId: z.string().uuid(),
-  clientRequestId: z.string().uuid(),
+  tenantId: z.string().guid(),
+  actorId: z.string().guid(),
+  projectId: z.string().guid(),
+  clientRequestId: z.string().guid(),
   payloadHash: z.string().regex(/^[a-f0-9]{64}$/),
   row: projectWeeklyProgressRowSchema,
 }
@@ -95,7 +95,7 @@ export const projectWeeklyProgressCommandReceiptSchema = z.discriminatedUnion('o
 ])
 
 export const projectWeeklyProgressListResultSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   rows: z.array(projectWeeklyProgressRowSchema),
   total: z.number().int().nonnegative(),
   page: z.number().int().positive(),
@@ -105,7 +105,7 @@ export const projectWeeklyProgressListResultSchema = z.object({
 
 export const projectWeeklyProgressMutationResultSchema = z.object({
   receipt: projectWeeklyProgressCommandReceiptSchema.optional(),
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   created: z.boolean(),
   changed: z.boolean(),
   row: projectWeeklyProgressRowSchema,
@@ -113,7 +113,7 @@ export const projectWeeklyProgressMutationResultSchema = z.object({
 
 export const projectWeeklyProgressLockResultSchema = z.object({
   receipt: projectWeeklyProgressCommandReceiptSchema.optional(),
-  projectId: z.string().uuid(),
+  projectId: z.string().guid(),
   changed: z.boolean(),
   row: projectWeeklyProgressRowSchema,
 }).strict()
@@ -146,8 +146,8 @@ export function weeklyProgressLockPayload(projectId: string, periodId: string, c
   const input = lockProjectWeeklyProgressCommandSchema.parse(command)
   return JSON.stringify({
     operation: 'lock',
-    projectId: z.string().uuid().parse(projectId).toLowerCase(),
-    periodId: z.string().uuid().parse(periodId).toLowerCase(),
+    projectId: z.string().guid().parse(projectId).toLowerCase(),
+    periodId: z.string().guid().parse(periodId).toLowerCase(),
     expectedVersion: input.expectedVersion,
     lockReason: input.lockReason,
   })

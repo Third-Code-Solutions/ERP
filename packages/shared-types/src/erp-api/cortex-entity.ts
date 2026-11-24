@@ -7,7 +7,7 @@ import {
 export const cortexEntityParamsSchema = z
   .object({
     refTable: cortexGraphRefTableSchema,
-    refId: z.string().uuid(),
+    refId: z.string().guid(),
   })
   .strict()
 
@@ -15,12 +15,12 @@ export type CortexEntityParams = z.infer<typeof cortexEntityParamsSchema>
 
 export const cortexCitationSchema = z
   .object({
-    nodeId: z.string().uuid(),
+    nodeId: z.string().guid(),
     nodeType: z.string().trim().min(1).max(64),
     refTable: cortexGraphRefTableSchema,
-    refId: z.string().uuid(),
+    refId: z.string().guid(),
     title: z.string().max(500).nullable(),
-    projectId: z.string().uuid().nullable(),
+    projectId: z.string().guid().nullable(),
   })
   .strict()
   .superRefine((citation, ctx) => {
@@ -39,7 +39,7 @@ export type CortexCitation = z.infer<typeof cortexCitationSchema>
 
 export const cortexRelationshipSchema = z
   .object({
-    edgeId: z.string().uuid(),
+    edgeId: z.string().guid(),
     edgeType: z.string().trim().min(1).max(128),
     direction: z.enum(['out', 'in']),
     label: z.string().trim().min(1).max(128),

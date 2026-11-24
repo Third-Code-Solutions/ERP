@@ -53,9 +53,9 @@ export interface CompleteTaskContext {
 
 const completeTaskContextSchema = z
   .object({
-    taskId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    assigneeId: z.string().uuid().nullable(),
+    taskId: z.string().guid(),
+    projectId: z.string().guid(),
+    assigneeId: z.string().guid().nullable(),
     requiresNotes: z.boolean(),
   })
   .strict()
@@ -206,8 +206,8 @@ const createTaskSchema = z
       .trim()
       .max(2_000, 'Keep the description under 2,000 characters.')
       .optional(),
-    project_id: z.string().uuid('Choose a project.'),
-    assignee_id: z.string().uuid('Choose who the task is assigned to.'),
+    project_id: z.string().guid('Choose a project.'),
+    assignee_id: z.string().guid('Choose who the task is assigned to.'),
     // datetime-local value, read as Manila wall-clock time.
     due_at: z
       .string()
