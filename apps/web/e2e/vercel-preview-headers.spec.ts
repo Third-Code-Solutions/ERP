@@ -47,7 +47,9 @@ test.describe('Vercel preview bypass', () => {
       const path = request.url ?? '/'
       appSeen.push({ path, headers: request.headers })
       if (request.headers[BYPASS] === SECRET && request.headers['x-vercel-set-bypass-cookie'] === 'true') {
-        response.writeHead(307, { location: path, 'set-cookie': `${COOKIE}; Path=/; HttpOnly; SameSite=Lax` }).end()
+        // /wide sets a Domain attribute, which no host-only cookie has.
+        const domain = path === '/wide' ? '; Domain=127.0.0.1' : ''
+        response.writeHead(307, { location: path, 'set-cookie': `${COOKIE}; Path=/${domain}; HttpOnly; SameSite=Lax` }).end()
         return
       }
       if (!request.headers.cookie?.includes(COOKIE)) {
@@ -154,6 +156,17 @@ test.describe('Vercel preview bypass', () => {
       await request.dispose()
     }
   })
+
+  test('a bypass cookie that is not host-only fails the context', async ({ playwright }) => {
+    const request = await playwright.request.newContext({ baseURL: app.origin })
+    try {
+      await expect(mintVercelBypassCookie(request, `${app.origin}/wide`, SECRET)).rejects.toThrow(
+        'cookies that are not host-only: _vercel_jwt (.127.0.0.1)',
+      )
+    } finally {
+      await request.dispose()
+    }
+  })
 })
 
 const PLAYWRIGHT_MODULE = String.raw`['"](?:@playwright/test|playwright/test|playwright|playwright-core)['"]`
@@ -189,13 +202,22 @@ test('the guard catches every way around base-test.ts', () => {
   ]) expect(bypassesBaseTest(source), source).toBe(false)
 })
 
-test('every e2e file takes Playwright from base-test.ts', () => {
-  const direct = (readdirSync(__dirname, { recursive: true }) as string[])
+// Every e2e script but base-test.ts and this spec, which holds its bypass
+// samples as strings and reads the secret header on its fake app.
+const otherE2eFiles = () =>
+  (readdirSync(__dirname, { recursive: true }) as string[])
     .map((file) => file.replaceAll('\\', '/'))
-    // This spec holds its bypass samples as strings.
     .filter((file) => /\.[cm]?[jt]sx?$/.test(file) && !['base-test.ts', 'vercel-preview-headers.spec.ts'].includes(file))
-    .filter((file) => bypassesBaseTest(readFileSync(`${__dirname}/${file}`, 'utf8')))
+    .map((file) => ({ file, source: readFileSync(`${__dirname}/${file}`, 'utf8') }))
+
+test('every e2e file takes Playwright from base-test.ts', () => {
+  const direct = otherE2eFiles().filter(({ source }) => bypassesBaseTest(source)).map(({ file }) => file)
   expect(direct, 'these files bypass e2e/base-test.ts and its Vercel bypass').toEqual([])
+})
+
+test('only base-test.ts sends the Vercel bypass secret', () => {
+  const senders = otherE2eFiles().filter(({ source }) => /x-vercel-protection-bypass/i.test(source)).map(({ file }) => file)
+  expect(senders, 'these files send the bypass secret outside e2e/base-test.ts').toEqual([])
 })
 
 test('no Playwright config sends headers to every origin', () => {
