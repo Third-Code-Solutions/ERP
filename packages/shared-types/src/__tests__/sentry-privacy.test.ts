@@ -159,13 +159,103 @@ describe('scrubSentryEvent', () => {
 
     expect(scrubbed.transaction).toBe('POST /portal/sign/[token]')
     expect(scrubbed.contexts.nextjs.router_path).toBe('/portal/sign/[token]')
-    expect(scrubbed.exception.values[0]?.stacktrace).toBe(event.exception.values[0]?.stacktrace)
+    expect(scrubbed.exception.values[0]?.stacktrace).toEqual(event.exception.values[0]?.stacktrace)
     expect(scrubbed.breadcrumbs).toEqual([
       {
         category: 'http',
         data: { url: 'https://abi.example/api/v1/public/signatures/[redacted]', method: 'GET', status_code: 500 },
       },
     ])
+  })
+
+  // Second review repro: a server event and a browser event whose frames
+  // carry the page URL (window.onerror on an inline script or a throw
+  // without a stack), including the invite page's auth fragment.
+  it('sends nothing sensitive from the review repro events', () => {
+    const server = {
+      request: {
+        method: 'POST',
+        url: `https://abi.example/portal/sign/${TOKEN}?_rsc=1`,
+        query_string: 'x=1',
+        env: { REMOTE_ADDR: '1.2.3.4' },
+        headers: {
+          'next-url': `/portal/sign/${TOKEN}`,
+          'x-vercel-ip-city': 'Makati',
+          'x-vercel-ip-latitude': '14.55',
+          'x-vercel-ip-postal-code': '1226',
+          'x-forwarded-for': '203.0.113.9',
+          'accept-encoding': '[Filtered]',
+          'user-agent': 'UA',
+        },
+      },
+      contexts: { nextjs: { request_path: `/portal/sign/${TOKEN}`, router_path: '/portal/sign/[token]' } },
+      exception: {
+        values: [
+          {
+            type: 'DrizzleQueryError',
+            value: 'Failed query: insert into "accounts" values ($1,$2)\nparams: Juan Dela Cruz,juan@example.ph',
+          },
+          { type: 'Error', value: `fetch failed for /v1/public/signatures/${TOKEN}` },
+        ],
+      },
+      breadcrumbs: [
+        { category: 'console', message: 'x params: ana@client.ph' },
+        {
+          category: 'http',
+          data: { url: `https://api.example/v1/public/signatures/${TOKEN}` },
+          message: `GET /portal/bom/${TOKEN}`,
+        },
+      ],
+      tags: { t: `/portal/cnps/${TOKEN}` },
+      extra: { e: `see /portal/warranty/${TOKEN}` },
+    }
+    const browser = {
+      request: {
+        url: 'https://abi.example/auth/accept-invite#access_token=AT_SECRET&refresh_token=RT_SECRET',
+        headers: { 'User-Agent': 'UA', Referer: 'r' },
+      },
+      exception: {
+        values: [
+          {
+            type: 'Error',
+            value: 'Navigation to https://abi.example/auth/callback?code=CODE_SECRET failed for /auth/accept-invite#access_token=AT_SECRET',
+            stacktrace: {
+              frames: [
+                {
+                  filename: 'app:///auth/accept-invite#access_token=AT_SECRET&refresh_token=RT_SECRET',
+                  function: '?',
+                  in_app: true,
+                },
+                {
+                  filename: `app:///portal/sign/${TOKEN}`,
+                  abs_path: `https://abi.example/portal/sign/${TOKEN}?x=1`,
+                  function: '?',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    }
+    const leaks = [TOKEN, 'Makati', '14.55', '1226', '203.0.113.9', '1.2.3.4', '@', 'Juan', 'AT_SECRET', 'RT_SECRET', 'CODE_SECRET', '_rsc', 'next-url', 'accept-encoding']
+
+    for (const event of [server, browser]) {
+      const sent = JSON.stringify(scrubSentryEvent(event))
+      expect(leaks.filter((leak) => sent.includes(leak))).toEqual([])
+    }
+    expect(scrubSentryEvent(browser).exception.values[0]?.stacktrace.frames).toEqual([
+      { filename: 'app:///auth/accept-invite', function: '?', in_app: true },
+      { filename: 'app:///portal/sign/[redacted]', abs_path: 'https://abi.example/portal/sign/[redacted]', function: '?' },
+    ])
+  })
+
+  it('redacts percent-encoded capability links and keeps encoded route patterns', () => {
+    expect(scrubSentryEvent({ transaction: `next=%2Fportal%2Fsign%2F${TOKEN}%3Fx%3D1 done` }).transaction).toBe(
+      'next=%2Fportal%2Fsign%2F[redacted]%3Fx%3D1 done'
+    )
+    expect(scrubSentryEvent({ transaction: 'route %2Fportal%2Fsign%2F%5Btoken%5D' }).transaction).toBe(
+      'route %2Fportal%2Fsign%2F%5Btoken%5D'
+    )
   })
 
   it('drops cookies, bodies, server env and query strings; headers by allowlist', () => {

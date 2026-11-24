@@ -38,16 +38,33 @@ const SAFE_REQUEST_HEADERS = [
 
 // Public capability links carry their bearer token as the path segment after
 // the link kind: web /portal/<kind>/<token>, Core API /v1/public/<kind>/<token>.
-// Route patterns such as /portal/sign/[token] are kept.
+// Separators may be percent-encoded (%2F) when the path sits inside another
+// URL. Route patterns such as /portal/sign/[token] are kept.
 const CAPABILITY_TOKEN =
-  /(\/(?:portal|public)\/[^/?#\s"'<>]+\/)(?!\[)[^/?#\s"'<>]+/g
+  /((?:\/|%2F)(?:portal|public)(?:\/|%2F)[^/?#\s"'<>%]+(?:\/|%2F))(?!\[|%5B)(?:[^/?#\s"'<>%]|%(?!2F|3F|23)[0-9A-F]{2})+/gi
+
+// Query string and fragment of an absolute URL inside free text.
+const URL_QUERY_IN_TEXT = /\b((?:https?|app):\/\/[^\s?#"'<>]*)[?#][^\s"'<>]*/gi
+
+// Supabase auth parameters (invite, recovery and OAuth redirects) wherever
+// they appear, including relative URLs with a #fragment.
+const AUTH_PARAM =
+  /\b(access_token|refresh_token|provider_token|provider_refresh_token|id_token|token_hash|code)=[^&\s"'<>#]+/gi
 
 // Drizzle reports a failed query as "Failed query: <sql>\nparams: <values>".
 // The SQL text holds placeholders only; the values are tenant data.
 const QUERY_PARAMS = /(^|\s)params: [\s\S]*/
 
 // Fields whose value is a URL: query string and fragment are dropped too.
-const URL_FIELDS = new Set(['url', 'from', 'to', 'request_path'])
+// A browser error without a stack reports the page URL as its frame file.
+const URL_FIELDS = new Set([
+  'url',
+  'from',
+  'to',
+  'request_path',
+  'filename',
+  'abs_path',
+])
 
 export function scrubSentryUrl(url: string): string {
   const [path = ''] = url.split(/[?#]/, 1)
@@ -56,6 +73,8 @@ export function scrubSentryUrl(url: string): string {
 
 function redactText(text: string): string {
   return text
+    .replace(URL_QUERY_IN_TEXT, '$1')
+    .replace(AUTH_PARAM, '$1=[redacted]')
     .replace(CAPABILITY_TOKEN, '$1[redacted]')
     .replace(QUERY_PARAMS, '$1params: [redacted]')
 }
@@ -66,8 +85,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null
 }
 
-// Redacts every string in the (already normalised, JSON-shaped) event.
-// Stack frames hold source paths and code, never request data.
+// Redacts every string in the (already normalised, JSON-shaped) event,
+// stack frames included.
 function redactDeep(value: unknown, field?: string): unknown {
   if (typeof value === 'string') {
     return field !== undefined && URL_FIELDS.has(field)
@@ -77,10 +96,7 @@ function redactDeep(value: unknown, field?: string): unknown {
   if (Array.isArray(value)) return value.map((item) => redactDeep(item))
   if (!isPlainObject(value)) return value
   return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [
-      key,
-      key === 'stacktrace' ? item : redactDeep(item, key),
-    ])
+    Object.entries(value).map(([key, item]) => [key, redactDeep(item, key)])
   )
 }
 
