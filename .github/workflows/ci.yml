@@ -292,6 +292,7 @@ jobs:
           src/lib/management-dashboard.integration.test.ts
           'src/app/(dashboard)/crm/accounts/actions.database.integration.test.ts'
           'src/app/(dashboard)/crm/opportunities/[id]/proposal/change-request-workflow.integration.test.ts'
+          src/lib/finance/trial-balance.database.integration.test.ts
           --reporter=json
           --outputFile="$GITHUB_WORKSPACE/tmp/database-reproducibility/web-integration-vitest.json"
       - name: Assert every Web database workflow executed
@@ -451,6 +452,7 @@ jobs:
             e2e/weekly-progress-command-receipts.spec.ts \
             e2e/billing-milestone-navigation.spec.ts \
             e2e/quality-document-handoff.spec.ts \
+            e2e/demo-tenant-boundary.contract.spec.ts \
             --project=chromium \
             --workers=1 \
             --retries=0 \

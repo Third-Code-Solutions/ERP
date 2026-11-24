@@ -1,0 +1,108 @@
+import { insertSurveyOnce, markSurveySent, sendTicketSurvey, type SurveyRow } from './claim-survey.ts'
+
+const row: SurveyRow = {
+  tenant_id: 'tenant-id',
+  ticket_id: 'ticket-id',
+  account_id: null,
+  response_token_hash: 'hash',
+}
+
+function assert(condition: boolean, message: string): void {
+  if (!condition) throw new Error(message)
+}
+
+type RestCall = { path: string; method: string; body: Record<string, unknown>; prefer: string }
+
+function fakeRest(response: unknown) {
+  const calls: RestCall[] = []
+  const rest = (args: RestCall) => {
+    calls.push(args)
+    return Promise.resolve(response)
+  }
+  return { calls, rest }
+}
+
+Deno.test('the survey insert is pending, ignores a duplicate on the ticket and returns the new id', async () => {
+  const { calls, rest } = fakeRest([{ id: 'survey-id' }])
+
+  assert((await insertSurveyOnce(row, rest)) === 'survey-id', 'a created row claims the survey')
+  assert(calls.length === 1, `calls: ${calls.length}`)
+  assert(
+    calls[0].path === 'cnps_surveys?on_conflict=tenant_id,ticket_id&select=id',
+    `path: ${calls[0].path}`
+  )
+  assert(calls[0].method === 'POST', `method: ${calls[0].method}`)
+  const prefer = calls[0].prefer.split(',')
+  assert(prefer.includes('resolution=ignore-duplicates'), `prefer: ${calls[0].prefer}`)
+  assert(prefer.includes('return=representation'), `prefer: ${calls[0].prefer}`)
+  assert(calls[0].body.sent_at === null, 'the row is inserted pending')
+  assert(calls[0].body.response_token_hash === 'hash', 'the token hash is sent')
+})
+
+Deno.test('no row back means another sender owns the survey', async () => {
+  for (const response of [[], undefined]) {
+    const { rest } = fakeRest(response)
+
+    assert((await insertSurveyOnce(row, rest)) === null, `response: ${JSON.stringify(response)}`)
+  }
+})
+
+Deno.test('sent_at is stamped on the tenant row only', async () => {
+  const { calls, rest } = fakeRest(undefined)
+
+  await markSurveySent('survey-id', 'tenant-id', '2026-11-24T00:00:00.000Z', rest)
+
+  assert(calls[0].path === 'cnps_surveys?id=eq.survey-id&tenant_id=eq.tenant-id', `path: ${calls[0].path}`)
+  assert(calls[0].method === 'PATCH', `method: ${calls[0].method}`)
+  assert(calls[0].body.sent_at === '2026-11-24T00:00:00.000Z', 'sent_at body')
+})
+
+function steps(surveyId: string | null, delivery: { ok: boolean; skipped?: boolean; error?: string }) {
+  const log: string[] = []
+  return {
+    log,
+    steps: {
+      insertSurvey: () => {
+        log.push('insert')
+        return Promise.resolve(surveyId)
+      },
+      send: () => {
+        log.push('send')
+        return Promise.resolve(delivery)
+      },
+      markSent: (id: string) => {
+        log.push(`mark:${id}`)
+        return Promise.resolve()
+      },
+    },
+  }
+}
+
+Deno.test('a ticket whose survey another sender created gets no email', async () => {
+  const { log, steps: s } = steps(null, { ok: true })
+
+  const result = await sendTicketSurvey(row, s)
+
+  assert(result.outcome === 'skipped_existing', `outcome: ${result.outcome}`)
+  assert(log.join(',') === 'insert', `steps: ${log.join(',')}`)
+})
+
+Deno.test('a delivered survey is stamped sent after the send', async () => {
+  const { log, steps: s } = steps('survey-id', { ok: true })
+
+  const result = await sendTicketSurvey(row, s)
+
+  assert(result.outcome === 'sent', `outcome: ${result.outcome}`)
+  assert(log.join(',') === 'insert,send,mark:survey-id', `steps: ${log.join(',')}`)
+})
+
+Deno.test('a failed or skipped send leaves the survey pending for a retry', async () => {
+  for (const delivery of [{ ok: false, error: 'Resend 500' }, { ok: true, skipped: true }]) {
+    const { log, steps: s } = steps('survey-id', delivery)
+
+    const result = await sendTicketSurvey(row, s)
+
+    assert(result.outcome === 'not_delivered', `outcome: ${result.outcome}`)
+    assert(log.join(',') === 'insert,send', `steps: ${log.join(',')}`)
+  }
+})

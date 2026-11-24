@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, bigint, integer, timestamp, boolean, index, uniqueIndex, jsonb, pgEnum, foreignKey } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { pgTable, uuid, varchar, text, bigint, integer, timestamp, boolean, index, uniqueIndex, jsonb, pgEnum, foreignKey, check } from 'drizzle-orm/pg-core'
 import { tenants } from './tenants'
 import { boms } from './boms'
 import { bomLineItems } from './bom-line-items'
@@ -175,6 +176,10 @@ export const rfqQuotes = pgTable(
     tenantSubmissionUq: uniqueIndex(
       'ux_rfq_quotes_tenant_submission'
     ).on(table.tenant_id, table.submission_id),
+    unitPricePositive: check(
+      'rfq_quotes_unit_price_positive',
+      sql`${table.unit_price_cents} > 0`
+    ),
     rfqTenantFk: foreignKey({
       name: 'rfq_quotes_rfq_tenant_fk',
       columns: [table.tenant_id, table.rfq_id],

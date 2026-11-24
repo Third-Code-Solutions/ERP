@@ -17,7 +17,7 @@ import {
   vendors,
 } from '@third-code-erp/database/schema'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
-import { TAX_DEFAULTS, formatBps } from '@third-code-erp/shared-types'
+import { vatRateLabel, withholdingRateLabel } from '@/app/(print)/invoices/invoice-print'
 import { PoStatusActions } from './po-status-actions'
 import { ApprovalTimeline } from '@/components/procurement/approval-timeline'
 import { ReceiveLineForm } from '@/components/procurement/receive-line-form'
@@ -418,8 +418,12 @@ export default async function PoDetailPage({ params }: { params: Promise<{ id: s
           <dl style={{ margin: 0 }}>
             {[
               { label: 'Subtotal', value: formatPHP(po.subtotal_cents) },
-              { label: `VAT (${formatBps(TAX_DEFAULTS.vatBps)})`, value: `+${formatPHP(po.vat_cents)}` },
-              { label: `Withholding Tax (${formatBps(TAX_DEFAULTS.ewtBps)})`, value: `−${formatPHP(po.withholding_tax_cents)}` },
+              // Rates as stored on this PO, as its print labels them: a zero VAT is 0%
+              // (PO VAT follows the profile rate, not VAT registration).
+              { label: `VAT (${vatRateLabel(po, null)})`, value: `+${formatPHP(po.vat_cents)}` },
+              ...(po.withholding_tax_cents > 0
+                ? [{ label: `Withholding Tax (${withholdingRateLabel(po)})`, value: `−${formatPHP(po.withholding_tax_cents)}` }]
+                : []),
             ].map(({ label, value }) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <dt style={{ fontSize: '0.875rem', color: 'var(--color-neutral-500)' }}>{label}</dt>

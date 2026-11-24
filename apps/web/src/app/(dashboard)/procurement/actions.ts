@@ -31,6 +31,8 @@ import { writeAuditLog, writeAuditLogInTransaction } from '@/lib/audit'
 import { notifyRoles } from '@/lib/operations/notifications'
 import {
   isSupplierEmailPoStatus,
+  supplierEmailResendThrottledMessage,
+  supplierEmailResendWaitMinutes,
   type SupplierEmailOutcome,
 } from '@/lib/procurement/supplier-email-outcome'
 import { sendSupplierPoEmail } from '@/lib/procurement/supplier-po-email'
@@ -1273,6 +1275,7 @@ export async function resendSupplierPoEmail(
       vendor_id: purchaseOrders.vendor_id,
       supplier_name: vendors.name,
       supplier_email: vendors.email,
+      supplier_email_sent_at: purchaseOrders.supplier_email_sent_at,
     })
     .from(purchaseOrders)
     .leftJoin(
@@ -1284,6 +1287,12 @@ export async function resendSupplierPoEmail(
   if (!po) return { error: 'Purchase Order not found.' }
   if (!isSupplierEmailPoStatus(po.status)) {
     return { error: 'Only an issued Purchase Order can be emailed to the supplier.' }
+  }
+  // shortcut: two resends of one PO in the same instant can both pass this read;
+  // claim the send with a conditional UPDATE if that ever matters.
+  const waitMinutes = supplierEmailResendWaitMinutes(po.supplier_email_sent_at, new Date())
+  if (waitMinutes > 0) {
+    return { error: supplierEmailResendThrottledMessage(waitMinutes) }
   }
 
   const emailOutcome = await sendSupplierPoEmail({
