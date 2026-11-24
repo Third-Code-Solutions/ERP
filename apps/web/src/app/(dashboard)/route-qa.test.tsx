@@ -92,11 +92,14 @@ describe('route QA workflow entry points', () => {
     expect(failure).toContain('Try again')
     expect(failure).not.toContain('Cannot GET')
     expect(failure).not.toContain('Health by business unit')
+    expect(failure).toContain('Open deadlines')
     mocks.health.mockResolvedValue({ ok: true, data: { byBu: [], observeMode: true, generatedAt: '2026-09-07T03:00:00Z' } })
     const empty = renderToStaticMarkup(await ProcessPage({}))
-    expect(empty).toContain('Health by business unit')
+    expect(empty).toContain('Open deadlines')
+    expect(empty).toContain('Workflow engine, not configured')
+    expect(empty).not.toContain('Health by business unit')
+    expect(empty).not.toContain('Process task queue')
     expect(empty).not.toContain('role="alert"')
-    expect(empty).toContain('No open workflow tasks')
     expect(empty).toContain('href="/tasks"')
     expect(empty).toContain('href="/projects"')
     expect(empty).not.toContain('Process health summary')
@@ -125,6 +128,63 @@ describe('route QA workflow entry points', () => {
     expect(html).toContain(observeMode
       ? 'Automatic escalation is off.'
       : 'Automatic escalation is enabled for eligible internal deadlines.')
+  })
+
+  describe('process open deadlines', () => {
+    const OPPORTUNITY_ID = '11111111-1111-4111-8111-111111111111'
+    const PUNCHLIST_ID = '22222222-2222-4222-8222-222222222222'
+    const businessClock = { clock_type: 'business_days', breach_business_days: 5, warning_at_pct: 0.8 }
+
+    function useSlaRows(rows: unknown[]) {
+      const query = {
+        from: vi.fn(), where: vi.fn(), orderBy: vi.fn(), limit: vi.fn(),
+        then: (resolve: (value: unknown[]) => unknown) => Promise.resolve(resolve(rows)),
+      }
+      for (const method of [query.from, query.where, query.orderBy, query.limit]) method.mockReturnValue(query)
+      mocks.select.mockReturnValue(query)
+      return query
+    }
+
+    const slaRows = [
+      { id: 'log-1', entity_type: 'opportunity', entity_id: OPPORTUNITY_ID, sla_label: 'opp.stage_response', started_at: new Date('2020-01-06T09:00:00+08:00'), sla_seconds: businessClock },
+      { id: 'log-2', entity_type: 'punchlist_item', entity_id: PUNCHLIST_ID, sla_label: 'punchlist.due_date', started_at: new Date('2020-01-06T09:00:00+08:00'), sla_seconds: businessClock },
+    ]
+
+    it('lists tenant deadlines with a link and no identifiers, and keeps them when the workflow engine is down', async () => {
+      const query = useSlaRows(slaRows)
+      mocks.health.mockRejectedValue(new Error('connect ECONNREFUSED 10.0.0.1:3001'))
+      const html = renderToStaticMarkup(await ProcessPage({}))
+      expect(query.where).toHaveBeenCalledTimes(1)
+      expect(html).toContain('Opportunity stage response')
+      expect(html).toContain('Punchlist item due')
+      expect(html).toContain('Overdue')
+      expect(html).toContain(`href="/crm/opportunities/${OPPORTUNITY_ID}"`)
+      expect(html).toContain(`href="/punchlist/${PUNCHLIST_ID}"`)
+      expect(html.replace(/href="[^"]*"/g, '')).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/)
+      expect(html).toContain('Workflow engine status could not be loaded')
+      expect(html).toContain('Try again')
+      expect(html).not.toContain('ECONNREFUSED')
+    })
+
+    it('leaves out deadlines the role cannot open', async () => {
+      useSlaRows(slaRows)
+      mocks.profile.mockResolvedValue({ role: 'sales', tenantId: 'qa-tenant', user: { id: 'qa-user' }, fullName: 'QA Sales' })
+      mocks.health.mockResolvedValue({ ok: true, data: { byBu: [], observeMode: true, generatedAt: '2026-09-07T03:00:00Z' } })
+      const html = renderToStaticMarkup(await ProcessPage({}))
+      expect(html).toContain('Opportunity stage response')
+      expect(html).not.toContain('Punchlist item due')
+      expect(html).not.toContain('/punchlist/')
+    })
+
+    it('says so when the deadlines cannot be read instead of showing an empty list', async () => {
+      mocks.select.mockImplementation(() => { throw new Error('connection terminated') })
+      mocks.health.mockResolvedValue({ ok: true, data: { byBu: [], observeMode: true, generatedAt: '2026-09-07T03:00:00Z' } })
+      const html = renderToStaticMarkup(await ProcessPage({}))
+      expect(html).toContain('We could not load your open deadlines')
+      expect(html).not.toContain('No open deadlines')
+      expect(html).not.toContain('connection terminated')
+      expect(html).toContain('Workflow engine, not configured')
+    })
   })
 
   it('shows account and opportunity empty states with the PPRF prerequisite', async () => {

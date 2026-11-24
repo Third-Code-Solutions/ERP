@@ -51,7 +51,7 @@ export function parseSlaConfig(raw: unknown): SlaConfig | null {
   }
 }
 
-function dateInPhilippines(value: Date): string {
+export function dateInPhilippines(value: Date): string {
   return formatInTimeZone(value, PHILIPPINE_TIME_ZONE, 'yyyy-MM-dd')
 }
 
