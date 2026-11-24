@@ -12,9 +12,9 @@ test.describe('M-Portal BOM (public)', () => {
 
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
 
-    // Title is set by the portal layout: "BOM Portal | ABI OPS".
+    // The portal names the issuing company, so the tab carries the page title only.
     const title = await page.title()
-    expect(title).toMatch(/ABI OPS/i)
+    expect(title).toBe('Review your BOM')
 
     // No Next.js error overlay.
     const overlay = await page.locator('nextjs-portal').count()

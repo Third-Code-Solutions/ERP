@@ -16,7 +16,7 @@ import { submitTicket } from './actions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Warranty Support | ABI OPS',
+  title: 'Warranty Support',
   robots: { index: false, follow: false },
 }
 
