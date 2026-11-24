@@ -1,6 +1,11 @@
 'use client'
 
+import React, { useState } from 'react'
 import type { ProjectLocationOption } from '@/app/(dashboard)/projects/[id]/bom/actions'
+import {
+  BomLineEditRow,
+  type BomLineEditInput,
+} from '@/components/bom/bom-line-edit-row'
 import { deriveBoqLineAmount, formatBoqQuantity } from '@third-code-erp/shared-types/bom'
 
 // US-011 — Extracted BOM line row. Keeps `bom-builder.tsx` lean by isolating
@@ -26,6 +31,10 @@ export interface BomLineRowItem {
   item_no: string | null
   notes?: string | null
   dupa?: BomDupaDetail
+  /** An AI-drafted line stays unpriced until a DUPA is attached. */
+  ai_drafted?: boolean
+  /** The row version the edit row sends back, so a newer line is never overwritten. */
+  updated_at?: Date | string
 }
 
 export interface BomDupaDetail {
@@ -93,6 +102,8 @@ interface BomLineRowProps {
   isPending: boolean
   onSelect: () => void
   onDelete: () => void
+  // Resolves to the plain-language error to show, or null once the line is saved.
+  onSave: (input: BomLineEditInput) => Promise<string | null>
   onLocationChange: (locationId: string | null) => void
   onDupaEdit: () => void
   locationOptions: ProjectLocationOption[]
@@ -267,6 +278,11 @@ export function isLineFlagged(item: BomLineRowItem): boolean {
   return false
 }
 
+function deleteConfirmation(item: BomLineRowItem): string {
+  const withDupa = item.dupa ? ' and its DUPA' : ''
+  return `Delete "${item.description}"${withDupa}? This cannot be undone.`
+}
+
 export function BomLineRow({
   item,
   isSelected,
@@ -274,17 +290,34 @@ export function BomLineRow({
   isPending,
   onSelect,
   onDelete,
+  onSave,
   onLocationChange,
   onDupaEdit,
   locationOptions,
   sourceBadge,
   depth = 0,
 }: BomLineRowProps) {
+  const [isEditingLine, setIsEditingLine] = useState(false)
   const vendor = parseVendorFromNotes(item.notes)
   const flagged = isLineFlagged(item)
   const selectedLocation = item.location_id
     ? locationOptions.find((location) => location.id === item.location_id)
     : null
+
+  if (isEditingLine) {
+    return (
+      <BomLineEditRow
+        item={item}
+        depth={depth}
+        onSave={async (input) => {
+          const failure = await onSave(input)
+          if (!failure) setIsEditingLine(false)
+          return failure
+        }}
+        onCancel={() => setIsEditingLine(false)}
+      />
+    )
+  }
 
   return (
     <tr
@@ -442,12 +475,33 @@ export function BomLineRow({
         {formatPHP(effectiveLineTotal(item))}
       </td>
       {isEditable && (
-        <td>
+        <td style={{ whiteSpace: 'nowrap' }}>
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              onDelete()
+              setIsEditingLine(true)
+            }}
+            disabled={isPending}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: isPending ? 'not-allowed' : 'pointer',
+              color: 'var(--color-navy-text)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              padding: '2px 6px',
+              opacity: isPending ? 0.5 : 1,
+            }}
+            aria-label={`Edit ${item.description}`}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (window.confirm(deleteConfirmation(item))) onDelete()
             }}
             disabled={isPending}
             style={{
@@ -459,7 +513,7 @@ export function BomLineRow({
               padding: '2px 6px',
               opacity: isPending ? 0.5 : 1,
             }}
-            aria-label="Delete line item"
+            aria-label={`Delete ${item.description}`}
           >
             ×
           </button>
