@@ -14,7 +14,7 @@
     "sourceCount": 194,
     "pendingCount": 37,
     "appliedHead": "20260901141949",
-    "sourceHead": "20261124180000",
+    "sourceHead": "20261124190000",
     "ledgerStatus": "current_remote_ledger_matches_source",
     "purchaseOrderPreflight": {
       "duplicateGroups": 0,
@@ -258,7 +258,7 @@
     {
       "id": "20261124-procurement-requisition-event-request-hash",
       "migrations": [
-        "20261124180000_procurement_requisition_event_request_hash.sql"
+        "20261124190000_procurement_requisition_event_request_hash.sql"
       ],
       "status": "source_only_pending_recovery_rehearsal_and_hosted_approval",
       "hostedApplyApproved": false,
