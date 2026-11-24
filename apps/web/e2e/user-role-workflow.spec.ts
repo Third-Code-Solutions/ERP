@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './base-test'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 

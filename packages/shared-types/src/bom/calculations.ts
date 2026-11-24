@@ -218,6 +218,46 @@ export function bomTotalCost(lines: { line_total_cents: number }[]): number {
   return safeNumber(total, 'BOM total cost')
 }
 
+export interface BomTotalsLine {
+  line_total_cents: number
+  unit_cost_cents: number
+  /** numeric(18,4) decimal string as stored on the line. */
+  quantity: string
+  parent_line_item_id: string | null
+}
+
+export interface BomTotals {
+  total_cost_cents: number
+  tcv_cents: number
+  gp_cents: number
+  gp_margin_bps: BasisPoints
+}
+
+/**
+ * BOM header totals, the one formula every BOM writer uses. Only top-level
+ * lines count (attached materials are inside their work item):
+ * cost = sum of raw unit cost x quantity (no markup), TCV = sum of the
+ * rate-source line totals (never a UI markup), GP = TCV - cost.
+ */
+export function computeBomTotals(lines: ReadonlyArray<BomTotalsLine>): BomTotals {
+  const commercialLines = topLevelBomLines(lines, (line) => line.parent_line_item_id)
+  const total_cost_cents = safeNumber(
+    commercialLines.reduce(
+      (sum, line) => sum + BigInt(manualLineTotal(line.unit_cost_cents, line.quantity)),
+      0n
+    ),
+    'BOM total cost'
+  )
+  const tcv_cents = bomTotalCost(commercialLines)
+  const gp_cents = computeGP(tcv_cents, total_cost_cents)
+  return {
+    total_cost_cents,
+    tcv_cents,
+    gp_cents,
+    gp_margin_bps: computeGPMargin(gp_cents, tcv_cents),
+  }
+}
+
 // TCV = cost / (1 - margin)
 // marginBps: gross profit margin as basis points (e.g. 2000 = 20%)
 export function computeTCV(costCents: number, marginBps: BasisPoints): number {

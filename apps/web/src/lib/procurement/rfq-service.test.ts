@@ -123,7 +123,7 @@ describe('RFQ transaction service', () => {
 
   it('locks the tenant BOM and atomically creates nullable-actor audit evidence', async () => {
     const harness = transactionHarness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [
         {
@@ -213,7 +213,7 @@ describe('RFQ transaction service', () => {
       is_group: 0,
     })
     const harness = transactionHarness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [
         line('66666666-6666-4666-8666-666666666661', 'MAT-001', 'PC'),
@@ -242,7 +242,7 @@ describe('RFQ transaction service', () => {
 
   it('quotes the lines a Purchase Order buys, not a work item that has material lines', async () => {
     const harness = transactionHarness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [
         { id: 'section', code: null, description: 'Section', unit: null, quantity: 0, is_group: 1, parent_id: null, parent_line_item_id: null },
@@ -267,7 +267,7 @@ describe('RFQ transaction service', () => {
 
   it('returns the existing RFQ on retry without another insert or audit', async () => {
     const harness = transactionHarness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [{ id: ACTOR_ID }],
       [{ id: RFQ_ID, line_items: [{ code: 'MAT-001' }] }],
     ])
@@ -308,6 +308,23 @@ describe('RFQ transaction service', () => {
     expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
   })
 
+  it.each(['draft', 'archived'])('refuses an RFQ for a %s BOM before any other read', async (status) => {
+    const harness = transactionHarness([[{ id: BOM_ID, project_id: PROJECT_ID, status }]])
+
+    await expect(
+      createRfqFromBomRecord({
+        bomId: BOM_ID,
+        tenantId: TENANT_ID,
+        actorId: ACTOR_ID,
+        source: 'manual',
+      })
+    ).resolves.toEqual({ error: 'An RFQ can be created only for an approved or locked BOM' })
+
+    expect(harness.tx.select).toHaveBeenCalledOnce()
+    expect(harness.insert).not.toHaveBeenCalled()
+    expect(mocks.writeAuditLogInTransaction).not.toHaveBeenCalled()
+  })
+
   it('treats a BOM of a retired project as not found', async () => {
     const harness = transactionHarness([[]])
 
@@ -331,7 +348,7 @@ describe('RFQ transaction service', () => {
 
   it('downgrades a stale or cross-tenant event actor to system attribution', async () => {
     transactionHarness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [],
       [],
       [
@@ -362,7 +379,7 @@ describe('RFQ transaction service', () => {
 
   it('rejects when audit fails so the database transaction can roll back', async () => {
     transactionHarness([
-      [{ id: BOM_ID, project_id: PROJECT_ID }],
+      [{ id: BOM_ID, project_id: PROJECT_ID, status: 'approved' }],
       [{ id: ACTOR_ID }],
       [],
       [

@@ -1,0 +1,114 @@
+name: Verify trial readiness (live)
+
+# Live checks that each merged trial-readiness fix behaves as intended on
+# production, inside the dedicated E2E tenant and its E2E project. Specs live in
+# apps/web/e2e/trial-live (one file per PR, tagged @pr-<number>) and are selected
+# here by path only; every spec skips unless E2E_TRIAL_LIVE=1, so no other
+# workflow or local `playwright test` runs them by accident. Some checks write
+# inside the E2E project with run-scoped names and clean up after themselves.
+on:
+  workflow_dispatch:
+    inputs:
+      grep:
+        description: Only run tests matching this pattern (e.g. @pr-229 or @pr-229|@pr-230)
+        required: false
+        type: string
+        default: ""
+      grep_invert:
+        description: Skip tests matching this pattern (e.g. @needs-data)
+        required: false
+        type: string
+        default: ""
+
+concurrency:
+  group: verify-trial-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify trial readiness on production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04 # Playwright chromium does not support ubuntu-26.04 yet
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: https://thirdcode-erp.vercel.app
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+            /etc/apt/sources.list.d/google-chrome.sources
+          pnpm exec playwright install --with-deps chromium
+      # Secrets are scoped to this step only, not to install lifecycle scripts.
+      - name: Run live trial-readiness checks
+        working-directory: apps/web
+        env:
+          E2E_TRIAL_LIVE: "1"
+          PLAYWRIGHT_BASE_URL: https://thirdcode-erp.vercel.app
+          E2E_API_BASE_URL: https://third-code-erp-api-production.up.railway.app
+          NEXT_PUBLIC_SUPABASE_URL: https://aqqrtkmtcsfkbyyqxowv.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          E2E_DEMO_TENANT_SLUG: buildops-e2e
+          E2E_PROJECT_ID: ${{ vars.PRODUCTION_E2E_PROJECT_ID }}
+          TRIAL_GREP: ${{ inputs.grep }}
+          TRIAL_GREP_INVERT: ${{ inputs.grep_invert }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/tmp/trial-live/report.json
+          # No ARIA page snapshot of production pages in test-results on failure.
+          PLAYWRIGHT_NO_COPY_PROMPT: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY E2E_PROJECT_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "$name is required for live trial-readiness checks" >&2
+              exit 1
+            fi
+          done
+          mkdir -p "$(dirname "$PLAYWRIGHT_JSON_OUTPUT_FILE")"
+          # JSON keeps only test.step steps, never page URLs (the HTML report and
+          # traces do). Screenshots and video are off in gateTrialLive().
+          args=(e2e/trial-live --project=chromium --workers=1 --retries=0 --trace=off "--reporter=list,json")
+          if [[ -n "$TRIAL_GREP" ]]; then args+=(--grep "$TRIAL_GREP"); fi
+          if [[ -n "$TRIAL_GREP_INVERT" ]]; then args+=(--grep-invert "$TRIAL_GREP_INVERT"); fi
+          status=0
+          pnpm exec playwright test "${args[@]}" || status=$?
+          node "$GITHUB_WORKSPACE/scripts/assert-playwright-no-skips.mjs" \
+            "$PLAYWRIGHT_JSON_OUTPUT_FILE" "live trial readiness"
+          exit "$status"
+      # The repo is public, so anyone signed in to GitHub can download the artifact.
+      - name: Check the report holds no portal link or session token
+        id: report_scan
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="$GITHUB_WORKSPACE/tmp/trial-live/report.json"
+          if [[ ! -f "$report" ]]; then exit 0; fi
+          if grep -Eq '/portal/(project|bom)/[A-Za-z0-9_-]{16,}|auth-token|eyJ' "$report"; then
+            echo "report.json contains a portal link or session token; it will not be uploaded" >&2
+            exit 1
+          fi
+      - name: Upload Playwright report
+        if: always() && steps.report_scan.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trial-live-playwright-report
+          path: tmp/trial-live/report.json
+          if-no-files-found: warn
+          retention-days: 14
