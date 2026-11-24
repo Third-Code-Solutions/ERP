@@ -19,7 +19,8 @@ export const USAGE = [
   'Usage: node scripts/import-material-items.mjs --tenant-id <uuid> --csv <file> [options]',
   '  --csv <file>             header: code,description,unit[,tracked]  (tracked: yes/no, blank = no)',
   "  --actor-user-id <uuid>   default: the tenant's earliest active owner/admin",
-  '  --apply                  write the items (default is a dry run)',
+  "  --apply                  write the items (default is a dry run). Holds the tenant's",
+  '                           audit lock until it commits, so app writes that audit wait.',
   'DATABASE_URL must be set in the environment.',
 ].join('\n')
 

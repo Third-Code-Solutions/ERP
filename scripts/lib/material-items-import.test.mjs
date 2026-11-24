@@ -10,6 +10,7 @@ import {
   planMaterialItemsImport,
   resolveUnit,
 } from './material-items-import.mjs'
+import { computeDatabaseAuditHash } from '../../packages/shared-types/src/audit/hash-chain.ts'
 
 const TENANT = '2b2b039c-b066-412b-af4c-564f2af6097e'
 
@@ -107,17 +108,25 @@ test('control characters are refused in code, description and unit', () => {
   )
 })
 
-test('the audit hash is the shared-types database audit hash of a material item create', () => {
+test('the audit hash is the shared-types database audit hash of a material item create', async () => {
   const id = '6f1c2a4e-1b2c-4d3e-8f90-123456789abc'
-  // sha256("genesis" + "material_item" + id + "create" + "2026-11-24 01:02:03.4+00")
-  assert.equal(
-    materialItemAuditHash('genesis', id, new Date('2026-11-24T01:02:03.400Z')),
-    '4c61fd9eb3ed405dde0a6f8db34db410ea9fa20680078aa18efd9f2ba7804ace'
-  )
-  assert.notEqual(
-    materialItemAuditHash('genesis', id, new Date('2026-11-24T01:02:03.000Z')),
-    materialItemAuditHash('genesis', id, new Date('2026-11-24T01:02:03.400Z'))
-  )
+  const prevHash = '4c61fd9eb3ed405dde0a6f8db34db410ea9fa20680078aa18efd9f2ba7804ace'
+  // Whole second, trailing-zero fraction, full millisecond: the cases the timestamp text trims differently.
+  for (const stamp of ['2026-11-24T01:02:03.000Z', '2026-11-24T01:02:03.400Z', '2026-11-24T23:59:59.123Z']) {
+    const createdAt = new Date(stamp)
+    for (const prev of ['genesis', prevHash]) {
+      assert.equal(
+        materialItemAuditHash(prev, id, createdAt),
+        await computeDatabaseAuditHash(prev, {
+          entity_type: 'material_item',
+          entity_id: id,
+          action: 'create',
+          created_at: createdAt,
+        }),
+        `${prev} at ${stamp}`
+      )
+    }
+  }
 })
 
 test('an import is capped', () => {

@@ -16,7 +16,8 @@
  * never creates units, because unit equivalence is the company's data. Any row
  * error refuses the whole run (exit code 3, nothing written). Each inserted item
  * gets a hash-chained audit_log entry; if a planned item cannot be inserted the
- * whole run rolls back (exit code 2).
+ * whole run rolls back (exit code 2). --apply holds the tenant's audit lock for the
+ * whole transaction, so app writes that audit for this tenant wait until it ends.
  */
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
