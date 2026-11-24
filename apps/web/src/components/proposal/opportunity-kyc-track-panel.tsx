@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import React, { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   opportunityKycTrackLabel,
@@ -10,6 +10,9 @@ import {
 import { updateOpportunityKycTrack } from '@/app/(dashboard)/crm/opportunities/[id]/proposal/kyc-actions'
 
 type TrackType = OpportunityKycTrackType
+
+export const REJECT_TRACK_CONFIRMATION =
+  'Reject this review track? It stays rejected until Sales resubmits the PPRF, which reopens both tracks.'
 
 export interface OpportunityKycTrackView {
   id: string
@@ -149,20 +152,42 @@ function TrackCard({
         <form action={onSubmit} className="track-form">
           <input type="hidden" name="opportunity_id" value={opportunityId} />
           <input type="hidden" name="track_type" value={track.track_type} />
-          <textarea name="notes" className="track-notes" placeholder="Decision notes; required for flag or reject." defaultValue={track.notes ?? track.decision_reason ?? ''} />
+          <textarea
+            name="notes"
+            className="track-notes"
+            placeholder={
+              track.status === 'flagged'
+                ? 'How the flag was resolved; required to recommend clear.'
+                : 'Decision notes; required for flag or reject.'
+            }
+            // A flagged track starts blank so the flag reason is never resubmitted as the resolution.
+            defaultValue={track.status === 'flagged' ? '' : (track.notes ?? '')}
+          />
           <div className="track-actions">
-            {canManage && (track.status === 'pending' || track.status === 'in_review') && (
+            {canManage && (track.status === 'pending' || track.status === 'in_review' || track.status === 'flagged') && (
               <>
                 {track.status === 'pending' && <button className="track-action" name="action" value="start" disabled={pending}>Start review</button>}
                 <button className="track-action primary" name="action" value="recommend" disabled={pending}>Recommend clear</button>
-                <button className="track-action danger" name="action" value="flag" disabled={pending}>Flag</button>
+                {track.status !== 'flagged' && (
+                  <button className="track-action danger" name="action" value="flag" disabled={pending}>Flag</button>
+                )}
               </>
             )}
             {canApprove && track.fc_recommended_at && track.status !== 'rejected' && (
               <button className="track-action primary" name="action" value="approve" disabled={pending}>Approve</button>
             )}
             {canApprove && track.status !== 'rejected' && (
-              <button className="track-action danger" name="action" value="reject" disabled={pending}>Reject</button>
+              <button
+                className="track-action danger"
+                name="action"
+                value="reject"
+                disabled={pending}
+                onClick={(event) => {
+                  if (!window.confirm(REJECT_TRACK_CONFIRMATION)) event.preventDefault()
+                }}
+              >
+                Reject
+              </button>
             )}
           </div>
         </form>

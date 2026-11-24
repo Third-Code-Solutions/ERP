@@ -76,7 +76,7 @@ function sorted(roles: readonly ErpRole[]): ErpRole[] {
 describe('canonical authorization policy', () => {
   it('contains each current Web/Core capability once and gives each a non-empty role policy', () => {
     expect(new Set(ERP_CAPABILITIES).size).toBe(ERP_CAPABILITIES.length)
-    expect(ERP_CAPABILITIES).toHaveLength(108)
+    expect(ERP_CAPABILITIES).toHaveLength(109)
 
     for (const capability of ERP_CAPABILITIES) {
       const roles = ERP_CAPABILITY_ROLES[capability]
@@ -147,9 +147,19 @@ describe('canonical authorization policy', () => {
     }
   )
 
+  it.each(ERP_ROLES)(
+    'limits Opportunity edits to owner, admin and sales for %s',
+    (role) => {
+      expect(roleHasCapability(role, 'opportunity.update')).toBe(
+        ['owner', 'admin', 'sales'].includes(role)
+      )
+    }
+  )
+
   it('retains distinct domain permissions instead of collapsing different workflows by name', () => {
     expect(ERP_CAPABILITIES).toEqual(
       expect.arrayContaining([
+        'opportunity.update',
         'opportunity.advance_stage',
         'opportunity.stage_change',
         'project.award',

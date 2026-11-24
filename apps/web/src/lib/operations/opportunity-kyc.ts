@@ -235,6 +235,13 @@ export async function applyOpportunityKycTrackAction(
         if (track.status === 'approved' || track.status === 'rejected') {
           return { ok: false, error: `Cannot recommend a ${track.status} track` }
         }
+        // Clearing a flag needs the reviewer's own account of how it was resolved.
+        if (track.status === 'flagged' && (!notes || notes === track.decision_reason)) {
+          return {
+            ok: false,
+            error: 'Add notes on how the flag was resolved before recommending this track',
+          }
+        }
         update = {
           ...base,
           status: 'in_review',
@@ -252,6 +259,10 @@ export async function applyOpportunityKycTrackAction(
         if (track.status === 'rejected') {
           return { ok: false, error: 'Rejected track requires a new PPRF submission' }
         }
+        // Rows flagged before a flag cleared the recommendation still carry one.
+        if (track.status === 'flagged') {
+          return { ok: false, error: 'A flagged track needs a new FC recommendation before approval' }
+        }
         update = {
           ...base,
           status: 'approved',
@@ -266,6 +277,9 @@ export async function applyOpportunityKycTrackAction(
           ...base,
           status: 'flagged',
           decision_reason: notes,
+          // A flag withdraws any earlier recommendation; FC must recommend again.
+          fc_recommended_by: null,
+          fc_recommended_at: null,
           president_decided_by: null,
           president_decided_at: null,
         }

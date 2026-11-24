@@ -11,7 +11,7 @@ import {
   opportunityStageWritesUseCoreApi,
   transitionOpportunityStageThroughCoreApi,
 } from '@/lib/erp-core-client'
-import { parsePesosToCents } from '@/lib/operations/scope-money'
+import { parseOpportunityCents as parseCents } from '@/lib/operations/scope-money'
 import { startSlaClock } from '@/lib/operations/sla-clock'
 import {
   PIPELINE_STAGES,
@@ -385,28 +385,8 @@ function revalidatePipelinePaths(): void {
   revalidatePath('/')
 }
 
-// ₱1,000,000,000 — the same cap as budget lines and cost entries.
-const MAX_OPPORTUNITY_CENTS = 100_000_000_000
 const INVALID_MONEY_ERROR =
   'TCV must be a peso amount from 0 to 1,000,000,000 and GP from -1,000,000,000 to 1,000,000,000, with at most 2 decimals.'
-
-/**
- * Blank means 0; otherwise exact pesos (no float math), or undefined when invalid.
- * GP may be negative (a loss-making deal), matching Core's signed GP schema.
- */
-function parseCents(
-  val: FormDataEntryValue | null,
-  { signed = false }: { signed?: boolean } = {}
-): number | undefined {
-  if (val === null) return 0
-  if (typeof val !== 'string' || val.length > 32) return undefined
-  const trimmed = val.trim()
-  if (trimmed === '') return 0
-  const negative = signed && trimmed.startsWith('-')
-  const cents = parsePesosToCents(negative ? trimmed.slice(1) : trimmed)
-  if (cents === undefined || cents > MAX_OPPORTUNITY_CENTS) return undefined
-  return negative && cents > 0 ? -cents : cents
-}
 
 function parseProb(val: FormDataEntryValue | null): number | null {
   const n = parseInt(String(val ?? ''), 10)
