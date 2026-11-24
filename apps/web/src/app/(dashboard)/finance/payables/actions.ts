@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -133,7 +134,7 @@ function safeSupplierBillError(error: unknown): string {
     return error.issues[0]?.message ?? 'Check the supplier bill fields.'
   }
 
-  const message = error instanceof Error ? error.message : ''
+  const message = errorChainMessage(error)
   const known = [
     'Reverse allocated Vendor disbursements first',
     'Purchase Order must be approved and issued before billing',
@@ -170,10 +171,8 @@ function safeSupplierBillError(error: unknown): string {
     'Reversal date cannot precede supplier bill date',
   ]
 
-  if (
-    message.includes('ux_supplier_bills_vendor_number') ||
-    message.includes('duplicate key value')
-  ) {
+  // Only the named constraint: other unique keys (internal number, bill lines) mean something else.
+  if (message.includes('ux_supplier_bills_vendor_number')) {
     return 'That Vendor bill number already exists for this Vendor.'
   }
 

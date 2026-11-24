@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import { getUserProfile, requireCapability, can } from '@third-code-erp/auth'
 import {
   db,
@@ -474,10 +475,8 @@ const PO_BUDGET_ERRORS = [
 ] as const
 
 function safePoBudgetError(error: unknown): string | null {
-  if (!(error instanceof Error)) return null
-  return (
-    PO_BUDGET_ERRORS.find((message) => error.message.includes(message)) ?? null
-  )
+  const chain = errorChainMessage(error)
+  return PO_BUDGET_ERRORS.find((message) => chain.includes(message)) ?? null
 }
 
 export async function createStandalonePo(

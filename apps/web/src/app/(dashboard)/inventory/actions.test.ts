@@ -319,6 +319,21 @@ describe('Stock Receipt creation compatibility seam', () => {
     )
     expect(mocks.execute).not.toHaveBeenCalled()
   })
+
+  it.each([
+    'Posting date cannot precede receipt date',
+    'Stock Receipt requires positive-valued lines',
+  ])('shows the database refusal "%s" instead of a generic failure', async (rule) => {
+    mocks.execute.mockRejectedValue(
+      new Error('Failed query: select * from public.post_stock_receipt', {
+        cause: new Error(rule),
+      })
+    )
+
+    await expect(
+      postStockReceipt({ receiptId: RECEIPT_ID, postingDate: '2026-08-01' })
+    ).resolves.toEqual({ ok: false, error: rule })
+  })
 })
 
 describe('Inventory item configuration migration switch', () => {

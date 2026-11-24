@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import {
@@ -68,7 +69,7 @@ function safeInventoryError(error: unknown): string {
   if (error instanceof z.ZodError) {
     return error.issues[0]?.message ?? 'Check the inventory fields.'
   }
-  const message = error instanceof Error ? error.message : ''
+  const message = errorChainMessage(error)
   const known = [
     'Quantity requires up to six decimal places',
     'Quantity must be positive and within the supported range',
@@ -85,6 +86,8 @@ function safeInventoryError(error: unknown): string {
     'Only a posted Stock Receipt can be reversed',
     'Stock Receipt reversal reason is required',
     'Reversal date cannot precede receipt date',
+    'Posting date cannot precede receipt date',
+    'Stock Receipt requires positive-valued lines',
     'Used UOM identity is immutable',
     'Used Warehouse identity is immutable',
     'Item stock identity is immutable after posting',

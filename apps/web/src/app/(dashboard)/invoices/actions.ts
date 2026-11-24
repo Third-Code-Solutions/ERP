@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { errorChainMessage } from '@/lib/error-chain-message'
 import { requireCapability, requireUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { invoices } from '@third-code-erp/database/schema'
@@ -32,7 +33,7 @@ function safeInvoiceError(error: unknown): string {
     return 'Choose a valid posting date.'
   }
 
-  const message = error instanceof Error ? error.message : ''
+  const message = errorChainMessage(error)
   const known = [
     'Reverse allocated customer receipts first',
     'Only an unposted draft invoice can be issued',
