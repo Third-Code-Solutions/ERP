@@ -68,6 +68,8 @@ const SIGNUP_DISABLED_CODES: ReadonlySet<string> = new Set([
 ])
 // Older Supabase releases return only the message text, with no error code.
 const SIGNUP_DISABLED_MESSAGE = /sign-?ups?\b.*\b(not allowed|disabled)/i
+// handle_new_user() refuses an identity without an invitation; Auth reports it with this text.
+const SIGNUP_REFUSED_BY_DATABASE = /database error saving new user/i
 
 /** Plain text for a failed sign-up; the provider's own wording is shown otherwise. */
 export function signupErrorMessage(error: {
@@ -76,6 +78,7 @@ export function signupErrorMessage(error: {
 }): string {
   const disabled =
     (error.code !== undefined && SIGNUP_DISABLED_CODES.has(error.code)) ||
-    SIGNUP_DISABLED_MESSAGE.test(error.message)
+    SIGNUP_DISABLED_MESSAGE.test(error.message) ||
+    SIGNUP_REFUSED_BY_DATABASE.test(error.message)
   return disabled ? SIGNUP_BY_INVITATION_MESSAGE : error.message
 }

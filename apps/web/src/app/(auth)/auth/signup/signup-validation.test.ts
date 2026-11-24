@@ -49,6 +49,10 @@ describe('signup provider errors', () => {
     ['email_provider_disabled by code', { code: 'email_provider_disabled', message: 'anything' }],
     ['the legacy message without a code', { message: 'Signups not allowed for this instance' }],
     ['the email provider message', { message: 'Email signups are disabled' }],
+    [
+      'the database refusal of an uninvited identity',
+      { code: 'unexpected_failure', message: 'Database error saving new user' },
+    ],
   ])('maps %s to the invitation-only message', (_label, error) => {
     expect(signupErrorMessage(error)).toBe(SIGNUP_BY_INVITATION_MESSAGE)
   })

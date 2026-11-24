@@ -16,6 +16,7 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { randomUUID } from 'node:crypto'
 import {
   getConfiguredDemoTenantSlug,
   selectDemoTenant,
@@ -128,7 +129,7 @@ async function findAuthUserByEmail(email) {
   return null
 }
 
-async function createOrUpdateAuthUser(email, password, fullName) {
+async function createOrUpdateAuthUser(email, password, fullName, placeProfile) {
   const existing = await findAuthUserByEmail(email)
   if (existing) {
     // Reset password for known-good demo state.
@@ -141,19 +142,31 @@ async function createOrUpdateAuthUser(email, password, fullName) {
       }),
     })
     if (!ok) throw new Error(`reset password failed for ${email}: ${JSON.stringify(body)}`)
+    await placeProfile(existing.id)
     return { id: existing.id, created: false }
   }
-  const { ok, body } = await adminFetch('/auth/v1/admin/users', {
-    method: 'POST',
-    body: JSON.stringify({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: fullName },
-    }),
-  })
-  if (!ok) throw new Error(`create auth user failed for ${email}: ${JSON.stringify(body)}`)
-  return { id: body.id, created: true }
+  // handle_new_user() refuses an Auth identity that has no profile, so the
+  // profile is placed first under an id chosen here and passed to Auth.
+  const id = randomUUID()
+  await placeProfile(id)
+  try {
+    const { ok, body } = await adminFetch('/auth/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        id,
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: fullName },
+      }),
+    })
+    if (!ok) throw new Error(`create auth user failed for ${email}: ${JSON.stringify(body)}`)
+  } catch (error) {
+    // Any failure, a network error included, would leave the placed profile orphaned.
+    await sql`DELETE FROM users WHERE id = ${id}`
+    throw error
+  }
+  return { id, created: true }
 }
 
 async function findOrPickTenant() {
@@ -191,8 +204,9 @@ try {
 
   for (const acct of ACCOUNTS) {
     try {
-      const auth = await createOrUpdateAuthUser(acct.email, SHARED_PASSWORD, acct.full_name)
-      await upsertPublicUser(auth.id, tenant.id, acct.email, acct.full_name, acct.role)
+      const auth = await createOrUpdateAuthUser(acct.email, SHARED_PASSWORD, acct.full_name, (id) =>
+        upsertPublicUser(id, tenant.id, acct.email, acct.full_name, acct.role)
+      )
       results.push({ ...acct, status: auth.created ? 'created' : 'reset', user_id: auth.id })
       console.log(
         `  ${auth.created ? '✓ created' : '↻ reset  '}  ${acct.email.padEnd(28)}  ${acct.role}`
