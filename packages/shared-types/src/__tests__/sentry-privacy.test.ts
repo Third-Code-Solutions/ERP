@@ -4,6 +4,7 @@ import {
   scrubSentryEvent,
   scrubSentryUrl,
   sentryErrorsOnlyOptions,
+  withoutSessionTracking,
 } from '../sentry-privacy'
 
 const DSN = 'https://key@o1.ingest.us.sentry.io/2'
@@ -23,6 +24,8 @@ describe('sentryErrorsOnlyOptions', () => {
       environment: 'production',
       release: 'abc123',
       tracesSampleRate: 0,
+      integrations: withoutSessionTracking,
+      sendClientReports: false,
       tracePropagationTargets: [],
       dataCollection: {
         userInfo: false,
@@ -45,6 +48,17 @@ describe('sentryErrorsOnlyOptions', () => {
       beforeBreadcrumb: dropConsoleBreadcrumb,
       beforeSend: scrubSentryEvent,
     })
+  })
+
+  it('keeps every default integration except browser session tracking', () => {
+    // @sentry/browser 11.12.0 getDefaultIntegrations, in order.
+    const defaults = ['EventFilters', 'FunctionToString', 'ConversationId', 'BrowserApiErrors', 'Breadcrumbs', 'Console', 'GlobalHandlers', 'LinkedErrors', 'Dedupe', 'HttpContext', 'CultureContext', 'BrowserSession']
+      .map((name) => ({ name }))
+    const options = sentryErrorsOnlyOptions({ dsn: DSN })
+    const integrations = options?.integrations(defaults).map(({ name }) => name)
+    expect(integrations).not.toContain('BrowserSession')
+    expect(integrations).toEqual(defaults.slice(0, -1).map(({ name }) => name))
+    expect(options?.sendClientReports).toBe(false)
   })
 
   it('omits unset environment and release instead of overriding SDK values', () => {

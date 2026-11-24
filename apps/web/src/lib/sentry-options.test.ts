@@ -24,7 +24,10 @@ describe('web sentryOptions', () => {
       dsn: DSN,
       environment: 'production',
       tracesSampleRate: 0,
+      sendClientReports: false,
     })
+    expect(sentryOptions()?.integrations([{ name: 'Dedupe' }, { name: 'BrowserSession' }]))
+      .toEqual([{ name: 'Dedupe' }])
     // The release is injected at build time by withSentryConfig.
     expect(sentryOptions()).not.toHaveProperty('release')
   })

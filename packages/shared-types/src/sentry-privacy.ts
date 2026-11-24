@@ -166,6 +166,17 @@ export function dropConsoleBreadcrumb<T extends { category?: string }>(
   return isConsoleBreadcrumb(breadcrumb) ? null : breadcrumb
 }
 
+/**
+ * `integrations`: the browser SDK's default BrowserSession integration sends
+ * a session envelope on every page load and navigation, which is not an
+ * error. Node and Nest have no such default, so there it changes nothing.
+ */
+export function withoutSessionTracking<T extends { name: string }>(
+  defaults: T[]
+): T[] {
+  return defaults.filter((integration) => integration.name !== 'BrowserSession')
+}
+
 export type SentryDeployment = {
   dsn?: string
   environment?: string
@@ -193,6 +204,9 @@ export function sentryErrorsOnlyOptions(deployment: SentryDeployment) {
     ...(environment ? { environment } : {}),
     ...(release ? { release } : {}),
     tracesSampleRate: 0,
+    integrations: withoutSessionTracking,
+    // Client reports count dropped events: SDK telemetry, not errors.
+    sendClientReports: false,
     // Never add sentry-trace/baggage headers to outbound requests (Supabase,
     // Core API, AI and e-sign providers): they would change those requests
     // and disclose the release and DSN key to third parties.
