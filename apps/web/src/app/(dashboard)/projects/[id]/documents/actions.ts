@@ -7,6 +7,7 @@ import { can, getUserProfile } from '@third-code-erp/auth'
 import { db } from '@third-code-erp/database'
 import { accountKycArtifacts, cadEvidenceCommitRequests, documentProcessingJobs, documents, progressClaimDocuments, scopeItems, siteInspectionPhotos, siteInspections } from '@third-code-erp/database/schema'
 import { and, eq, like } from 'drizzle-orm'
+import { documentStillReferencedMessage } from '@third-code-erp/shared-types'
 import { writeAuditLogInTransaction } from '@/lib/audit'
 import {
   deleteDocumentThroughCoreApi,
@@ -30,6 +31,22 @@ class KycEvidenceRetainedError extends Error {}
 class InspectionEvidenceRetainedError extends Error {}
 class CadEvidenceRetainedError extends Error {}
 class ProcessingHistoryRetainedError extends Error {}
+class DocumentStillReferencedError extends Error {}
+
+/** Constraint of a foreign-key violation (23503) in the driver error, or null when it is not one. */
+function foreignKeyViolation(error: unknown): { constraint: string | undefined } | null {
+  const seen = new Set<unknown>()
+  let current: unknown = error
+  while (typeof current === 'object' && current !== null && !seen.has(current)) {
+    seen.add(current)
+    const { code, constraint_name: constraint, cause } = current as Record<string, unknown>
+    if (typeof code === 'string') {
+      return code === '23503' ? { constraint: typeof constraint === 'string' ? constraint : undefined } : null
+    }
+    current = cause
+  }
+  return null
+}
 
 export async function deleteDocument(formData: FormData): Promise<DeleteResult> {
   const parsed = DeleteDocumentSchema.safeParse({
@@ -190,6 +207,13 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
           )
         )
         .returning({ id: documents.id })
+        .catch((error: unknown) => {
+          // Any other row still pointing at the document: refuse instead of a bare failure.
+          const violation = foreignKeyViolation(error)
+          throw violation
+            ? new DocumentStillReferencedError(documentStillReferencedMessage(violation.constraint))
+            : error
+        })
 
       if (!removedDocument) throw new DocumentNotFoundError()
 
@@ -214,6 +238,9 @@ export async function deleteDocument(formData: FormData): Promise<DeleteResult> 
       }
     })
   } catch (error) {
+    if (error instanceof DocumentStillReferencedError) {
+      return { ok: false, error: error.message }
+    }
     if (error instanceof ProcessingHistoryRetainedError) {
       return { ok: false, error: 'Document has processing history and cannot be deleted' }
     }

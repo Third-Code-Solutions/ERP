@@ -25,6 +25,7 @@ import {
 import {
   documentDeleteCommandSchema,
   documentDeleteResultSchema,
+  documentStillReferencedMessage,
   type DocumentDeleteResult,
 } from '@third-code-erp/shared-types'
 import { and, eq, like } from 'drizzle-orm'
@@ -35,6 +36,10 @@ import {
   DatabaseService,
   type DatabaseTransaction,
 } from '../database/database.service'
+import {
+  databaseErrorCode,
+  databaseErrorConstraint,
+} from '../database/database-error'
 
 type DeleteRequest = {
   id: string
@@ -223,6 +228,15 @@ export class DocumentDeleteService {
           )
         )
         .returning({ id: documents.id })
+        .catch((error: unknown) => {
+          // Any other row still pointing at the document: refuse instead of a bare 500.
+          if (databaseErrorCode(error) === '23503') {
+            throw new ConflictException(
+              documentStillReferencedMessage(databaseErrorConstraint(error))
+            )
+          }
+          throw error
+        })
       if (!deleted) throw new NotFoundException('Document not found')
 
       const result = documentDeleteResultSchema.parse({

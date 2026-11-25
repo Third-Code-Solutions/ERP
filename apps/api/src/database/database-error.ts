@@ -25,13 +25,23 @@ export function databaseErrorMessage(error: unknown): string {
 }
 
 export function databaseErrorCode(error: unknown): string | undefined {
+  return driverErrorField(error, 'code')
+}
+
+/** Name of the violated constraint, from the same driver error as the code. */
+export function databaseErrorConstraint(error: unknown): string | undefined {
+  return driverErrorField(error, 'constraint_name')
+}
+
+function driverErrorField(error: unknown, field: string): string | undefined {
   const visited = new Set<unknown>()
   let current: unknown = error
 
   while (isErrorRecord(current) && !visited.has(current)) {
     visited.add(current)
     if (typeof current.code === 'string' && current.code.length > 0) {
-      return current.code
+      const value = current[field]
+      return typeof value === 'string' && value.length > 0 ? value : undefined
     }
     current = current.cause
   }

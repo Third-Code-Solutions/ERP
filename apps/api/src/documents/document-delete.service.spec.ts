@@ -30,7 +30,7 @@ const REQUEST_HASH = createHash('sha256')
   .digest('hex')
 
 /** Transaction double that answers each select by the table it reads. */
-function enabledHarness(cadEvidence: Array<{ id: string }>) {
+function enabledHarness(cadEvidence: Array<{ id: string }>, documentDeleteError?: unknown) {
   const rowsByTable = new Map<unknown, unknown[]>([
     [users, [{ tenantId: PRINCIPAL.tenantId, role: 'pm', email: PRINCIPAL.email }]],
     [documentDeleteRequests, [{ id: '66666666-6666-4666-8666-666666666666', documentId: DOCUMENT_ID, requestHash: REQUEST_HASH, state: 'processing', result: null }]],
@@ -53,6 +53,7 @@ function enabledHarness(cadEvidence: Array<{ id: string }>) {
   const remove = vi.fn((table: unknown) => ({
     where: () => ({
       returning: async () => {
+        if (table === documents && documentDeleteError) throw documentDeleteError
         deleted.push(table)
         return table === documents ? [{ id: DOCUMENT_ID }] : []
       },
@@ -143,6 +144,38 @@ describe('DocumentDeleteService migration boundary', () => {
     expect(probe.deleted).toContain(documents)
     expect(probe.audit.writeSemantic).toHaveBeenCalledOnce()
     expect(probe.update).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['drawing_revisions_document_tenant_fk', 'Document is still referenced by a drawing revision and cannot be deleted'],
+    ['some_future_document_fk', 'Document is still referenced and cannot be deleted'],
+  ])('refuses a document that %s still references, with a 409 and no audit', async (constraint, message) => {
+    // Drizzle wraps the driver error in `cause`.
+    const violation = Object.assign(new Error('Failed query'), {
+      cause: Object.assign(new Error('update or delete on table "documents" violates foreign key constraint'), {
+        code: '23503',
+        constraint_name: constraint,
+      }),
+    })
+    const probe = enabledHarness([], violation)
+
+    const attempt = probe.service.delete(DOCUMENT_ID, PRINCIPAL, 'still-referenced')
+    await expect(attempt).rejects.toBeInstanceOf(ConflictException)
+    await expect(attempt).rejects.toThrow(message)
+    expect(probe.deleted).not.toContain(documents)
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+    expect(probe.update).not.toHaveBeenCalled()
+  })
+
+  it('rethrows a document delete failure that is not a foreign-key violation', async () => {
+    const failure = Object.assign(new Error('Failed query'), {
+      cause: Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' }),
+    })
+    const probe = enabledHarness([], failure)
+
+    await expect(probe.service.delete(DOCUMENT_ID, PRINCIPAL, 'other-failure')).rejects.toBe(failure)
+    expect(probe.audit.writeSemantic).not.toHaveBeenCalled()
+    expect(probe.update).not.toHaveBeenCalled()
   })
 
   it('fails closed by default without touching the database', async () => {

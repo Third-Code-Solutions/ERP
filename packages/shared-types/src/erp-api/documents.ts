@@ -26,6 +26,20 @@ export type DocumentDeleteCommand = z.infer<
 >
 export type DocumentDeleteResult = z.infer<typeof documentDeleteResultSchema>
 
+/** Known foreign keys that keep a document; any other gets the generic refusal. */
+const DOCUMENT_REFERENCE_LABELS = new Map<string, string>([
+  ['drawing_revisions_document_tenant_fk', 'a drawing revision'],
+  ['quality_hold_point_punchlist_handoffs_plan_document_tenant_fk', 'a punchlist handoff plan'],
+])
+
+/** Refusal for a document delete that a foreign key blocked (SQLSTATE 23503). */
+export function documentStillReferencedMessage(constraintName: string | undefined): string {
+  const label = constraintName ? DOCUMENT_REFERENCE_LABELS.get(constraintName) : undefined
+  return label
+    ? `Document is still referenced by ${label} and cannot be deleted`
+    : 'Document is still referenced and cannot be deleted'
+}
+
 // WHATWG URL parsing strips tab/LF/CR (so `.<TAB>.` becomes `..`) and trailing
 // spaces, treats `\` as `/`, and `%`, `?`, `#` change how the key is decoded. Every first-party writer
 // limits file names to [a-zA-Z0-9._-], so rejecting these loses no real file.
